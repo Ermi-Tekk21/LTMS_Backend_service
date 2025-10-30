@@ -1,12 +1,19 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import { EmailService } from './common/email/email.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly emailService: EmailService) {}
 
-  @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  @Get('test-email')
+  async testEmail() {
+    await this.emailService.sendMail(
+      'solomontadesse@gmail.com', 
+      'NestJS Email Test ',
+      'This is a plain text message from NestJS.',
+      '<h3>This is an <b>HTML</b> message from NestJS </h3>',
+    );
+
+    return { message: 'Test email sent!' };
   }
 }
