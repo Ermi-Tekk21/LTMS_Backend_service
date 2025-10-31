@@ -26,10 +26,4 @@ export class SessionParticipantMap {
 
   @Column({ type: 'json', nullable: true })
   attendance: Record<string, any>;
-
-  @CreateDateColumn({ type: 'timestamp with time zone' })
-  created_at: Date;
-
-  @UpdateDateColumn({ type: 'timestamp with time zone' })
-  updated_at: Date;
 }

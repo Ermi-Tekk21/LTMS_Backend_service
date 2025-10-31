@@ -17,50 +17,54 @@ export class Participant {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: 'varchar' })
+    @Column({ type: 'text' })
     first_name: string;
 
-    @Column({ type: 'varchar' })
+    @Column({ type: 'text' })
     last_name: string;
 
-    @Column({ type: 'varchar', nullable: true })
+    @Column({ type: 'text', nullable: true })
     gender: string | null;
 
-    @Column({ type: 'varchar', nullable: true })
+    @Column({ type: 'text', nullable: true })
     phone: string | null;
 
     @Index({ unique: true })
-    @Column({ type: 'varchar' })
+    @Column({ type: 'text' })
     email: string;
 
-    @Column({ type: 'varchar', nullable: true })
+    @Column({ type: 'text', nullable: true })
     address: string | null;
 
-    @Column({ type: 'varchar' })
-    created_by: string;
+    @Column({ default: false })
+    is_deleted: boolean
 
-    @Column({ type: 'varchar', nullable: true })
-    updated_by: string | null;
+    @Column({ type: "uuid", nullable: true })
+    created_by: string
 
-    @Column({ type: 'varchar', nullable: true })
+    @Column({ type: "uuid", nullable: true })
+    updated_by: string
+
+    @Column({ type: "uuid", nullable: true })
     deleted_by: string | null;
 
-    @CreateDateColumn({ type: 'timestamp with time zone' })
-    created_at: Date;
+    @CreateDateColumn({ type: "timestamp" })
+    created_at: Date
 
-    @UpdateDateColumn({ type: 'timestamp with time zone' })
+    @UpdateDateColumn({ type: "timestamp" })
     updated_at: Date;
 
-    @DeleteDateColumn({ type: 'timestamp with time zone', nullable: true })
+    @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
     deleted_at: Date | null;
 
-    // Many-to-Many with Event through a join table
     @ManyToMany(() => Event, (event) => event.participants)
     events: Event[];
 
     @OneToMany(
         () => SessionParticipantMap,
-        (sessionParticipantMap) => sessionParticipantMap.participant
+        (sessionParticipantMap) => sessionParticipantMap.participant, {
+        cascade: true
+    }
     )
     session_participant_maps: SessionParticipantMap[];
 }

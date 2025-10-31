@@ -27,29 +27,30 @@ export class Trainer {
   @Column({ type: 'text' })
   email: string;
 
-  @Column({ type: 'text', nullable: true })
-  created_by: string;
+  @Column({ default: false })
+  is_deleted: boolean
 
-  @Column({ type: 'text', nullable: true })
-  updated_by: string;
+  @Column({ type: "uuid", nullable: true })
+  created_by: string
 
-  @Column({ type: 'text', nullable: true })
-  deleted_by: string;
+  @Column({ type: "uuid", nullable: true })
+  updated_by: string
 
-  @CreateDateColumn({ type: 'timestamp' })
-  created_at: Date;
+  @Column({ type: "uuid", nullable: true })
+  deleted_by: string | null;
 
-  @UpdateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: "timestamp" })
+  created_at: Date
+
+  @UpdateDateColumn({ type: "timestamp" })
   updated_at: Date;
 
-  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
   deleted_at: Date | null;
 
-  // 🔗 Many-to-Many - Event
   @ManyToMany(() => Event, (event) => event.trainers)
   events: Event[];
 
-  // 🔗 Many-to-Many - EventSession (inverse side, no JoinTable)
   @ManyToMany(() => EventSession, (eventSession) => eventSession.trainers)
   event_sessions: EventSession[];
 }

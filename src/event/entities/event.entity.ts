@@ -6,11 +6,15 @@ import {
     PrimaryGeneratedColumn,
     ManyToMany,
     JoinTable,
+    CreateDateColumn,
+    UpdateDateColumn,
+    DeleteDateColumn,
 } from 'typeorm';
 import { Activity } from '../activity/entities/activity.entity';
 import { Document } from '../document/entities/document.entity';
 import { Participant } from '../participant/entities/participant.entity';
 import { Trainer } from '../trainer/entities/trainer.entity';
+import { EventDate } from '../schedule/entities/EventDate.entity';
 
 @Entity('event')
 export class Event {
@@ -23,16 +27,46 @@ export class Event {
     @Column({ type: 'enum', enum: event_status })
     event_status: event_status;
 
-    // 📘 One-to-Many - Activity
-    @OneToMany(() => Activity, (activity) => activity.event)
-    activity: Activity[];
+    @OneToMany(() => Activity, (activity) => activity.event, {
+        cascade: true,
+    })
+    activities: Activity[];
 
-    // 📘 One-to-Many - Document
-    @OneToMany(() => Document, (document) => document.event)
-    document: Document[];
+    @OneToMany(() => Document, (document) => document.event, {
+        cascade: true,
+    })
+    documents: Document[];
 
-    // 🔗 Many-to-Many - Participant
-    @ManyToMany(() => Participant, (participant) => participant.events)
+    @OneToMany(() => EventDate, (eventDate) => eventDate.event, {
+        cascade: true,
+    })
+    event_dates: EventDate[];
+
+    @Column({ default: false })
+    is_deleted: boolean
+
+    @Column({ type: "uuid", nullable: true })
+    created_by: string
+
+    @Column({ type: "uuid", nullable: true })
+    updated_by: string
+
+    @Column({ type: "uuid", nullable: true })
+    deleted_by: string | null;
+
+    @CreateDateColumn({ type: "timestamp" })
+    created_at: Date
+
+    @UpdateDateColumn({ type: "timestamp" })
+    updated_at: Date;
+
+    @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
+    deleted_at: Date | null;
+
+    @ManyToMany(() => Participant, (participant) => participant.events, {
+        cascade: true,
+        onDelete: 'CASCADE',
+    })
     @JoinTable({
         name: 'event_participant_map',
         joinColumn: {
@@ -46,10 +80,12 @@ export class Event {
     })
     participants: Participant[];
 
-    // 🔗 Many-to-Many - Trainer
-    @ManyToMany(() => Trainer, (trainer) => trainer.events)
+    @ManyToMany(() => Trainer, (trainer) => trainer.events, {
+        cascade: true,
+        onDelete: 'CASCADE',
+    })
     @JoinTable({
-        name: 'event_trainer_map', // Join table name
+        name: 'event_trainer_map',
         joinColumn: {
             name: 'event_id',
             referencedColumnName: 'id',

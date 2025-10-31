@@ -1,6 +1,6 @@
 import { Event } from "src/event/entities/event.entity";
 import { activity_status_type, progres_status } from "src/shared/enums/status_enums";
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 @Entity('actitity')
 export class Activity {
@@ -16,7 +16,29 @@ export class Activity {
     @Column({ type: 'json', nullable: true })
     request: Record<string, any>;
 
-    // relationship
-    @ManyToOne(() => Event, (event) => event.activity)
+    @Column({ default: false })
+    is_deleted: boolean
+
+    @Column({ type: "uuid", nullable: true })
+    created_by: string
+
+    @Column({ type: "uuid", nullable: true })
+    updated_by: string
+
+    @Column({ type: "uuid", nullable: true })
+    deleted_by: string | null;
+
+    @CreateDateColumn({ type: "timestamp" })
+    created_at: Date
+
+    @UpdateDateColumn({ type: "timestamp" })
+    updated_at: Date;
+
+    @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
+    deleted_at: Date | null;
+
+    @ManyToOne(() => Event, (event) => event.activities, {
+        onDelete: 'CASCADE'
+    })
     event: Event;
 }

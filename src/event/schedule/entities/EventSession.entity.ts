@@ -1,4 +1,3 @@
-import { Event } from "src/event/entities/event.entity";
 import { doc_type } from "src/shared/enums/status_enums";
 import {
     Column,
@@ -8,6 +7,9 @@ import {
     PrimaryGeneratedColumn,
     ManyToMany,
     JoinTable,
+    CreateDateColumn,
+    UpdateDateColumn,
+    DeleteDateColumn,
 } from "typeorm";
 import { EventDate } from "./EventDate.entity";
 import { SessionParticipantMap } from "src/event/participant/entities/sessionParticipantMap.entity";
@@ -30,19 +32,45 @@ export class EventSession {
     @Column({ type: 'enum', enum: doc_type })
     doc_type: doc_type;
 
-    // 📘 Many-to-One - EventDate
-    @ManyToOne(() => EventDate, (eventDate) => eventDate.event_session)
-    event_date: Event;
+    @Column({ default: false })
+    is_deleted: boolean
 
-    // 📘 One-to-Many - SessionParticipantMap
+    @Column({ type: "uuid", nullable: true })
+    created_by: string
+
+    @Column({ type: "uuid", nullable: true })
+    updated_by: string
+
+    @Column({ type: "uuid", nullable: true })
+    deleted_by: string | null;
+
+    @CreateDateColumn({ type: "timestamp" })
+    created_at: Date
+
+    @UpdateDateColumn({ type: "timestamp" })
+    updated_at: Date;
+
+    @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
+    deleted_at: Date | null;
+
+    @ManyToOne(() => EventDate, (eventDate) => eventDate.event_sessions, {
+        onDelete: 'CASCADE'
+    })
+    event_date: EventDate;
+
     @OneToMany(
         () => SessionParticipantMap,
-        (sessionParticipantMap) => sessionParticipantMap.event_session
+        (sessionParticipantMap) => sessionParticipantMap.event_session,
+        {
+            cascade: true
+        }
     )
     session_participant_maps: SessionParticipantMap[];
 
-    // 🔗 Many-to-Many - Trainer
-    @ManyToMany(() => Trainer, (trainer) => trainer.event_sessions)
+    @ManyToMany(() => Trainer, (trainer) => trainer.event_sessions, {
+        cascade: true,
+        onDelete: 'CASCADE'
+    })
     @JoinTable({
         name: 'event_session_trainer_map',
         joinColumn: {

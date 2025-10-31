@@ -1,5 +1,14 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { Event } from 'src/event/entities/event.entity';
+import { Activity } from 'src/event/activity/entities/activity.entity';
+import { Document } from 'src/event/document/entities/document.entity';
+import { Participant } from 'src/event/participant/entities/participant.entity';
+import { SessionParticipantMap } from 'src/event/participant/entities/sessionParticipantMap.entity';
+import { EventSession } from 'src/event/schedule/entities/EventSession.entity';
+import { Trainer } from 'src/event/trainer/entities/trainer.entity';
+import { StatusAuditLog } from '../audit_log/entity/auditlog.entity';
+import { EventDate } from 'src/event/schedule/entities/EventDate.entity';
 
 ConfigModule.forRoot({ isGlobal: true });
 
@@ -10,6 +19,6 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  entities: [],
+  entities: [Event, Activity, Document, Participant, SessionParticipantMap, EventDate ,EventSession, Trainer, StatusAuditLog],
   synchronize: true, 
 };
