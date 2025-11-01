@@ -1,5 +1,5 @@
 import { Event } from "src/event/entities/event.entity";
-import { doc_type } from "src/shared/enums/status_enums";
+import { doc_type } from "src/common/enums/status_enums";
 import { Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { EventSession } from "./EventSession.entity";
 

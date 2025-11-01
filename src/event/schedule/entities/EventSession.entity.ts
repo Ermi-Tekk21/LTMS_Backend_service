@@ -1,4 +1,4 @@
-import { doc_type } from "src/shared/enums/status_enums";
+import { doc_type } from "src/common/enums/status_enums";
 import {
     Column,
     Entity,
