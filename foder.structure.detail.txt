@@ -1,0 +1,42 @@
+/src
+├── /training_event                 # The Root Module / Domain
+│   ├── training_event.module.ts    # Main module file to aggregate all sub-modules
+│   │
+│   ├── /event                      # Handles Training_Event
+│   │   ├── event.model.ts          # Defines the Training_Event entity/interface
+│   │   ├── event.service.ts        # Business logic for event CRUD, status changes
+│   │   └── event.controller.ts     # API routes for /events
+│   │
+│   ├── /schedule                   # Handles Event_Date and event_session
+│   │   ├── schedule.model.ts       # Defines Event_Date and event_session entities
+│   │   ├── schedule.service.ts     # Logic for managing dates, sessions, and agendas
+│   │   └── schedule.controller.ts
+│   │
+│   ├── /participant                # Handles Participant and Event_Participant_Map
+│   │   ├── participant.model.ts
+│   │   ├── participant.service.ts  # Logic for adding, removing, and tracking attendance
+│   │   └── participant.controller.ts
+│   │
+│   ├── /trainer                    # Handles Trainer and both Trainer Map tables
+│   │   ├── trainer.model.ts
+│   │   ├── trainer.service.ts      # Logic for trainer assignment to events and sessions
+│   │   └── trainer.controller.ts
+│   │
+│   ├── /activity                   # Handles Event_Activity_status (Budget, Promo statuses)
+│   │   ├── activity.model.ts
+│   │   ├── activity.service.ts     # Handles status updates and request data processing
+│   │   └── activity.controller.ts
+│   │
+│   └── /document                   # Handles Document
+│       ├── document.model.ts
+│       ├── document.service.ts     # Logic for file upload coordination and path storage
+│       └── document.controller.ts
+│
+└── /shared                         # Cross-cutting Concerns / Core Utilities
+    ├── /audit_log                  # status_audit_log
+    │   ├── audit_log.model.ts      # Defines the status_audit_log entity
+    │   └── audit_log.service.ts    # Generic service to log status changes (injected into all other services)
+    ├── /enums
+    │   └── status_enums.ts         # Centralized file for all Enums (progress_status, event_status, etc.)
+    └── /database
+        └── db_connector.ts         # Database connection and ORM setup
