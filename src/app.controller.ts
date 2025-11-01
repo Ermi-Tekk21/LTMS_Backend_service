@@ -1,11 +1,13 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import { EmailService } from './common/email/email.service';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Controller()
 export class AppController {
   constructor(private readonly emailService: EmailService) {}
 
   @Get('test-email')
+   @UseGuards(JwtAuthGuard)
   async testEmail() {
     await this.emailService.sendMail(
       'solomontadesse@gmail.com', 
