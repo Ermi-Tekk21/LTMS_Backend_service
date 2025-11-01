@@ -9,6 +9,7 @@ import { EventSession } from 'src/event/schedule/entities/EventSession.entity';
 import { Trainer } from 'src/event/trainer/entities/trainer.entity';
 import { StatusAuditLog } from '../audit_log/entity/auditlog.entity';
 import { EventDate } from 'src/event/schedule/entities/EventDate.entity';
+import { LowercaseSubscriber } from './lowercase.subscriber';
 
 ConfigModule.forRoot({ isGlobal: true });
 
@@ -19,6 +20,17 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  entities: [Event, Activity, Document, Participant, SessionParticipantMap, EventDate ,EventSession, Trainer, StatusAuditLog],
-  synchronize: true, 
+  entities: [
+    Event,
+    Activity,
+    Document,
+    Participant,
+    SessionParticipantMap,
+    EventDate,
+    EventSession,
+    Trainer,
+    StatusAuditLog,
+  ],
+  synchronize: true,
+  subscribers: [LowercaseSubscriber],
 };

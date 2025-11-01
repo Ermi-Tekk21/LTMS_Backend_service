@@ -58,7 +58,7 @@ export class Participant {
     deleted_at: Date | null;
 
     @ManyToMany(() => Event, (event) => event.participants)
-    events: Event[];
+    events: Event[] | null;
 
     @OneToMany(
         () => SessionParticipantMap,
@@ -66,5 +66,5 @@ export class Participant {
         cascade: true
     }
     )
-    session_participant_maps: SessionParticipantMap[];
+    session_participant_maps: SessionParticipantMap[] | null;
 }
