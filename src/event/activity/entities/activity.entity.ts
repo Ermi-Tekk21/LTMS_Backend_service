@@ -1,6 +1,7 @@
+import { Document } from "src/event/document/entities/document.entity";
 import { Event } from "src/event/entities/event.entity";
 import { activity_status_type, progres_status } from "src/shared/enums/status_enums";
-import { Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 @Entity('actitity')
 export class Activity {
@@ -14,7 +15,7 @@ export class Activity {
     activity_status: progres_status;
 
     @Column({ type: 'json', nullable: true })
-    request: Record<string, any>;
+    request: Record<string, any> | null;
 
     @Column({ default: false })
     is_deleted: boolean
@@ -41,4 +42,8 @@ export class Activity {
         onDelete: 'CASCADE'
     })
     event: Event;
+
+    // Document relationship (only for LOGISTICS)
+    @OneToMany(() => Document, (document) => document.activity, { cascade: true })
+    documents: Document[];
 }
