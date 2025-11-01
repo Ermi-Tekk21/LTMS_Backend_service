@@ -1,5 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { EmailService } from './common/email/email.service';
+import { EmailService } from './common/notification/email.service';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Controller()

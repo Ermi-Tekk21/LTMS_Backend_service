@@ -1,4 +1,4 @@
-import { event_status } from 'src/shared/enums/status_enums';
+import { event_status } from 'src/common/enums/status_enums';
 import {
     Column,
     Entity,
