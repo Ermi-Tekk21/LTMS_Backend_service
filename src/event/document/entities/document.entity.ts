@@ -1,6 +1,6 @@
-import { Event } from "src/event/entities/event.entity";
-import { doc_type } from "src/shared/enums/status_enums";
 import { Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { doc_type } from "src/shared/enums/status_enums";
+import { Activity } from "src/event/activity/entities/activity.entity";
 
 @Entity('document')
 export class Document {
@@ -17,19 +17,19 @@ export class Document {
     doc_type: doc_type;
 
     @Column({ default: false })
-    is_deleted: boolean
+    is_deleted: boolean;
 
     @Column({ type: "uuid", nullable: true })
-    created_by: string
+    created_by: string;
 
     @Column({ type: "uuid", nullable: true })
-    updated_by: string
+    updated_by: string;
 
     @Column({ type: "uuid", nullable: true })
     deleted_by: string | null;
 
     @CreateDateColumn({ type: "timestamp" })
-    created_at: Date
+    created_at: Date;
 
     @UpdateDateColumn({ type: "timestamp" })
     updated_at: Date;
@@ -37,8 +37,7 @@ export class Document {
     @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
     deleted_at: Date | null;
 
-    @ManyToOne(() => Event, (event) => event.documents, {
-        onDelete: 'CASCADE'
-    })
-    event: Event;
+    // Relation back to Activity
+    @ManyToOne(() => Activity, (activity) => activity.documents, { onDelete: 'CASCADE' })
+    activity: Activity;
 }

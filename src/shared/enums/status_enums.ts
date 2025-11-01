@@ -1,27 +1,28 @@
 export enum event_status {
-    initiated,
-    inprogress,
-    ready,
-    closed
+    INITATED = "initiated",
+    INPROGRESS = "inprogress",
+    READY = "ready",
+    CLOSED = "closed"
 }
 
 export enum activity_status_type {
-    budget_status,
-    promotional_material_status
+    BUDGET_STATUS = "budget_status",
+    PROMOTIONAL_MATERIAL_STATUS = "promotional_material_status",
+    LOGISTICS = "logistics"
 }
 
 export enum progres_status {
-    pending,
-    accepted,
-    approved,
-    rejected,
-    done
+    PENDING = "pending",
+    ACCEPTED = "accepted",
+    APPROVED = "approved",
+    REJECTED = "rejected",
+    DONE = "done"
 }
 
 export enum doc_type {
-    tor,
-    training_material,
-    feedback,
-    attendance,
-    media
+    TOR = "tor",
+    TRAINING_MATERIAL = "training_material",
+    FEEDBACK = "feedback",
+    ATTENDANCE = "attendance",
+    MEDIA = "media"
 }
