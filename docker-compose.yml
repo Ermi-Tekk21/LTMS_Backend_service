@@ -1,0 +1,20 @@
+services:
+  ltms_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ltms_backend_service-ltms
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=10240
+    ports:
+      - "3020:3020"
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - ltms_network
+
+networks:
+  ltms_network:
+
+volumes:
+  ltms_uploads_volume:
