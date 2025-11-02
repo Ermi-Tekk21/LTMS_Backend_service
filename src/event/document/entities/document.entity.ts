@@ -1,7 +1,7 @@
 import { Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { doc_type } from "src/shared/enums/status_enums";
 import { Activity } from "src/event/activity/entities/activity.entity";
-
+import { Event } from "src/event/entities/event.entity";
 @Entity('document')
 export class Document {
     @PrimaryGeneratedColumn('uuid')
@@ -40,4 +40,7 @@ export class Document {
     // Relation back to Activity
     @ManyToOne(() => Activity, (activity) => activity.documents, { onDelete: 'CASCADE' })
     activity: Activity;
-}
+
+     @ManyToOne(() => Event, (event) => event.documents, { onDelete: 'CASCADE' })
+        event:Event;
+    }
