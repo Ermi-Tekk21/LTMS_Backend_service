@@ -1,5 +1,5 @@
 import { IsEnum, IsOptional, IsObject } from 'class-validator';
-import { activity_status_type, progres_status } from 'src/shared/enums/status_enums';
+import { activity_status_type, progres_status } from 'src/common/enums/status_enums';
 
 export class CreateActivityDto {
   @IsEnum(activity_status_type)

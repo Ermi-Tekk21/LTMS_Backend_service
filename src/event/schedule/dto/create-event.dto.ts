@@ -1,5 +1,5 @@
 import { IsDateString, IsEnum, IsString, IsUUID } from 'class-validator';
-import { doc_type } from 'src/shared/enums/status_enums';
+import { doc_type } from 'src/common/enums/status_enums';
 
 export class CreateEventDateDto {
   @IsString()

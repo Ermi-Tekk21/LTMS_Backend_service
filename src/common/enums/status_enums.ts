@@ -2,16 +2,19 @@ export enum event_status {
     INITATED = "initiated",
     INPROGRESS = "inprogress",
     READY = "ready",
+    IN_TRAINING = "in training",
     CLOSED = "closed"
 }
 
 export enum activity_status_type {
+    DRAFT = "draft",
     BUDGET_STATUS = "budget_status",
     PROMOTIONAL_MATERIAL_STATUS = "promotional_material_status",
     LOGISTICS = "logistics"
 }
 
 export enum progres_status {
+    DRAFT = "draft",
     PENDING = "pending",
     ACCEPTED = "accepted",
     APPROVED = "approved",
