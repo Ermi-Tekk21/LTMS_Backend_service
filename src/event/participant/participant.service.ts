@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ParticipantDAL } from './participant.dal';
+import { ParticipantDAL } from 'src/common/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
 
@@ -24,6 +24,6 @@ export class ParticipantService {
   }
 
   remove(id: string) {
-    return this.participantDAL.remove(id);
+    return this.participantDAL.delete(id);
   }
 }
