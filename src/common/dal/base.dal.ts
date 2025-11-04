@@ -77,7 +77,6 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
     }
   }
 
-
   async findOne(
     options: FindOneOptions<T>,
     queryRunner?: QueryRunner,
