@@ -58,6 +58,13 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
     return await this.repo.findOne({ where: { id } as FindOptionsWhere<T> });
   }
 
+  async findByEmail(email: string): Promise<T | null> {
+  return await this.repo.findOne({
+    where: { email } as unknown as FindOptionsWhere<T>,
+  });
+}
+
+
   async findPaginated(
     options: FindManyOptions<T>,
     page = 1,
