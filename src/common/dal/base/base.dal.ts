@@ -95,11 +95,13 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
 
   async softDelete(
     id: any,
+    deleted_by?: string,
     softField: keyof T = 'is_deleted' as keyof T,
     queryRunner?: QueryRunner,
+    
   ): Promise<void> {
     const repository = queryRunner ? queryRunner.manager.getRepository(this.repo.target) : this.repo;
-    await repository.update(id, { [softField]: true } as any);
+    await repository.update(id, { [softField]: true,deleted_by, deleted_at: new Date(),  } as any);
   }
 
   async restore(

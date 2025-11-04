@@ -6,5 +6,4 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
   @IsUUID()
   id: string;
 
- 
 }

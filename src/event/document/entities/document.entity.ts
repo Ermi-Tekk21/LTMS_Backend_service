@@ -14,7 +14,7 @@ export class Document {
     @Column({ type: "text" })
     file_type: string;
 
-    @Column({ type: 'enum', enum: doc_type })
+    @Column({ type: 'enum', enum: doc_type  })
     doc_type: doc_type;
 
     @Column({ default: false })
