@@ -11,6 +11,4 @@ export class CreateActivityDto {
   @IsOptional()
   @IsObject()
   request?: Record<string, any> | null;
-
-  
 }
