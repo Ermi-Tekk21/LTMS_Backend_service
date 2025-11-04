@@ -11,7 +11,7 @@ import {
     UpdateDateColumn,
     DeleteDateColumn,
 } from "typeorm";
-import { EventDate } from "./EventDate.entity";
+import { EventDate } from "src/event_date/entities/event_date.entity";
 import { SessionParticipantMap } from "src/event/participant/entities/sessionParticipantMap.entity";
 import { Trainer } from "src/event/trainer/entities/trainer.entity";
 
