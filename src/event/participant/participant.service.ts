@@ -1,5 +1,5 @@
 import { Injectable ,ConflictException} from '@nestjs/common';
-import { ParticipantDAL } from 'src/common/dal/participant.dal';
+import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
 import { Participant } from './entities/participant.entity';
