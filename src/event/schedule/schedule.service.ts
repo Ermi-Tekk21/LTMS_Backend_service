@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { CreateEventDateDto } from './dto/create-event.dto';
-import { UpdateEventDateDto } from './dto/update-event.dto';
+import { CreateEventDateDto } from './dto/create-event-date.dto';
+import { UpdateEventDateDto } from './dto/update-event-date.dto';
 
 @Injectable()
 export class ScheduleService {

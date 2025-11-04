@@ -33,7 +33,7 @@ export class Event {
     @Column({ type: 'timestamp' })
     due_date: Date;
 
-    @Column({ type: 'enum', enum: event_status })
+    @Column({ type: 'enum', enum: event_status, default: event_status.INITATED })
     event_status: event_status;
 
     @OneToMany(() => Activity, (activity) => activity.event, {
