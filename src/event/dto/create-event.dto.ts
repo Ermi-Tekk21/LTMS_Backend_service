@@ -1,9 +1,7 @@
 import {
   IsUUID,
   IsNumber,
-  IsDateString,
   ValidateNested,
-  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateEventDateDto } from '../schedule/dto/create-event-date.dto';
