@@ -1,25 +1,22 @@
-import { IsDateString, IsEnum,  IsString, IsUUID, IsArray } from 'class-validator';
-import { doc_type } from 'src/common/enums/status_enums';
+import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateEventSessionDto {
+  @IsOptional()
   @IsString()
   agenda: string;
 
+  @IsOptional()
   @IsDateString()
   starts_at: Date;
 
+  @IsOptional()
   @IsDateString()
   ends_at: Date;
-
-  @IsEnum(doc_type)
-  doc_type: doc_type;
 
   @IsUUID()
   event_date_id: string;
 
-  @IsArray()
-@IsUUID('all', { each: true })
-trainer_ids: string[];
-
-
+  @IsOptional()
+  @IsString()
+  venue: string;
 }
