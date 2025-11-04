@@ -10,7 +10,7 @@ export class PermissionGuard implements CanActivate {
 
   constructor(private readonly reflector: Reflector) {
     // Initialize GraphQL client for the permission microservice
-    this.graphqlClient = new GraphQLClient('http://192.168.0.130:3344/graphql', {
+    this.graphqlClient = new GraphQLClient('http://164.160.187.141:3344/graphql', {
       headers: { 
         'x-internal-api-key': 'dB+2Bo9VBHrMZQQsmS3pP+TPo0OjWEYo2guAPm9s'
       },
@@ -25,7 +25,6 @@ export class PermissionGuard implements CanActivate {
     ]);
 
     if (!permission) return true; 
-
     const { action, resource } = permission;
 
     const req =
@@ -38,16 +37,16 @@ export class PermissionGuard implements CanActivate {
 
     const perm = `${action}:${resource}`;
     const query = gql`
-      query UserHasPermission($userId: String!, $perm: String!) {
-        UserHasPermission(userId: $userId, perm: $perm)
+      query userHasPermission($userId: String!, $perm: String!) {
+        userHasPermission(userId: $userId, perm: $perm)
       }
     `;
 
     const variables = { userId: user.userId, perm };
-
+console.log('PermissionGuard variables:', variables);
     // Call permission service
     const response = await this.graphqlClient.request(query, variables);
-    const allowed = response.UserHasPermission;
+    const allowed = response.userHasPermission;
 
     console.log('Permission check for user:', user.userId, perm, '=>', allowed);
 

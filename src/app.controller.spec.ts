@@ -16,7 +16,7 @@ describe('AppController', () => {
 
   describe('root', () => {
     it('should return "Hello World!"', () => {
-      expect(appController.testEmail()).toBe('Email sent!');
+      expect(appController.testEmail({})).toBe('Email sent!');
     });
   });
 });
