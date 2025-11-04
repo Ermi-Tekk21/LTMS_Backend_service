@@ -21,6 +21,15 @@ export class Event {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
+    @Column({ type: 'uuid' })
+    project_id: string;
+
+    @Column({ type: 'text' })
+    type: string;
+
+    @Column({ type: 'text' })
+    name: string;
+
     @Column({ type: 'timestamp' })
     due_date: Date;
 
@@ -29,6 +38,7 @@ export class Event {
 
     @OneToMany(() => Activity, (activity) => activity.event, {
         cascade: true,
+        nullable: true,
     })
     activities: Activity[];
 
@@ -66,6 +76,7 @@ export class Event {
     @ManyToMany(() => Participant, (participant) => participant.events, {
         cascade: true,
         onDelete: 'CASCADE',
+        nullable: true
     })
     @JoinTable({
         name: 'event_participant_map',
@@ -83,6 +94,7 @@ export class Event {
     @ManyToMany(() => Trainer, (trainer) => trainer.events, {
         cascade: true,
         onDelete: 'CASCADE',
+        nullable: true,
     })
     @JoinTable({
         name: 'event_trainer_map',

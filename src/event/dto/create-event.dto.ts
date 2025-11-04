@@ -2,6 +2,7 @@ import {
   IsUUID,
   IsNumber,
   ValidateNested,
+  IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateEventDateDto } from '../schedule/dto/create-event-date.dto';
@@ -10,7 +11,7 @@ export class CreateEventDto {
   @IsUUID()
   name: string;
 
-  @IsUUID()
+  @IsString()
   type: string;
 
   @IsUUID()
