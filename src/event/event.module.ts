@@ -1,23 +1,27 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { EventService } from './event.service';
 import { EventController } from './event.controller';
 import { TrainerModule } from './trainer/trainer.module';
 import { ParticipantModule } from './participant/participant.module';
 import { ActivityModule } from './activity/activity.module';
 import { DocumentModule } from './document/document.module';
-import { EventDate } from 'src/event_date/entities/event_date.entity';
-import { EventSession } from 'src/event_session/entities/event_session.entity';
+import { EventDateModule } from './event_date/event_date.module';
+import { EventSessionModule } from './event_session/event_session.module';
+import { EventDAL } from './dal/event.dal';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Event } from './entities/event.entity';
 
 @Module({
   imports: [
-    EventDate,
-    EventSession,
+    TypeOrmModule.forFeature([Event]),
+    forwardRef(() => EventDateModule),
+    forwardRef(() => EventSessionModule),
     TrainerModule,
     ParticipantModule,
     ActivityModule,
     DocumentModule,
   ],
   controllers: [EventController],
-  providers: [EventService],
+  providers: [EventService, EventDAL],
 })
 export class EventModule { }

@@ -1,7 +1,6 @@
 import { Event } from "src/event/entities/event.entity";
-import { doc_type } from "src/common/enums/status_enums";
 import { Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
-import { EventSession } from "src/event_session/entities/event_session.entity";
+import { EventSession } from "src/event/event_session/entities/event_session.entity";
 
 @Entity('event-date')
 export class EventDate {
@@ -13,9 +12,6 @@ export class EventDate {
 
     @Column({ type: "date" })
     date: Date;
-
-    @Column({ type: 'enum', enum: doc_type })
-    doc_type: doc_type;
 
     @ManyToOne(() => Event, (event) => event.event_dates, {
         onDelete: 'CASCADE'

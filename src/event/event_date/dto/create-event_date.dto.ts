@@ -1,6 +1,6 @@
 import { ArrayMinSize, IsArray, IsDateString, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CreateEventSessionDto } from 'src/event_session/dto/create-event_session.dto';
+import { CreateEventSessionDto } from 'src/event/event_session/dto/create-event_session.dto';
 
 export class CreateEventDateDto {
   @IsOptional()

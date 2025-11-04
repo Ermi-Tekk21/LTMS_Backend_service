@@ -5,7 +5,7 @@ import {
   IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CreateEventDateDto } from '../schedule/dto/create-event-date.dto';
+import { CreateEventDateDto } from '../event_date/dto/create-event_date.dto';
 
 export class CreateEventDto {
   @IsUUID()

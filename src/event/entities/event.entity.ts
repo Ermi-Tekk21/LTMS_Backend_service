@@ -14,7 +14,7 @@ import { Activity } from '../activity/entities/activity.entity';
 import { Document } from '../document/entities/document.entity';
 import { Participant } from '../participant/entities/participant.entity';
 import { Trainer } from '../trainer/entities/trainer.entity';
-import { EventDate } from 'src/event_date/entities/event_date.entity';
+import { EventDate } from '../event_date/entities/event_date.entity';
 
 @Entity('event')
 export class Event {
@@ -30,7 +30,7 @@ export class Event {
     @Column({ type: 'text' })
     name: string;
 
-    @Column({ type: 'timestamp' })
+    @Column({ type: 'timestamp', nullable: true })
     due_date: Date;
 
     @Column({ type: 'enum', enum: event_status, default: event_status.INITATED })
@@ -44,6 +44,7 @@ export class Event {
 
     @OneToMany(() => Document, (document) => document.event, {
         cascade: true,
+        nullable: true
     })
     documents: Document[];
 

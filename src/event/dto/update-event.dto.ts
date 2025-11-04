@@ -5,7 +5,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { UpdateEventDateDto } from '../schedule/dto/update-event-date.dto';
+import { UpdateEventDateDto } from '../event_date/dto/update-event_date.dto';
 
 export class UpdateEventDto {
   @IsOptional()

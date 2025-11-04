@@ -1,4 +1,3 @@
-import { doc_type } from "src/common/enums/status_enums";
 import {
     Column,
     Entity,
@@ -11,7 +10,7 @@ import {
     UpdateDateColumn,
     DeleteDateColumn,
 } from "typeorm";
-import { EventDate } from "src/event_date/entities/event_date.entity";
+import { EventDate } from "src/event/event_date/entities/event_date.entity";
 import { SessionParticipantMap } from "src/event/participant/entities/sessionParticipantMap.entity";
 import { Trainer } from "src/event/trainer/entities/trainer.entity";
 
@@ -28,9 +27,6 @@ export class EventSession {
 
     @Column({ type: "date" })
     ends_at: Date;
-
-    @Column({ type: 'enum', enum: doc_type })
-    doc_type: doc_type;
 
     @Column({ default: false })
     is_deleted: boolean
