@@ -8,8 +8,8 @@ import { FindManyOptions, IsNull } from 'typeorm';
 @Injectable()
 export class ParticipantService {
   constructor(private readonly participantDAL: ParticipantDAL) {}
+
   async create(dto: CreateParticipantDto, created_by: string): Promise<Participant> {
-  
     // Create new participant
     return this.participantDAL.create({
       ...dto,
@@ -57,7 +57,6 @@ async remove(id: string) {
 
 async softDelete(id: string, deleted_by: string) {
   const existing = await this.participantDAL.findById(id);
-
   if (!existing) {
     throw new NotFoundException(`Participant with id ${id} not found.`);
   }

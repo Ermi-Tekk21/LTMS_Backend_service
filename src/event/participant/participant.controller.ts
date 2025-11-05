@@ -15,10 +15,10 @@ export class ParticipantController {
   return this.participantService.create(createParticipantDto, userId);
  }
 
-  @Get()
-  getAll() {
-    return this.participantService.findAll();
-  }
+  // @Get()
+  // getAll() {
+  //   return this.participantService.findAll();
+  // }
 
  @Get()
   findAll(
@@ -38,10 +38,11 @@ export class ParticipantController {
     return this.participantService.update(id, updateParticipantDto,userId);
   }
 
-  @Delete('delete/:id')
-  delete(@Param('id') id:string,){
-  return this.participantService.remove(id)
-  }
+  // permanent delete
+  // @Delete('delete/:id')
+  // delete(@Param('id') id:string,){
+  // return this.participantService.remove(id)
+  // }
   
   @Delete(':id')
   remove(@Param('id') id: string,@CurrentUser('userId') userId: string) {
