@@ -5,7 +5,6 @@ import {
     CreateDateColumn,
     UpdateDateColumn,
     DeleteDateColumn,
-    Index,
     ManyToMany,
     OneToMany,
 } from 'typeorm';
@@ -28,10 +27,6 @@ export class Participant {
 
     @Column({ type: 'text', nullable: true })
     phone: string | null;
-
-    @Index({ unique: true })
-    @Column({ type: 'text' })
-    email: string;
 
     @Column({ type: 'text', nullable: true })
     address: string | null;

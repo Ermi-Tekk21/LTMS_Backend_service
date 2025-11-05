@@ -10,12 +10,15 @@ import { EventSessionModule } from './event_session/event_session.module';
 import { EventDAL } from './dal/event.dal';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Event } from './entities/event.entity';
+import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Event]),
     forwardRef(() => EventDateModule),
     forwardRef(() => EventSessionModule),
+    forwardRef(() => DocumentModule),
+    forwardRef(() => AwsS3Module),
     TrainerModule,
     ParticipantModule,
     ActivityModule,

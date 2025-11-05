@@ -11,4 +11,4 @@ import { EventSession } from './entities/event_session.entity';
   providers: [EventSessionService, EventSessionDal],
   exports: [EventSessionService],
 })
-export class EventSessionModule {}
+export class EventSessionModule { }

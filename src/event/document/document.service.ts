@@ -1,11 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
+import { DeepPartial } from 'typeorm';
+import { QueryRunner } from 'typeorm/browser';
+import { DocumentDAL } from './dal/document.dal';
+import { Document } from './entities/document.entity';
 
 @Injectable()
 export class DocumentService {
-  create(createDocumentDto: CreateDocumentDto) {
-    return 'This action adds a new document';
+
+  constructor(
+    private readonly documentDal: DocumentDAL
+  ) { }
+
+  async create(data: DeepPartial<Document>, queryRunner?: QueryRunner) {
+    try {
+      return await this.documentDal.create(data, queryRunner)
+    } catch (error) {
+      throw new Error(`EventDateService.create failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   findAll() {
