@@ -8,7 +8,7 @@ import {
   ManyToMany,
 } from 'typeorm';
 import { Event } from 'src/event/entities/event.entity';
-import { EventSession } from 'src/event/schedule/entities/EventSession.entity';
+import { EventSession } from 'src/event/event_session/entities/event_session.entity';
 
 @Entity({ name: 'trainer' })
 export class Trainer {

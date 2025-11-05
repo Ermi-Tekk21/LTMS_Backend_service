@@ -3,11 +3,9 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
-  CreateDateColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { Participant } from '../../participant/entities/participant.entity';
-import { EventSession } from 'src/event/schedule/entities/EventSession.entity';
+import { EventSession } from 'src/event/event_session/entities/event_session.entity';
 
 @Entity('session_participant_map')
 export class SessionParticipantMap {

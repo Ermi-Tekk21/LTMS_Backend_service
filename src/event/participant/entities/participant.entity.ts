@@ -49,9 +49,6 @@ export class Participant {
 
     @Column({ type: 'text' })
     kebele: string ;
-    
-    @Column({ default: false })
-    is_deleted: boolean
 
     @Column({ type: "uuid", nullable: true })
     created_by: string
