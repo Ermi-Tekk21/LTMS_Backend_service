@@ -98,6 +98,69 @@ export class EventService {
     }
   }
   
+  async updateTrainersForEvent(eventId: string, trainerIds: string[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const eventRepo = queryRunner.manager.getRepository(Event);
+      const trainerRepo = queryRunner.manager.getRepository(Trainer);
+
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['trainers'],
+      });
+      if (!event) throw new NotFoundException('Event not found');
+
+      const trainers = await trainerRepo.findBy({ id: In(trainerIds) });
+      event.trainers = trainers;
+      const updatedEvent = await eventRepo.save(event);
+
+      await queryRunner.commitTransaction();
+      return updatedEvent;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+   async getEventTrainers(eventId: string) {
+    const event = await this.dataSource.getRepository(Event).findOne({
+      where: { id: eventId },
+      relations: ['trainers'],
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    return event.trainers;
+  }
+
+   async removeTrainersFromEvent(eventId: string, trainerIds: string[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const eventRepo = queryRunner.manager.getRepository(Event);
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['trainers'],
+      });
+      if (!event) throw new NotFoundException('Event not found');
+
+      event.trainers = event.trainers.filter(
+        (trainer) => !trainerIds.includes(trainer.id),
+      );
+      const updatedEvent = await eventRepo.save(event);
+
+      await queryRunner.commitTransaction();
+      return updatedEvent;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 
   findAll() {
     return `This action returns all event`;
