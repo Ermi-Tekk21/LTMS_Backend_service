@@ -28,7 +28,7 @@ export class EventService {
     try {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
       const folder = 'events/TOR/';
-      const uploadedFile = await this.awsS3Service.uploadFile(file, bucketName, folder);
+      // const uploadedFile = await this.awsS3Service.uploadFile(file, bucketName, folder);
 
       const event = await this.eventDAL.create(dto, queryRunner);
 
@@ -57,7 +57,7 @@ export class EventService {
       return {
         message: 'Event created successfully',
         event,
-        torDocument: uploadedFile,
+        // torDocument: uploadedFile,
       };
     } catch (err) {
       await queryRunner.rollbackTransaction();

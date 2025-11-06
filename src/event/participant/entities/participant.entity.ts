@@ -7,6 +7,7 @@ import {
     DeleteDateColumn,
     ManyToMany,
     OneToMany,
+    
 } from 'typeorm';
 import { Event } from 'src/event/entities/event.entity';
 import { SessionParticipantMap } from './sessionParticipantMap.entity';
@@ -22,23 +23,38 @@ export class Participant {
     @Column({ type: 'text' })
     last_name: string;
 
-    @Column({ type: 'text', nullable: true })
-    gender: string | null;
+    @Column({ type: 'text' })
+    gender: string 
+
+    @Column({ type: 'text',unique:true})
+    phone: string 
 
     @Column({ type: 'text', nullable: true })
-    phone: string | null;
+    occupation: string | null;
 
     @Column({ type: 'text', nullable: true })
-    address: string | null;
+    organization: string | null;
 
-    @Column({ default: false })
-    is_deleted: boolean
+    @Column({ type: 'text', nullable: true })
+    community_type : string | null;
+
+    @Column({type:'text'})
+    letracy_level:string 
+
+    @Column({ type: 'text'})
+    region: string | null;
+
+    @Column({ type: 'text' })
+    woreda: string ;
+
+    @Column({ type: 'text' })
+    kebele: string ;
 
     @Column({ type: "uuid", nullable: true })
     created_by: string
 
     @Column({ type: "uuid", nullable: true })
-    updated_by: string
+    updated_by: string |null
 
     @Column({ type: "uuid", nullable: true })
     deleted_by: string | null;

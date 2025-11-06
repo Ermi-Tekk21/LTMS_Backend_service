@@ -27,8 +27,12 @@ export class Trainer {
   @Column({ type: 'text' })
   email: string;
 
-  @Column({ default: false })
-  is_deleted: boolean
+  @Column({ type: 'text' })
+  occupation: string;
+
+  @Column({ type: 'text', nullable: true })
+  file_key: string;
+
 
   @Column({ type: "uuid", nullable: true })
   created_by: string

@@ -1,4 +1,4 @@
-import { IsEmail, IsString } from 'class-validator';
+import {  IsString } from 'class-validator';
 
 export class CreateParticipantDto {
   @IsString()
@@ -13,10 +13,29 @@ export class CreateParticipantDto {
   @IsString()
   phone: string;
 
-  @IsEmail()
-  email: string;
+  @IsString()
+  age: string;
 
   @IsString()
-  address: string;
+  occupation: string;
+
+  @IsString()
+  organization?: string;
+
+  @IsString()
+  community_type: string;
+
+  @IsString()
+  letracy_level:string 
+
+
+   @IsString()
+  region: string;
+
+  @IsString()
+  woreda: string;
+
+  @IsString()
+  kebele: string;
 
 }
