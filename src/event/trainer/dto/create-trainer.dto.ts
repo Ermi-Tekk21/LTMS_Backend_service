@@ -13,6 +13,12 @@ export class CreateTrainerDto {
   @IsEmail()
   email: string;
 
+  @IsString()
+  occupation:string;
+
+   @IsOptional()
+   @IsString()
+   file_key: string;
 
   // Optional relation fields for linking to events or sessions
   @IsOptional()

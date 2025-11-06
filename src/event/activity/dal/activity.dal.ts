@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { BaseDAL } from './base/base.dal';
+import { BaseDAL } from '../../../common/dal/base.dal';
 import { Activity } from 'src/event/activity/entities/activity.entity';
 
 @Injectable()

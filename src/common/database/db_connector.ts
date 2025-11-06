@@ -5,10 +5,10 @@ import { Activity } from 'src/event/activity/entities/activity.entity';
 import { Document } from 'src/event/document/entities/document.entity';
 import { Participant } from 'src/event/participant/entities/participant.entity';
 import { SessionParticipantMap } from 'src/event/participant/entities/sessionParticipantMap.entity';
-import { EventSession } from 'src/event/schedule/entities/EventSession.entity';
+import { EventSession } from 'src/event/event_session/entities/event_session.entity';
 import { Trainer } from 'src/event/trainer/entities/trainer.entity';
 import { StatusAuditLog } from '../audit_log/entity/auditlog.entity';
-import { EventDate } from 'src/event/schedule/entities/EventDate.entity';
+import { EventDate } from 'src/event/event_date/entities/event_date.entity';
 import { LowercaseSubscriber } from './lowercase.subscriber';
 
 ConfigModule.forRoot({ isGlobal: true });

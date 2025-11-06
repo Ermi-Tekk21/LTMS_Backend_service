@@ -9,6 +9,8 @@ import { AuditLogModule } from './common/audit_log/audit_log.module';
 import { EmailModule } from './common/notification/email.module';
 import { AwsS3Module } from './common/aws-s3/aws-s3.module';
 import { AuthModule } from './common/guards/auth.module';
+import { EventDateModule } from './event/event_date/event_date.module';
+import { EventSessionModule } from './event/event_session/event_session.module';
 
 @Module({
 
@@ -21,7 +23,9 @@ import { AuthModule } from './common/guards/auth.module';
     AuthModule,
     EmailModule,
     AwsS3Module,
-    EventModule
+    EventModule,
+    EventDateModule,
+    EventSessionModule
   ],
   controllers: [AppController],
   providers: [AppService],

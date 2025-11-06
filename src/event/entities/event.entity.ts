@@ -14,26 +14,37 @@ import { Activity } from '../activity/entities/activity.entity';
 import { Document } from '../document/entities/document.entity';
 import { Participant } from '../participant/entities/participant.entity';
 import { Trainer } from '../trainer/entities/trainer.entity';
-import { EventDate } from '../schedule/entities/EventDate.entity';
+import { EventDate } from '../event_date/entities/event_date.entity';
 
 @Entity('event')
 export class Event {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: 'timestamp' })
+    @Column({ type: 'uuid' })
+    project_id: string;
+
+    @Column({ type: 'text' })
+    type: string;
+
+    @Column({ type: 'text' })
+    name: string;
+
+    @Column({ type: 'timestamp', nullable: true })
     due_date: Date;
 
-    @Column({ type: 'enum', enum: event_status })
+    @Column({ type: 'enum', enum: event_status, default: event_status.INITATED })
     event_status: event_status;
 
     @OneToMany(() => Activity, (activity) => activity.event, {
         cascade: true,
+        nullable: true,
     })
     activities: Activity[];
 
     @OneToMany(() => Document, (document) => document.event, {
         cascade: true,
+        nullable: true
     })
     documents: Document[];
 
@@ -66,6 +77,7 @@ export class Event {
     @ManyToMany(() => Participant, (participant) => participant.events, {
         cascade: true,
         onDelete: 'CASCADE',
+        nullable: true
     })
     @JoinTable({
         name: 'event_participant_map',
@@ -83,6 +95,7 @@ export class Event {
     @ManyToMany(() => Trainer, (trainer) => trainer.events, {
         cascade: true,
         onDelete: 'CASCADE',
+        nullable: true,
     })
     @JoinTable({
         name: 'event_trainer_map',
