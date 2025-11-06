@@ -27,6 +27,14 @@ export class EventController {
     return this.eventService.update(+id, updateEventDto);
   }
 
+   @Post(':id/trainers')
+  async assignTrainers(
+    @Param('id') eventId: string,
+    @Body('trainerIds') trainerIds: string[],
+  ) {
+    return this.eventService.assignTrainersToEvent(eventId, trainerIds);
+  }
+  
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.eventService.remove(+id);

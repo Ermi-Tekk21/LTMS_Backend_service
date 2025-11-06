@@ -1,17 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { DataSource, QueryRunner } from 'typeorm';
+import { DataSource, QueryRunner, In } from 'typeorm';
 import { EventDAL } from './dal/event.dal';
 import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
-
+import { TrainerService } from './trainer/trainer.service';
+import { Trainer } from './trainer/entities/trainer.entity';
+import { Event } from './entities/event.entity';
 @Injectable()
 export class EventService {
   constructor(
     private readonly eventDAL: EventDAL,
     private readonly eventDateService: EventDateService,
     private readonly eventSessionService: EventSessionService,
+    private readonly trainerService: TrainerService,
     private readonly dataSource: DataSource,
   ) { }
 
@@ -45,6 +48,56 @@ export class EventService {
       await queryRunner.release();
     }
   }
+
+
+  async assignTrainersToEvent(eventId: string, trainerIds: string[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const eventRepo = queryRunner.manager.getRepository(Event);
+      const trainerRepo = queryRunner.manager.getRepository(Trainer);
+
+      const event: any = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['trainers'],
+      });
+      if (!event) throw new NotFoundException('Event not found');
+
+      // load trainers by ids
+      const trainers = await trainerRepo.findBy({ id: In(trainerIds) });
+
+      const foundIds = new Set(trainers.map((t) => t.id));
+      const missing = trainerIds.filter((id) => !foundIds.has(id));
+      if (missing.length) {
+        throw new NotFoundException(`Trainers not found: ${missing.join(', ')}`);
+      }
+
+      // ensure event.trainers array exists and avoid duplicates
+      event.trainers = event.trainers || [];
+      const existingIds = new Set(event.trainers.map((t) => t.id));
+      const trainersToAdd = trainers.filter((t) => !existingIds.has(t.id));
+
+      if (trainersToAdd.length) {
+        event.trainers = [...event.trainers, ...trainersToAdd];
+        await eventRepo.save(event);
+      }
+
+      await queryRunner.commitTransaction();
+
+      // return fresh event with trainers relation
+      return await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['trainers'],
+      });
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+  
 
   findAll() {
     return `This action returns all event`;
