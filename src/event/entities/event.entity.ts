@@ -48,9 +48,7 @@ export class Event {
     })
     documents: Document[];
 
-    @OneToMany(() => EventDate, (eventDate) => eventDate.event, {
-        cascade: true,
-    })
+    @OneToMany(() => EventDate, (eventDate) => eventDate.event )
     event_dates: EventDate[];
 
     @Column({ default: false })

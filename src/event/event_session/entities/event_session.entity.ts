@@ -19,13 +19,13 @@ export class EventSession {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: "text" })
+    @Column({ type: "text", nullable: true })
     agenda: string;
 
-    @Column({ type: "date" })
+    @Column({ type: "date", nullable: true })
     starts_at: Date;
 
-    @Column({ type: "date" })
+    @Column({ type: "date", nullable: true })
     ends_at: Date;
 
     @Column({ default: false })

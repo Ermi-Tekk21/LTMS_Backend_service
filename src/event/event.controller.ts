@@ -1,39 +1,23 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { multerOptions } from 'src/common/fileHandler/MulterOption';
 
 @Controller('event')
 export class EventController {
   constructor(private readonly eventService: EventService) { }
 
   @Post()
-  @UseInterceptors(FileInterceptor('TOR'))
+  @UseInterceptors(FileInterceptor('TOR', multerOptions(true, ['pdf'], 20)))
   async create(
-    @Body() createEventDto: CreateEventDto,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 3_000_000 }),
-          new FileTypeValidator({
-            fileType: /(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document)$/i,
-          }),
-        ],
-        exceptionFactory: () =>
-          new BadRequestException(
-            'Please attach a valid TOR document (PDF/DOC/DOCX) not exceeding 3MB',
-          ),
-      }),
-    )
-    file: Express.Multer.File,
+    @Body("data") data: string,
+    @UploadedFile() file: Express.Multer.File,
   ) {
-    if (!file) {
-      throw new BadRequestException('Please attach a TOR document to proceed.');
-    }
-    return this.eventService.create(createEventDto, file);
+    const parsedData: CreateEventDto = JSON.parse(data)
+    return this.eventService.create(parsedData, file);
   }
-
 
   @Get()
   findAll() {
@@ -42,16 +26,18 @@ export class EventController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.eventService.findOne(+id);
+    return this.eventService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
-    return this.eventService.update(+id, updateEventDto);
+    return this.eventService.update(id, updateEventDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.eventService.remove(+id);
+    return this.eventService.remove(id);
   }
 }
+
+

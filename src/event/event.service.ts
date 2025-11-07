@@ -27,15 +27,16 @@ export class EventService {
 
     try {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-      const folder = 'events/TOR/';
+      const folder = 'TOR';
+      
       // const uploadedFile = await this.awsS3Service.uploadFile(file, bucketName, folder);
 
       const event = await this.eventDAL.create(dto, queryRunner);
 
       await this.documentService.create({
         event: event,
-        path: "uploadedFile.key",
-        file_type: "file.mimetype",
+        path: `${folder}.${file.originalname.replaceAll(' ', '_')}`,
+        file_type: file.mimetype.split('/')[1],
         doc_type: doc_type.TOR,
       }, queryRunner);
 
@@ -67,20 +68,31 @@ export class EventService {
     }
   }
 
-
   findAll() {
     return `This action returns all event`;
   }
 
-  findOne(id: number) {
+  findOne(id: string) {
     return `This action returns a #${id} event`;
   }
 
-  update(id: number, updateEventDto: UpdateEventDto) {
+  update(id: string, updateEventDto: UpdateEventDto) {
     return `This action updates a #${id} event`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} event`;
+  async remove(id: string) {
+    try {
+      const result = await this.eventDAL.delete(id);
+      return {
+        success: true,
+        message: 'Event removed successfully',
+        id,
+        result,
+      };
+    } catch (err) {
+      throw new Error(
+        `Failed to remove event ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }
