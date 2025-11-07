@@ -29,7 +29,8 @@ export class AwsS3Service {
     // get extention of the file
     const ext = file.originalname.split('.').pop();
     // generate unique file name
-    const key = `${folder}${uuid()}.${ext}`;
+    const key = `${folder ? folder.replace(/\/?$/, '/') : ''}${uuid()}.${ext}`;
+
 
     const command = new PutObjectCommand({
       Bucket: bucket,
