@@ -15,7 +15,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       secretOrKey: secret,
     });
-    console.log('JwtStrategy initialized, secret present', secret);
   }
 
   // Called automatically when a valid JWT is found

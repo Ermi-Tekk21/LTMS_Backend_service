@@ -29,6 +29,11 @@ export class EventController {
     return this.eventService.findOne(id);
   }
 
+  @Get('tor/view-doc')
+  viewDoc() {
+    return this.eventService.viewDoc();
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
     return this.eventService.update(id, updateEventDto);

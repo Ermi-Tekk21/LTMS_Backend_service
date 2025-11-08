@@ -18,6 +18,7 @@ import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
     forwardRef(() => EventDateModule),
     forwardRef(() => EventSessionModule),
     forwardRef(() => DocumentModule),
+    forwardRef(() => TrainerModule),
     forwardRef(() => AwsS3Module),
     TrainerModule,
     ParticipantModule,

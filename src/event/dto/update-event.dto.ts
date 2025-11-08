@@ -1,15 +1,10 @@
-import {
-  IsUUID,
-  IsNumber,
-  IsOptional,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { UpdateEventDateDto } from '../event_date/dto/update-event_date.dto';
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateEventDto } from './create-event.dto';
+import { IsOptional, IsUUID, IsString, IsNumber, IsArray } from 'class-validator';
 
-export class UpdateEventDto {
+export class UpdateEventDto extends PartialType(CreateEventDto) {
   @IsOptional()
-  @IsUUID()
+  @IsString()
   name?: string;
 
   @IsOptional()
@@ -25,7 +20,20 @@ export class UpdateEventDto {
   expected_participant_no?: number;
 
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => UpdateEventDateDto)
-  event_dates?: UpdateEventDateDto[];
+  @IsString()
+  location?: string;
+
+  @IsOptional()
+  @IsString()
+  venue?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  trainers?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  event_dates?: string[];
 }

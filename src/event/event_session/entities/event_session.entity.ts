@@ -28,6 +28,9 @@ export class EventSession {
     @Column({ type: "date", nullable: true })
     ends_at: Date;
 
+    @Column({ type: 'text', nullable: true })
+    venue: string;
+
     @Column({ default: false })
     is_deleted: boolean
 

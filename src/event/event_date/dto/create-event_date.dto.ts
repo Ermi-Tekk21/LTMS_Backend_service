@@ -10,6 +10,7 @@ export class CreateEventDateDto {
   @IsDateString()
   date: Date;
 
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateTrainerDto } from './dto/create-trainer.dto';
 import { UpdateTrainerDto } from './dto/update-trainer.dto';
-import { TrainerDAL } from './dal/trainer.dal'; 
+import { TrainerDAL } from './dal/trainer.dal';
 import { IsNull } from 'typeorm';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { ConfigService } from '@nestjs/config';
@@ -10,11 +10,9 @@ import { ConfigService } from '@nestjs/config';
 export class TrainerService {
   private readonly bucketName: string;
   constructor(private readonly trainerDAL: TrainerDAL,
-  private readonly awsS3Service: AwsS3Service,
-  private readonly configService: ConfigService,) 
-    
-  {this.bucketName = this.configService.getOrThrow<string>('AWS_S3_BUCKET_NAME');}
-  async create(createTrainerDto: CreateTrainerDto,file?: Express.Multer.File) {
+    private readonly awsS3Service: AwsS3Service,
+    private readonly configService: ConfigService,) { this.bucketName = this.configService.getOrThrow<string>('AWS_S3_BUCKET_NAME'); }
+  async create(createTrainerDto: CreateTrainerDto, file?: Express.Multer.File) {
     let file_key: string | undefined = undefined;
     if (file) {
       const folder = 'trainers/';
@@ -25,7 +23,7 @@ export class TrainerService {
       ...createTrainerDto,
       file_key,
       created_at: new Date(),
-       
+
     });
     return trainer;
   }
@@ -37,27 +35,27 @@ export class TrainerService {
     );
     return result;
   }
-  
 
- async findOne(id: string) {
-  const trainer = await this.trainerDAL.findById(id);
-  if (!trainer || trainer.deleted_at) {
-    throw new NotFoundException(`Trainer with id ${id} not found`);
-  }
-  let file_url: string | null = null;
-  if (trainer.file_key) {
-    file_url = await this.awsS3Service.getPresignedUrl(
-      this.bucketName,
-      trainer.file_key,
-    );
-  }
-  return {
-    ...trainer,
-    file_url,
-  };
-}
 
-   async update(
+  async findOne(id: string) {
+    const trainer = await this.trainerDAL.findById(id);
+    if (!trainer || trainer.deleted_at) {
+      throw new NotFoundException(`Trainer with id ${id} not found`);
+    }
+    let file_url: string | null = null;
+    if (trainer.file_key) {
+      file_url = await this.awsS3Service.getPresignedUrl(
+        this.bucketName,
+        trainer.file_key,
+      );
+    }
+    return {
+      ...trainer,
+      file_url,
+    };
+  }
+
+  async update(
     id: string,
     dto: UpdateTrainerDto,
     updated_by: string,
@@ -95,7 +93,6 @@ export class TrainerService {
 
     return await this.trainerDAL.findById(id);
   }
-
 
   async softDelete(id: string, deleted_by: string) {
     const trainer = await this.trainerDAL.findById(id);
