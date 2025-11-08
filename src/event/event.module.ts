@@ -18,12 +18,14 @@ import { EmailModule } from 'src/common/notification/email.module';
     forwardRef(() => EventDateModule),
     forwardRef(() => EventSessionModule),
     TrainerModule,
-    ParticipantModule,
+   
+    forwardRef(() => ParticipantModule),
     ActivityModule,
     DocumentModule,
     EmailModule,
   ],
   controllers: [EventController],
   providers: [EventService, EventDAL],
+  exports: [EventService],
 })
 export class EventModule { }

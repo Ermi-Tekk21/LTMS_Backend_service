@@ -13,8 +13,8 @@ export class CreateParticipantDto {
   @IsString()
   phone: string;
 
-  @IsString()
-  age: string;
+  // @IsString()
+  // age: string;
 
   @IsString()
   occupation: string;
@@ -37,5 +37,7 @@ export class CreateParticipantDto {
 
   @IsString()
   kebele: string;
+  @IsString()
+   created_by:string
 
 }

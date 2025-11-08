@@ -244,7 +244,7 @@ async updateParticipantsForEvent(eventId: string, participantIds: string[]) {
   try {
     const eventRepo = queryRunner.manager.getRepository(Event);
     const participantRepo = queryRunner.manager.getRepository(Participant);
-
+    
     const event = await eventRepo.findOne({
       where: { id: eventId },
       relations: ['participants'],
