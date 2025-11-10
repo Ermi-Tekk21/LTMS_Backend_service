@@ -14,8 +14,8 @@ services:
     restart: always
 
 networks:
-  shared_LTMS_network:
-    external: true
+  LTMS_network:
+    driver: bridge
 
 volumes:
   LTMS_uploads_volume_dev: {}
