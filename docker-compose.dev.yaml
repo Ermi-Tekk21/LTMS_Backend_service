@@ -19,8 +19,8 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 10.250.0.0/16   # Private subnet for Docker internal network
-          gateway: 10.250.0.1     # Optional, default gateway for containers
+        - subnet: 10.251.0.0/16
+          gateway: 10.251.0.1         # Optional, default gateway for containers
 
 
 volumes:
