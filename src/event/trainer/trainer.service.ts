@@ -96,7 +96,6 @@ export class TrainerService {
     return await this.trainerDAL.findById(id);
   }
 
-
   async softDelete(id: string, deleted_by: string) {
     const trainer = await this.trainerDAL.findById(id);
     if (!trainer || trainer.deleted_at) {

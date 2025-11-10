@@ -10,6 +10,7 @@ import { EventSessionModule } from './event_session/event_session.module';
 import { EventDAL } from './dal/event.dal';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Event } from './entities/event.entity';
+import { EmailModule } from 'src/common/notification/email.module';
 
 @Module({
   imports: [
@@ -17,11 +18,14 @@ import { Event } from './entities/event.entity';
     forwardRef(() => EventDateModule),
     forwardRef(() => EventSessionModule),
     TrainerModule,
-    ParticipantModule,
+   
+    forwardRef(() => ParticipantModule),
     ActivityModule,
     DocumentModule,
+    EmailModule,
   ],
   controllers: [EventController],
   providers: [EventService, EventDAL],
+  exports: [EventService],
 })
 export class EventModule { }

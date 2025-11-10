@@ -1,22 +1,130 @@
-import { Injectable ,NotFoundException} from '@nestjs/common';
+import { BadRequestException, Injectable ,NotFoundException} from '@nestjs/common';
 import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
 import { Participant } from './entities/participant.entity';
 import { FindManyOptions, IsNull } from 'typeorm';
-
+import * as ExcelJS from 'exceljs';
+import { EventService } from '../event.service';
 @Injectable()
 export class ParticipantService {
-  constructor(private readonly participantDAL: ParticipantDAL) {}
+  constructor(private readonly participantDAL: ParticipantDAL,
+    private readonly eventService: EventService,
+  ) {}
 
   async create(dto: CreateParticipantDto, created_by: string): Promise<Participant> {
-    // Create new participant
     return this.participantDAL.create({
       ...dto,
       created_by: created_by,
-      created_at: new Date(),
+      // created_at: new Date(),
     });
   }
+  async generateTemplate(): Promise<Buffer | ArrayBuffer | Uint8Array> {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Participants');
+
+    sheet.columns = [
+      { header: 'First Name', key: 'first_name', width: 20 },
+      { header: 'Last Name', key: 'last_name', width: 20 },
+      { header: 'Gender', key: 'gender', width: 10 },
+      { header: 'Phone', key: 'phone', width: 15 },
+      { header: 'Occupation', key: 'occupation', width: 20 },
+      { header: 'Organization', key: 'organization', width: 25 },
+      { header: 'Community Type', key: 'community_type', width: 20 },
+      { header: 'Letracy Level', key: 'letracy_level', width: 20 },
+      { header: 'Region', key: 'region', width: 20 },
+      { header: 'Woreda', key: 'woreda', width: 20 },
+      { header: 'Kebele', key: 'kebele', width: 20 },
+    ];
+    return await workbook.xlsx.writeBuffer();
+  }
+
+  async importFromExcel(
+  file: Express.Multer.File,
+  eventId: string,
+  created_by: string
+): Promise<{ success: boolean; count: number }> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(file.buffer as any);
+
+  const sheet = workbook.getWorksheet('Participants');
+  if (!sheet) throw new NotFoundException('Worksheet "Participants" not found.');
+
+  const participants: CreateParticipantDto[] = [];
+  const invalidRows: { row: number; missingFields: string[] }[] = [];
+
+  // First pass: Validate all rows
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // skip header
+
+    const values = Array.isArray(row.values) ? row.values : [];
+    const [
+      first_name,
+      last_name,
+      gender,
+      phone,
+      occupation,
+      organization,
+      community_type,
+      letracy_level,
+      region,
+      woreda,
+      kebele,
+    ] = values.slice(1) as any[];
+
+    // Check all required fields
+    const missingFields: string[] = [];
+    if (!first_name) missingFields.push('first_name');
+    if (!last_name) missingFields.push('last_name');
+    if (!gender) missingFields.push('gender');
+    if (!phone) missingFields.push('phone');
+    if (!region) missingFields.push('region');
+
+    if (missingFields.length > 0) {
+      invalidRows.push({ row: rowNumber, missingFields });
+      return;
+    }
+
+    participants.push({
+      first_name,
+      last_name,
+      gender,
+      phone,
+      occupation,
+      organization,
+      community_type,
+      letracy_level,
+      region,
+      woreda,
+      kebele,
+      created_by,
+    });
+  });
+
+  // Reject submission if any row has missing required fields
+  if (invalidRows.length > 0) {
+    const errorMessage = `File contains rows with missing required fields:\n${invalidRows
+      .map((r) => `Row ${r.row}: missing ${r.missingFields.join(', ')}`)
+      .join('\n')}`;
+    throw new BadRequestException(errorMessage);
+  }
+
+  if (participants.length === 0) {
+    throw new BadRequestException('No valid participant rows found in the file.');
+  }
+  // Create all participants in a single batch
+  const savedParticipants = await this.participantDAL.createMany(participants);
+  // Extract participant IDs
+  const participantIds = savedParticipants.map((p) => p.id);
+  // Map participants to event
+  await this.eventService.assignParticipantsToEvent(eventId, participantIds);
+
+  return {
+    success: true,
+    count: savedParticipants.length
+    
+  };
+}
 
  async findAllPaginated(
     page = 1,

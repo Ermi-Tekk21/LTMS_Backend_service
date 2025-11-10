@@ -27,6 +27,64 @@ export class EventController {
     return this.eventService.update(+id, updateEventDto);
   }
 
+   @Post(':id/trainers')
+  async assignTrainers(
+    @Param('id') eventId: string,
+    @Body('trainerIds') trainerIds: string[],
+  ) {
+    return this.eventService.assignTrainersToEvent(eventId, trainerIds);
+  }
+  
+  @Delete(':id/trainers')
+  async removeTrainers(
+    @Param('id') eventId: string,
+    @Body('trainerIds') trainerIds: string[],
+  ) {
+    return this.eventService.removeTrainersFromEvent(eventId, trainerIds);
+  }
+
+  @Patch(':id/trainers')
+  async updateTrainers(
+    @Param('id') eventId: string,
+    @Body('trainerIds') trainerIds: string[],
+  ) {
+    return this.eventService.updateTrainersForEvent(eventId, trainerIds);
+  }
+
+  @Get(':id/trainers')
+  async getEventTrainers(@Param('id') eventId: string) {
+    return this.eventService.getEventTrainers(eventId);
+  }
+
+    @Post(':id/participants')
+  async assignParticipants(
+    @Param('id') eventId: string,
+    @Body('participantIds') participantIds: string[],
+  ) {
+    return this.eventService.assignParticipantsToEvent(eventId, participantIds);
+  }
+
+  @Delete(':id/participants')
+  async removeParticipants(
+    @Param('id') eventId: string,
+    @Body('participantIds') participantIds: string[],
+  ) {
+    return this.eventService.removeParticipantsFromEvent(eventId, participantIds);
+  }
+
+  @Patch(':id/participants')
+  async updateParticipants(
+    @Param('id') eventId: string,
+    @Body('participantIds') participantIds: string[],
+  ) {
+    return this.eventService.updateParticipantsForEvent(eventId, participantIds);
+  }
+
+  @Get(':id/participants')
+  async getEventParticipants(@Param('id') eventId: string) {
+    return this.eventService.getEventParticipants(eventId);
+  }
+  
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.eventService.remove(+id);
