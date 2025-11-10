@@ -1,3 +1,4 @@
+version: '3'
 services:
   lersha_training_management_system_dev:
     build:
