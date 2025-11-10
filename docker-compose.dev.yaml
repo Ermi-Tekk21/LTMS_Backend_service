@@ -8,7 +8,7 @@ services:
     ports:
       - "4499:4499"
     networks:
-      - shared_LTMS_network
+      - LTMS_network
     volumes:
       - LTMS_uploads_volume_dev:/app/uploads
     restart: always
