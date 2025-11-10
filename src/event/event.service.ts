@@ -115,32 +115,72 @@ export class EventService {
   }
   
   async updateTrainersForEvent(eventId: string, trainerIds: string[]) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    try {
-      const eventRepo = queryRunner.manager.getRepository(Event);
-      const trainerRepo = queryRunner.manager.getRepository(Trainer);
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-      const event = await eventRepo.findOne({
-        where: { id: eventId },
-        relations: ['trainers'],
-      });
-      if (!event) throw new NotFoundException('Event not found');
+  try {
+    const eventRepo = queryRunner.manager.getRepository(Event);
+    const trainerRepo = queryRunner.manager.getRepository(Trainer);
 
-      const trainers = await trainerRepo.findBy({ id: In(trainerIds) });
-      event.trainers = trainers;
-      const updatedEvent = await eventRepo.save(event);
+    const event = await eventRepo.findOne({
+      where: { id: eventId },
+      relations: ['trainers'],
+    });
 
-      await queryRunner.commitTransaction();
-      return updatedEvent;
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
+    if (!event) throw new NotFoundException('Event not found');
+    const previousTrainers = event.trainers || [];
+    const newTrainers = await trainerRepo.findBy({ id: In(trainerIds) });
+    const prevIds = new Set(previousTrainers.map((t) => t.id));
+    const newIds = new Set(newTrainers.map((t) => t.id));
+
+    const addedTrainers = newTrainers.filter((t) => !prevIds.has(t.id));
+    const removedTrainers = previousTrainers.filter((t) => !newIds.has(t.id));
+
+    // update event trainers
+    event.trainers = newTrainers;
+    const updatedEvent = await eventRepo.save(event);
+
+    // send emails for added trainers
+    for (const trainer of addedTrainers) {
+      if (trainer.email) {
+        await this.emailService.sendMail(
+          trainer.email,
+          `You have been assigned to event: ${event.name}`,
+          `Dear ${trainer.first_name}, you have been assigned to the event "${event.name}".`,
+          `<p>Dear <b>${trainer.first_name}</b>,</p>
+           <p>You have been assigned to the event <b>${event.name}</b>.</p>
+           <p>Thank you,<br/>Event Management Team</p>`
+        );
+      }
     }
+
+    // send emails for removed trainers
+    for (const trainer of removedTrainers) {
+      if (trainer.email) {
+        await this.emailService.sendMail(
+          trainer.email,
+          `You have been unassigned from event: ${event.name}`,
+          `Dear ${trainer.first_name}, you are no longer assigned to the event "${event.name}".`,
+          `<p>Dear <b>${trainer.first_name}</b>,</p>
+           <p>You are no longer assigned to the event <b>${event.name}</b>.</p>
+           <p>If you have any questions, please contact the admin.</p>
+           <p>Thank you,<br/>Event Management Team</p>`
+        );
+      }
+    }
+
+    await queryRunner.commitTransaction();
+    return updatedEvent;
+
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw err;
+  } finally {
+    await queryRunner.release();
   }
+}
+
 
    async getEventTrainers(eventId: string) {
     const event = await this.dataSource.getRepository(Event).findOne({
