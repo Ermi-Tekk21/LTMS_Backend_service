@@ -16,6 +16,12 @@ services:
 networks:
   LTMS_network:
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.250.0.0/16   # Private subnet for Docker internal network
+          gateway: 10.250.0.1     # Optional, default gateway for containers
+
 
 volumes:
   LTMS_uploads_volume_dev: {}
