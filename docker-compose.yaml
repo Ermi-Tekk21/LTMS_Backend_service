@@ -1,0 +1,20 @@
+version: "3"
+services:
+  Lersha_Training_Management_System:
+    build:
+      context: "."
+      dockerfile: "./Dockerfile"
+    environment:
+      - NODE_OPTIONS="--max-old-space-size=10240"
+    ports:
+      - "3399:3399"
+    networks:
+      - LTMS_network_prod
+    volumes:
+      - LTMS_uploads_volume_prod:/app/uploads
+    restart: always
+networks:
+  LTMS_network_prod:
+    driver: bridge
+volumes:
+  customer_base_uploads_volume: {}
