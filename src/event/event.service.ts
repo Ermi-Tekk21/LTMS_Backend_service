@@ -150,6 +150,8 @@ export class EventService {
     order?: Record<string, 'asc' | 'desc'>;
   }) {
     const options: any = {};
+    options.relations = ['event_dates']
+    
     if (query?.searchTerm && query?.searchFields?.length) {
       options.search = {
         term: query.searchTerm,
