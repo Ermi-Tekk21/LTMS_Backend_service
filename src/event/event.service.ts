@@ -150,7 +150,6 @@ export class EventService {
     order?: Record<string, 'asc' | 'desc'>;
   }) {
     const options: any = {};
-    options.relations = ['event_dates', 'event_dates.event_sessions']
     if (query?.searchTerm && query?.searchFields?.length) {
       options.search = {
         term: query.searchTerm,
@@ -436,7 +435,7 @@ export class EventService {
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
-      relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates.event_sessions']
+      relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates']
     })
   }
 
