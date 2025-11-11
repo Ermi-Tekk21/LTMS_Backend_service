@@ -15,13 +15,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       secretOrKey: secret,
     });
-    console.log('JwtStrategy initialized, secret present', secret);
   }
 
-  // Called automatically when a valid JWT is found
   async validate(payload: any) {
-    console.log('JWT payload:', payload);
-    // Map the JWT payload to the user object that will be attached to request.user
     return {
       userId: payload.userId,       // match your token payload
       sessionId: payload.sessionId, // optional if needed
