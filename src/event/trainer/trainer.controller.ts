@@ -10,11 +10,13 @@ import { FileInterceptor } from '@nestjs/platform-express';
 export class TrainerController {
   constructor(private readonly trainerService: TrainerService) {}
   @Post()
-  @UseInterceptors(FileInterceptor('file', multerOptions(false, ['pdf'], 10)))
+  @UseInterceptors(FileInterceptor('file', multerOptions(true, ['pdf','image'], 10)))
   create(
-    @Body() dto: CreateTrainerDto,
+    @Body("data") data:string,
     @UploadedFile() file?: Express.Multer.File, 
-  ) {
+  ) 
+  {
+     const dto: CreateTrainerDto = JSON.parse(data);
     return this.trainerService.create(dto, file);
   }
   @Get()

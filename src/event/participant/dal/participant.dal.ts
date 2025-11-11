@@ -6,6 +6,7 @@ import { Participant } from 'src/event/participant/entities/participant.entity';
 
 @Injectable()
 export class ParticipantDAL extends BaseDAL<Participant> {
+    // save: any;
     constructor(
         @InjectRepository(Participant)
         repo: Repository<Participant>,
