@@ -2,10 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateTrainerDto } from './dto/create-trainer.dto';
 import { UpdateTrainerDto } from './dto/update-trainer.dto';
 import { TrainerDAL } from './dal/trainer.dal';
-import { IsNull } from 'typeorm';
+import { FindManyOptions, IsNull } from 'typeorm';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { ConfigService } from '@nestjs/config';
-
+import { Trainer } from './entities/trainer.entity';
 @Injectable()
 export class TrainerService {
   private readonly bucketName: string;
@@ -27,14 +27,48 @@ export class TrainerService {
     });
     return trainer;
   }
-  async findAll(page = 1, limit = 10) {
-    const result = await this.trainerDAL.findPaginated(
-      { where: { deleted_at: IsNull() }, order: { created_at: 'DESC' } },
+  async findAll(
+  page = 1,
+  limit = 10,
+  search?: string,
+): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
+  try {
+    const options: FindManyOptions<Trainer> & {
+      search?: { term: string; fields: (keyof Trainer)[] };
+      page?: number;
+      limit?: number;
+    } = {
+      where: { deleted_at: IsNull() },
+      order: { created_at: 'DESC' },
       page,
       limit,
+    };
+
+    // Optional search support
+    if (search && search.trim() !== '') {
+      options.search = {
+        term: search,
+        fields: ['first_name', 'last_name', 'email', 'occupation','events'], 
+      };
+    }
+
+    const result = await this.trainerDAL.findAll(options);
+
+    return {
+      data: result.data,
+      total: result.meta.total,
+      page: result.meta.page,
+      limit: result.meta.limit,
+    };
+  } catch (error) {
+    throw new Error(
+      `TrainerService.findAll failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     );
-    return result;
   }
+}
+
 
 
   async findOne(id: string) {

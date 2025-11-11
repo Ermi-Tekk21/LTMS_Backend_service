@@ -197,29 +197,6 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
     }
   }
 
-  async findPaginated(
-    options: FindManyOptions<T>,
-    page = 1,
-    limit = 10,
-    queryRunner?: QueryRunner,
-  ): Promise<{ data: T[]; total: number; page: number; limit: number }> {
-    try {
-      const repository = queryRunner
-        ? queryRunner.manager.getRepository(this.repo.target)
-        : this.repo;
-
-      const [data, total] = await repository.findAndCount({
-        ...options,
-        skip: (page - 1) * limit,
-        take: limit,
-      });
-
-      return { data, total, page, limit };
-    } catch (error) {
-      throw new Error(`DAL.findPaginated failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
   async update(id: any, data: DeepPartial<T>, queryRunner?: QueryRunner): Promise<T | null> {
     try {
       const repository = queryRunner

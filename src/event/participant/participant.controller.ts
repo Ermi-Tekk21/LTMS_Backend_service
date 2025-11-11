@@ -11,23 +11,24 @@ import { FileInterceptor } from '@nestjs/platform-express';
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
 
-  @Post()
-  create(@Body() createParticipantDto: CreateParticipantDto, @CurrentUser('userId') userId: string) {
-  return this.participantService.create(createParticipantDto, userId);
- }
-
-  // @Get()
-  // getAll() {
-  //   return this.participantService.findAll();
-  // }
+  @Post(':eventId')
+async createParticipant(
+  @Param('eventId') eventId: string,
+  @Body() dto: CreateParticipantDto,
+  @CurrentUser() currentUser: any,
+) {
+  return this.participantService.create(dto, currentUser.id, eventId);
+}
 
  @Get()
-  findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-  ) {
-    return this.participantService.findAllPaginated(page, limit);
-  }
+async getAllParticipants(
+  @Query('page') page = 1,
+  @Query('limit') limit = 10,
+  @Query('search') search?: string,
+) {
+  return this.participantService.findAll(Number(page), Number(limit), search);
+}
+
    @Get('template')
   async downloadTemplate(@Res() res: Response) {
     const buffer = await this.participantService.generateTemplate();
@@ -40,9 +41,9 @@ export class ParticipantController {
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-
     res.send(buffer);
   }
+
    @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadExcel(

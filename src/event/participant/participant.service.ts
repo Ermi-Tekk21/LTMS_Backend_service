@@ -3,22 +3,56 @@ import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
 import { Participant } from './entities/participant.entity';
-import { FindManyOptions, IsNull } from 'typeorm';
+import { FindManyOptions, IsNull, DataSource} from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 @Injectable()
 export class ParticipantService {
   constructor(private readonly participantDAL: ParticipantDAL,
     private readonly eventService: EventService,
+     private readonly dataSource: DataSource,
   ) {}
 
-  async create(dto: CreateParticipantDto, created_by: string): Promise<Participant> {
-    return this.participantDAL.create({
-      ...dto,
-      created_by: created_by,
-      // created_at: new Date(),
-    });
+ async create(
+  dto: CreateParticipantDto,
+  created_by: string,
+  eventId: string
+): Promise<Participant> {
+  if (!eventId) {
+    throw new BadRequestException('Event ID is required.');
   }
+
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
+
+  try {
+    // Create participant
+    const participant = await this.participantDAL.create(
+      { ...dto, created_by },
+      queryRunner,
+    );
+
+    // Assign participant to event
+    await this.eventService.assignParticipantsToEvent(
+      eventId,
+      [participant.id],
+      queryRunner,
+    );
+
+    await queryRunner.commitTransaction();
+    return participant;
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    throw new BadRequestException(
+      `Failed to create participant: ${error instanceof Error ? error.message : String(error)}`
+    );
+  } finally {
+    await queryRunner.release();
+  }
+}
+
+
   async generateTemplate(): Promise<Buffer | ArrayBuffer | Uint8Array> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Participants');
@@ -46,7 +80,6 @@ export class ParticipantService {
 ): Promise<{ success: boolean; count: number }> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(file.buffer as any);
-
   const sheet = workbook.getWorksheet('Participants');
   if (!sheet) throw new NotFoundException('Worksheet "Participants" not found.');
 
@@ -79,7 +112,6 @@ export class ParticipantService {
     if (!gender) missingFields.push('gender');
     if (!phone) missingFields.push('phone');
     if (!region) missingFields.push('region');
-
     if (missingFields.length > 0) {
       invalidRows.push({ row: rowNumber, missingFields });
       return;
@@ -98,6 +130,7 @@ export class ParticipantService {
       woreda,
       kebele,
       created_by,
+  
     });
   });
 
@@ -112,11 +145,8 @@ export class ParticipantService {
   if (participants.length === 0) {
     throw new BadRequestException('No valid participant rows found in the file.');
   }
-  // Create all participants in a single batch
   const savedParticipants = await this.participantDAL.createMany(participants);
-  // Extract participant IDs
   const participantIds = savedParticipants.map((p) => p.id);
-  // Map participants to event
   await this.eventService.assignParticipantsToEvent(eventId, participantIds);
 
   return {
@@ -126,21 +156,45 @@ export class ParticipantService {
   };
 }
 
- async findAllPaginated(
-    page = 1,
-    limit = 10,
-  ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
-    const options: FindManyOptions<Participant> = {
-       where: { deleted_at: IsNull() },
+ async findAll(
+  page = 1,
+  limit = 10,
+  search?: string,
+): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+  try {
+    const options: FindManyOptions<Participant> & {
+      search?: { term: string; fields: (keyof Participant)[] };
+      page?: number;
+      limit?: number;
+    } = {
+      where: { deleted_at: IsNull() },
       order: { created_at: 'DESC' },
+      page,
+      limit,
     };
-    return this.participantDAL.findPaginated(options, page, limit);
-  }
 
-  // async findAll(): Promise<Participant[]> {
-  //   const participants = await this.participantDAL.findAll();
-  //   return participants.filter((p) => !p.deleted_at);
-  // }
+    if (search && search.trim() !== '') {
+      options.search = {
+        term: search,
+        fields: ['first_name', 'last_name', 'region','woreda','kebele','events'], 
+      };
+    }
+    const result = await this.participantDAL.findAll(options);
+    return {
+      data: result.data,
+      total: result.meta.total,
+      page: result.meta.page,
+      limit: result.meta.limit,
+    };
+  } catch (error) {
+    throw new Error(
+      `ParticipantService.findAll failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
 
   findOne(id: string) {
     return this.participantDAL.findById(id);

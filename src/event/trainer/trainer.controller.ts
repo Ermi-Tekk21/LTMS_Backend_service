@@ -19,10 +19,15 @@ export class TrainerController {
      const dto: CreateTrainerDto = JSON.parse(data);
     return this.trainerService.create(dto, file);
   }
-  @Get()
-  findAll(@Query('page') page: number, @Query('limit') limit: number) {
-    return this.trainerService.findAll(page, limit);
-  }
+@Get()
+async getAllTrainers(
+  @Query('page') page = 1,
+  @Query('limit') limit = 10,
+  @Query('search') search?: string,
+) {
+  return this.trainerService.findAll(Number(page), Number(limit), search);
+}
+
 
   @Get(':id')
   findOne(@Param('id') id: string) {
