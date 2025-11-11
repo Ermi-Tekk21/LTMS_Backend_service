@@ -5,7 +5,6 @@ import { QueryRunner } from 'typeorm/browser';
 import { DocumentDAL } from './dal/document.dal';
 import { Document } from './entities/document.entity';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
-import { doc_type } from 'src/common/enums/status_enums';
 
 @Injectable()
 export class DocumentService {
@@ -25,6 +24,11 @@ export class DocumentService {
 
   findAll() {
     return `This action returns all document`;
+  }
+
+  viewDoc(key: string) {
+    const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+    return this.awsS3Service.getPresignedUrl(bucketName, key)
   }
 
   findOne(id: number) {

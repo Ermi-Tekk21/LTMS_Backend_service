@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { DataSource, QueryRunner, In } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { EventDAL } from './dal/event.dal';
 import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
@@ -71,18 +71,20 @@ export class EventService {
         }, queryRunner);
       }
 
-      if (dto.trainers?.length) {
-        const trainers: Trainer[] = [];
-        for (const trainerId of dto.trainers) {
-          const trainer = await this.trainerService.findOne(trainerId);
-          if (!trainer) {
-            throw new NotFoundException(`Trainer with ID ${trainerId} not found`);
-          }
-          trainers.push(trainer);
-        }
-        event.trainers = trainers;
-      }
+      // if (dto.trainers?.length) {
+      //   const trainers: Trainer[] = [];
+      //   for (const trainerId of dto.trainers) {
+      //     const trainer = await this.trainerService.findOne(trainerId);
+      //     if (!trainer) {
+      //       throw new NotFoundException(`Trainer with ID ${trainerId} not found`);
+      //     }
+      //     trainers.push(trainer);
+      //   }
+      //   event.trainers = trainers;
+      // }
 
+      const trainers = dto.trainers
+      await this.assignTrainersToEvent(event.id, trainers)
       await queryRunner.manager.save(event);
 
       await queryRunner.commitTransaction();
@@ -108,8 +110,8 @@ export class EventService {
   }
 
   viewDoc(key: string) {
-    const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-    return this.awsS3Service.getPresignedUrl(bucketName, key)
+    return this.documentService.viewDoc(key)
+  }
 
   async assignTrainersToEvent(eventId: string, trainerIds: string[]) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -142,19 +144,19 @@ export class EventService {
       if (trainersToAdd.length) {
         event.trainers = [...event.trainers, ...trainersToAdd];
         await eventRepo.save(event);
-          for (const trainer of trainers) {
-      if (trainer.email) {
-        await this.emailService.sendMail(
-          trainer.email,
-          `You have been assigned to event: ${event.name}`,
-          `Dear ${trainer.first_name}, you have been assigned to the event "${event.name}".`,
-          `<p>Dear <b>${trainer.first_name}</b>,</p>
+        for (const trainer of trainers) {
+          if (trainer.email) {
+            await this.emailService.sendMail(
+              trainer.email,
+              `You have been assigned to event: ${event.name}`,
+              `Dear ${trainer.first_name}, you have been assigned to the event "${event.name}".`,
+              `<p>Dear <b>${trainer.first_name}</b>,</p>
           <p>You have been assigned to the event <b>${event.name}</b>.</p>
           <p>Thank you,<br/>Event Management Team</p>`
-        );
+            );
+          }
+        }
       }
-    }
-   }
       await queryRunner.commitTransaction();
 
       // return fresh event with trainers relation
@@ -169,76 +171,75 @@ export class EventService {
       await queryRunner.release();
     }
   }
-  
+
   async updateTrainersForEvent(eventId: string, trainerIds: string[]) {
-  const queryRunner = this.dataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-  try {
-    const eventRepo = queryRunner.manager.getRepository(Event);
-    const trainerRepo = queryRunner.manager.getRepository(Trainer);
+    try {
+      const eventRepo = queryRunner.manager.getRepository(Event);
+      const trainerRepo = queryRunner.manager.getRepository(Trainer);
 
-    const event = await eventRepo.findOne({
-      where: { id: eventId },
-      relations: ['trainers'],
-    });
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['trainers'],
+      });
 
-    if (!event) throw new NotFoundException('Event not found');
-    const previousTrainers = event.trainers || [];
-    const newTrainers = await trainerRepo.findBy({ id: In(trainerIds) });
-    const prevIds = new Set(previousTrainers.map((t) => t.id));
-    const newIds = new Set(newTrainers.map((t) => t.id));
+      if (!event) throw new NotFoundException('Event not found');
+      const previousTrainers = event.trainers || [];
+      const newTrainers = await trainerRepo.findBy({ id: In(trainerIds) });
+      const prevIds = new Set(previousTrainers.map((t) => t.id));
+      const newIds = new Set(newTrainers.map((t) => t.id));
 
-    const addedTrainers = newTrainers.filter((t) => !prevIds.has(t.id));
-    const removedTrainers = previousTrainers.filter((t) => !newIds.has(t.id));
+      const addedTrainers = newTrainers.filter((t) => !prevIds.has(t.id));
+      const removedTrainers = previousTrainers.filter((t) => !newIds.has(t.id));
 
-    // update event trainers
-    event.trainers = newTrainers;
-    const updatedEvent = await eventRepo.save(event);
+      // update event trainers
+      event.trainers = newTrainers;
+      const updatedEvent = await eventRepo.save(event);
 
-    // send emails for added trainers
-    for (const trainer of addedTrainers) {
-      if (trainer.email) {
-        await this.emailService.sendMail(
-          trainer.email,
-          `You have been assigned to event: ${event.name}`,
-          `Dear ${trainer.first_name}, you have been assigned to the event "${event.name}".`,
-          `<p>Dear <b>${trainer.first_name}</b>,</p>
+      // send emails for added trainers
+      for (const trainer of addedTrainers) {
+        if (trainer.email) {
+          await this.emailService.sendMail(
+            trainer.email,
+            `You have been assigned to event: ${event.name}`,
+            `Dear ${trainer.first_name}, you have been assigned to the event "${event.name}".`,
+            `<p>Dear <b>${trainer.first_name}</b>,</p>
            <p>You have been assigned to the event <b>${event.name}</b>.</p>
            <p>Thank you,<br/>Event Management Team</p>`
-        );
+          );
+        }
       }
-    }
 
-    // send emails for removed trainers
-    for (const trainer of removedTrainers) {
-      if (trainer.email) {
-        await this.emailService.sendMail(
-          trainer.email,
-          `You have been unassigned from event: ${event.name}`,
-          `Dear ${trainer.first_name}, you are no longer assigned to the event "${event.name}".`,
-          `<p>Dear <b>${trainer.first_name}</b>,</p>
+      // send emails for removed trainers
+      for (const trainer of removedTrainers) {
+        if (trainer.email) {
+          await this.emailService.sendMail(
+            trainer.email,
+            `You have been unassigned from event: ${event.name}`,
+            `Dear ${trainer.first_name}, you are no longer assigned to the event "${event.name}".`,
+            `<p>Dear <b>${trainer.first_name}</b>,</p>
            <p>You are no longer assigned to the event <b>${event.name}</b>.</p>
            <p>If you have any questions, please contact the admin.</p>
            <p>Thank you,<br/>Event Management Team</p>`
-        );
+          );
+        }
       }
+
+      await queryRunner.commitTransaction();
+      return updatedEvent;
+
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    await queryRunner.commitTransaction();
-    return updatedEvent;
-
-  } catch (err) {
-    await queryRunner.rollbackTransaction();
-    throw err;
-  } finally {
-    await queryRunner.release();
   }
-}
 
-
-   async getEventTrainers(eventId: string) {
+  async getEventTrainers(eventId: string) {
     const event = await this.dataSource.getRepository(Event).findOne({
       where: { id: eventId },
       relations: ['trainers'],
@@ -247,7 +248,7 @@ export class EventService {
     return event.trainers;
   }
 
-   async removeTrainersFromEvent(eventId: string, trainerIds: string[]) {
+  async removeTrainersFromEvent(eventId: string, trainerIds: string[]) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -273,107 +274,104 @@ export class EventService {
       await queryRunner.release();
     }
   }
-//  ASSIGN PARTICIPANTS TO EVENT
-async assignParticipantsToEvent(eventId: string, participantIds: string[]) {
-  const queryRunner = this.dataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
-  try {
-    const eventRepo = queryRunner.manager.getRepository(Event);
-    const participantRepo = queryRunner.manager.getRepository(Participant);
+  //  ASSIGN PARTICIPANTS TO EVENT
+  async assignParticipantsToEvent(eventId: string, participantIds: string[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const eventRepo = queryRunner.manager.getRepository(Event);
+      const participantRepo = queryRunner.manager.getRepository(Participant);
 
-    const event = await eventRepo.findOne({
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['participants'],
+      });
+      if (!event) throw new NotFoundException('Event not found');
+
+      const participants = await participantRepo.findBy({ id: In(participantIds) });
+
+      event.participants = [...event.participants, ...participants];
+      const updatedEvent = await eventRepo.save(event);
+
+      await queryRunner.commitTransaction();
+      return updatedEvent;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // REMOVE PARTICIPANTS FROM EVENT
+  async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const eventRepo = queryRunner.manager.getRepository(Event);
+
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['participants'],
+      });
+      if (!event) throw new NotFoundException('Event not found');
+
+      event.participants = event.participants.filter(
+        (participant) => !participantIds.includes(participant.id),
+      );
+      const updatedEvent = await eventRepo.save(event);
+
+      await queryRunner.commitTransaction();
+      return updatedEvent;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  //  UPDATE (REPLACE ALL PARTICIPANTS)
+  async updateParticipantsForEvent(eventId: string, participantIds: string[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const eventRepo = queryRunner.manager.getRepository(Event);
+      const participantRepo = queryRunner.manager.getRepository(Participant);
+
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['participants'],
+      });
+      if (!event) throw new NotFoundException('Event not found');
+
+      const participants = await participantRepo.findBy({ id: In(participantIds) });
+      event.participants = participants;
+      const updatedEvent = await eventRepo.save(event);
+
+      await queryRunner.commitTransaction();
+      return updatedEvent;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // GET ALL PARTICIPANTS ASSIGNED TO EVENT
+  async getEventParticipants(eventId: string) {
+    const event = await this.dataSource.getRepository(Event).findOne({
       where: { id: eventId },
       relations: ['participants'],
     });
     if (!event) throw new NotFoundException('Event not found');
-
-    const participants = await participantRepo.findBy({ id: In(participantIds) });
-
-    event.participants = [...event.participants, ...participants];
-    const updatedEvent = await eventRepo.save(event);
-
-    await queryRunner.commitTransaction();
-    return updatedEvent;
-  } catch (err) {
-    await queryRunner.rollbackTransaction();
-    throw err;
-  } finally {
-    await queryRunner.release();
+    return event.participants;
   }
-}
 
-// REMOVE PARTICIPANTS FROM EVENT
-async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
-  const queryRunner = this.dataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
-  try {
-    const eventRepo = queryRunner.manager.getRepository(Event);
-
-    const event = await eventRepo.findOne({
-      where: { id: eventId },
-      relations: ['participants'],
-    });
-    if (!event) throw new NotFoundException('Event not found');
-
-    event.participants = event.participants.filter(
-      (participant) => !participantIds.includes(participant.id),
-    );
-    const updatedEvent = await eventRepo.save(event);
-
-    await queryRunner.commitTransaction();
-    return updatedEvent;
-  } catch (err) {
-    await queryRunner.rollbackTransaction();
-    throw err;
-  } finally {
-    await queryRunner.release();
-  }
-}
-
-//  UPDATE (REPLACE ALL PARTICIPANTS)
-async updateParticipantsForEvent(eventId: string, participantIds: string[]) {
-  const queryRunner = this.dataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
-  try {
-    const eventRepo = queryRunner.manager.getRepository(Event);
-    const participantRepo = queryRunner.manager.getRepository(Participant);
-    
-    const event = await eventRepo.findOne({
-      where: { id: eventId },
-      relations: ['participants'],
-    });
-    if (!event) throw new NotFoundException('Event not found');
-
-    const participants = await participantRepo.findBy({ id: In(participantIds) });
-    event.participants = participants;
-    const updatedEvent = await eventRepo.save(event);
-
-    await queryRunner.commitTransaction();
-    return updatedEvent;
-  } catch (err) {
-    await queryRunner.rollbackTransaction();
-    throw err;
-  } finally {
-    await queryRunner.release();
-  }
-}
-
-// GET ALL PARTICIPANTS ASSIGNED TO EVENT
-async getEventParticipants(eventId: string) {
-  const event = await this.dataSource.getRepository(Event).findOne({
-    where: { id: eventId },
-    relations: ['participants'],
-  });
-  if (!event) throw new NotFoundException('Event not found');
-  return event.participants;
-}
-
-  findAll() {
-    return `This action returns all event`;
-  }
 
   async findOne(id: string) {
     return await this.eventDAL.findOne({
