@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { DataSource, In } from 'typeorm';
@@ -7,7 +7,7 @@ import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from './document/document.service';
-import { doc_type } from 'src/common/enums/status_enums';
+import { doc_type, event_status } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { TrainerService } from './trainer/trainer.service';
 import { Event } from './entities/event.entity';
@@ -325,43 +325,43 @@ export class EventService {
   }
   //  ASSIGN PARTICIPANTS TO EVENT
   async assignParticipantsToEvent(
-  eventId: string,
-  participantIds: string[],
-  queryRunner?: QueryRunner, // optional
-) {
-  const runner = queryRunner || this.dataSource.createQueryRunner();
-  let ownTransaction = false;
+    eventId: string,
+    participantIds: string[],
+    queryRunner?: QueryRunner, // optional
+  ) {
+    const runner = queryRunner || this.dataSource.createQueryRunner();
+    let ownTransaction = false;
 
-  if (!queryRunner) {
-    await runner.connect();
-    await runner.startTransaction();
-    ownTransaction = true;
+    if (!queryRunner) {
+      await runner.connect();
+      await runner.startTransaction();
+      ownTransaction = true;
+    }
+
+    try {
+      const eventRepo = runner.manager.getRepository(Event);
+      const participantRepo = runner.manager.getRepository(Participant);
+
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['participants'],
+      });
+      if (!event) throw new NotFoundException('Event not found');
+
+      const participants = await participantRepo.findBy({ id: In(participantIds) });
+
+      event.participants = [...(event.participants || []), ...participants];
+      const updatedEvent = await eventRepo.save(event);
+
+      if (ownTransaction) await runner.commitTransaction();
+      return updatedEvent;
+    } catch (err) {
+      if (ownTransaction) await runner.rollbackTransaction();
+      throw err;
+    } finally {
+      if (ownTransaction) await runner.release();
+    }
   }
-
-  try {
-    const eventRepo = runner.manager.getRepository(Event);
-    const participantRepo = runner.manager.getRepository(Participant);
-
-    const event = await eventRepo.findOne({
-      where: { id: eventId },
-      relations: ['participants'],
-    });
-    if (!event) throw new NotFoundException('Event not found');
-
-    const participants = await participantRepo.findBy({ id: In(participantIds) });
-
-    event.participants = [...(event.participants || []), ...participants];
-    const updatedEvent = await eventRepo.save(event);
-
-    if (ownTransaction) await runner.commitTransaction();
-    return updatedEvent;
-  } catch (err) {
-    if (ownTransaction) await runner.rollbackTransaction();
-    throw err;
-  } finally {
-    if (ownTransaction) await runner.release();
-  }
-}
 
   // REMOVE PARTICIPANTS FROM EVENT
   async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
@@ -440,6 +440,13 @@ export class EventService {
 
   async remove(id: string) {
     try {
+      const event = await this.findOne(id)
+      if (!event) {
+        throw new NotFoundException("event to be deleted not found...")
+      }
+      if (event.event_status != event_status.INITATED) {
+        throw new BadRequestException('only event with status initiated can be deleted...')
+      }
       const result = await this.eventDAL.delete(id);
       return {
         success: true,
