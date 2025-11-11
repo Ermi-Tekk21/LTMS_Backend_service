@@ -3,22 +3,56 @@ import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
 import { Participant } from './entities/participant.entity';
-import { FindManyOptions, IsNull } from 'typeorm';
+import { FindManyOptions, IsNull, DataSource} from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 @Injectable()
 export class ParticipantService {
   constructor(private readonly participantDAL: ParticipantDAL,
     private readonly eventService: EventService,
+     private readonly dataSource: DataSource,
   ) {}
 
-  async create(dto: CreateParticipantDto, created_by: string): Promise<Participant> {
-    return this.participantDAL.create({
-      ...dto,
-      created_by: created_by,
-      // created_at: new Date(),
-    });
+ async create(
+  dto: CreateParticipantDto,
+  created_by: string,
+  eventId: string
+): Promise<Participant> {
+  if (!eventId) {
+    throw new BadRequestException('Event ID is required.');
   }
+
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
+
+  try {
+    // Create participant
+    const participant = await this.participantDAL.create(
+      { ...dto, created_by },
+      queryRunner,
+    );
+
+    // Assign participant to event
+    await this.eventService.assignParticipantsToEvent(
+      eventId,
+      [participant.id],
+      queryRunner,
+    );
+
+    await queryRunner.commitTransaction();
+    return participant;
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    throw new BadRequestException(
+      `Failed to create participant: ${error instanceof Error ? error.message : String(error)}`
+    );
+  } finally {
+    await queryRunner.release();
+  }
+}
+
+
   async generateTemplate(): Promise<Buffer | ArrayBuffer | Uint8Array> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Participants');
@@ -96,6 +130,7 @@ export class ParticipantService {
       woreda,
       kebele,
       created_by,
+  
     });
   });
 
@@ -110,11 +145,8 @@ export class ParticipantService {
   if (participants.length === 0) {
     throw new BadRequestException('No valid participant rows found in the file.');
   }
-  // Create all participants in a single batch
   const savedParticipants = await this.participantDAL.createMany(participants);
-  // Extract participant IDs
   const participantIds = savedParticipants.map((p) => p.id);
-  // Map participants to event
   await this.eventService.assignParticipantsToEvent(eventId, participantIds);
 
   return {

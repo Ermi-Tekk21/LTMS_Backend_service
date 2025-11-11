@@ -1,4 +1,5 @@
 import {  IsString } from 'class-validator';
+import { UUID } from 'typeorm/driver/mongodb/bson.typings.js';
 
 export class CreateParticipantDto {
   @IsString()
@@ -40,4 +41,5 @@ export class CreateParticipantDto {
   @IsString()
    created_by:string
 
+  eventId?: string 
 }

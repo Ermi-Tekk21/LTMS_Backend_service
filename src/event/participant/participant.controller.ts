@@ -11,15 +11,14 @@ import { FileInterceptor } from '@nestjs/platform-express';
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
 
-  @Post()
-  create(@Body() createParticipantDto: CreateParticipantDto, @CurrentUser('userId') userId: string) {
-  return this.participantService.create(createParticipantDto, userId);
- }
-
-  // @Get()
-  // getAll() {
-  //   return this.participantService.findAll();
-  // }
+  @Post(':eventId')
+async createParticipant(
+  @Param('eventId') eventId: string,
+  @Body() dto: CreateParticipantDto,
+  @CurrentUser() currentUser: any,
+) {
+  return this.participantService.create(dto, currentUser.id, eventId);
+}
 
  @Get()
 async getAllParticipants(
@@ -44,7 +43,7 @@ async getAllParticipants(
     );
     res.send(buffer);
   }
-  
+
    @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadExcel(
