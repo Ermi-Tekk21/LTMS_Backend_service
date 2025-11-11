@@ -1,17 +1,10 @@
-import {
-  IsUUID,
-  IsNumber,
-  ValidateNested,
-  IsString,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { CreateEventDateDto } from '../event_date/dto/create-event_date.dto';
+import { IsString, IsUUID, IsNumber, IsArray, ArrayNotEmpty, IsOptional } from 'class-validator';
 
 export class CreateEventDto {
-  @IsUUID()
+  @IsString()
   name: string;
 
-  @IsString()
+  @IsUUID()
   type: string;
 
   @IsUUID()
@@ -20,7 +13,19 @@ export class CreateEventDto {
   @IsNumber()
   expected_participant_no: number;
 
-  @ValidateNested({ each: true })
-  @Type(() => CreateEventDateDto)
-  event_dates: CreateEventDateDto[];
+  @IsString()
+  location_id: string;
+
+  @IsString()
+  venue: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUID('4', { each: true })
+  trainers: string[];
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  event_dates: string[];
 }

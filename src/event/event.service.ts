@@ -5,8 +5,11 @@ import { DataSource, QueryRunner, In } from 'typeorm';
 import { EventDAL } from './dal/event.dal';
 import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
-import { TrainerService } from './trainer/trainer.service';
+import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
+import { DocumentService } from './document/document.service';
+import { doc_type } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
+import { TrainerService } from './trainer/trainer.service';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
 import { EmailService } from 'src/common/notification/email.service';
@@ -16,44 +19,97 @@ import { EmailService } from 'src/common/notification/email.service';
 export class EventService {
   constructor(
     private readonly eventDAL: EventDAL,
+    private readonly documentService: DocumentService,
     private readonly eventDateService: EventDateService,
     private readonly eventSessionService: EventSessionService,
     private readonly trainerService: TrainerService,
+    private readonly awsS3Service: AwsS3Service,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource,
   ) { }
 
-  async create(dto: CreateEventDto) {
-    const queryRunner: QueryRunner = this.dataSource.createQueryRunner();
+  async create(dto: CreateEventDto, file: Express.Multer.File) {
+    const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
     try {
-      const event = await this.eventDAL.create(dto, queryRunner)
-      for (const dateDto of dto.event_dates || []) {
+      const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+      const folder = 'tor';
+
+      const event = await this.eventDAL.create({
+        project_id: dto.project_id,
+        type: dto.type,
+        name: dto.name,
+        location_id: dto.location_id,
+        venue: dto.venue,
+        expected_participant_number: dto.expected_participant_no,
+      }, queryRunner);
+
+      const uploadedFile = await this.awsS3Service.uploadFile(
+        file,
+        bucketName,
+        folder,
+        event.id as string,
+      );
+
+      await this.documentService.create({
+        event,
+        path: uploadedFile.key,
+        file_type: file.mimetype.split('/')[1],
+        doc_type: doc_type.TOR,
+      }, queryRunner);
+
+      for (const date of dto.event_dates || []) {
         const eventDate = await this.eventDateService.create(
-          { ...dateDto, id: event.id },
+          { date, event },
           queryRunner,
         );
-
-        for (const sessionDto of dateDto.date_sessions || []) {
-          await this.eventSessionService.create(
-            { ...sessionDto, id: eventDate.id },
-            queryRunner,
-          );
-        }
+        await this.eventSessionService.create({
+          event_date: eventDate,
+          venue: event.venue,
+        }, queryRunner);
       }
 
-      await queryRunner.commitTransaction();
-      return event;
+      if (dto.trainers?.length) {
+        const trainers: Trainer[] = [];
+        for (const trainerId of dto.trainers) {
+          const trainer = await this.trainerService.findOne(trainerId);
+          if (!trainer) {
+            throw new NotFoundException(`Trainer with ID ${trainerId} not found`);
+          }
+          trainers.push(trainer);
+        }
+        event.trainers = trainers;
+      }
 
-    } catch (err) {
+      await queryRunner.manager.save(event);
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: 'Event created successfully',
+        data: {
+          event,
+          torDocument: uploadedFile,
+        },
+      };
+    } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw err;
+      throw error;
     } finally {
       await queryRunner.release();
     }
   }
 
+  async findAll() {
+    return await this.eventDAL.findAll();
+  }
+
+  viewDoc(key: string) {
+    const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+    return this.awsS3Service.getPresignedUrl(bucketName, key)
 
   async assignTrainersToEvent(eventId: string, trainerIds: string[]) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -319,15 +375,30 @@ async getEventParticipants(eventId: string) {
     return `This action returns all event`;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} event`;
+  async findOne(id: string) {
+    return await this.eventDAL.findOne({
+      where: { id: id },
+      relations: ['trainers', 'documents', 'participants']
+    })
   }
 
-  update(id: number, updateEventDto: UpdateEventDto) {
+  update(id: string, updateEventDto: UpdateEventDto) {
     return `This action updates a #${id} event`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} event`;
+  async remove(id: string) {
+    try {
+      const result = await this.eventDAL.delete(id);
+      return {
+        success: true,
+        message: 'Event removed successfully',
+        id,
+        result,
+      };
+    } catch (err) {
+      throw new Error(
+        `Failed to remove event ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }

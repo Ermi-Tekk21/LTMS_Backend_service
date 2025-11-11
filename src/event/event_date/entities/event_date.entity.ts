@@ -7,7 +7,7 @@ export class EventDate {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: "text" })
+    @Column({ type: "text", nullable: true })
     agenda: string;
 
     @Column({ type: "date" })
@@ -39,8 +39,6 @@ export class EventDate {
     @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
     deleted_at: Date | null;
 
-    @OneToMany(() => EventSession, (eventSession) => eventSession, {
-        cascade: true
-    })
+    @OneToMany(() => EventSession, (eventSession) => eventSession )
     event_sessions: EventSession[];
 }

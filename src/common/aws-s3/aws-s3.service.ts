@@ -23,14 +23,13 @@ export class AwsS3Service {
     });
   }
 
-  
-//    Upload file to S3 
-  async uploadFile(file: Express.Multer.File, bucket: string, folder = '') {
+
+  //    Upload file to S3 
+  async uploadFile(file: Express.Multer.File, bucket: string, folder = '', fileName?: string) {
     // get extention of the file
     const ext = file.originalname.split('.').pop();
     // generate unique file name
-    const key = `${folder ? folder.replace(/\/?$/, '/') : ''}${uuid()}.${ext}`;
-
+    const key = `${folder ? folder.replace(/\/?$/, '/') : ''}${fileName}.${ext}`;
 
     const command = new PutObjectCommand({
       Bucket: bucket,
@@ -48,7 +47,7 @@ export class AwsS3Service {
   }
 
 
-    // upload multiple files to S3
+  // upload multiple files to S3
 
   async uploadMultipleFiles(
     files: Express.Multer.File[],
@@ -80,25 +79,23 @@ export class AwsS3Service {
   }
 
 
-    // a pre-signed URL for viewing/downloading
-   
+  // a pre-signed URL for viewing/downloading
+
   async getPresignedUrl(bucket: string, key: string, expiresIn = 3600) {
     const command = new GetObjectCommand({ Bucket: bucket, Key: key });
     return getSignedUrl(this.s3, command, { expiresIn }); // default: 1 hour
   }
 
- 
-    // Delete a file from S3
-   
+
+  // Delete a file from S3
+
   async deleteFile(bucket: string, key: string) {
     const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
     await this.s3.send(command);
     return { deleted: true, key };
   }
 
- 
-    // List files in a bucket/prefix
- 
+  // List files in a bucket/prefix
   async listFiles(bucket: string, prefix = '') {
     const command = new ListObjectsV2Command({
       Bucket: bucket,
