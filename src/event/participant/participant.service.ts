@@ -137,10 +137,10 @@ export class ParticipantService {
     return this.participantDAL.findPaginated(options, page, limit);
   }
 
-  async findAll(): Promise<Participant[]> {
-    const participants = await this.participantDAL.findAll();
-    return participants.filter((p) => !p.deleted_at);
-  }
+  // async findAll(): Promise<Participant[]> {
+  //   const participants = await this.participantDAL.findAll();
+  //   return participants.filter((p) => !p.deleted_at);
+  // }
 
   findOne(id: string) {
     return this.participantDAL.findById(id);
@@ -178,6 +178,4 @@ async softDelete(id: string, deleted_by: string) {
     softDeleted: true,
   };
 }
-
-  
 }

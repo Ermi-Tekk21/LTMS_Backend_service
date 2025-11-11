@@ -10,6 +10,7 @@ import { EventSessionModule } from './event_session/event_session.module';
 import { EventDAL } from './dal/event.dal';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Event } from './entities/event.entity';
+import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
 import { EmailModule } from 'src/common/notification/email.module';
 
 @Module({
@@ -17,6 +18,9 @@ import { EmailModule } from 'src/common/notification/email.module';
     TypeOrmModule.forFeature([Event]),
     forwardRef(() => EventDateModule),
     forwardRef(() => EventSessionModule),
+    forwardRef(() => DocumentModule),
+    forwardRef(() => TrainerModule),
+    forwardRef(() => AwsS3Module),
     TrainerModule,
    
     forwardRef(() => ParticipantModule),

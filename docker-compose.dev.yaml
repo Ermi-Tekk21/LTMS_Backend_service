@@ -1,0 +1,27 @@
+services:
+  lersha_training_management_system_dev:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.dev
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=10240
+    ports:
+      - "4499:4499"
+    networks:
+      - LTMS_network
+    volumes:
+      - LTMS_uploads_volume_dev:/app/uploads
+    restart: always
+
+networks:
+  LTMS_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.251.0.0/16
+          gateway: 10.251.0.1         # Optional, default gateway for containers
+
+
+volumes:
+  LTMS_uploads_volume_dev: {}

@@ -25,5 +25,6 @@ export enum doc_type {
     TRAINING_MATERIAL = "training_material",
     FEEDBACK = "feedback",
     ATTENDANCE = "attendance",
-    MEDIA = "media"
+    MEDIA = "media",
+    PORTFOLIO = "portfolio"
 }

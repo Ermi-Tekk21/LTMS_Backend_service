@@ -30,6 +30,15 @@ export class Event {
     @Column({ type: 'text' })
     name: string;
 
+    @Column({ type: 'text', nullable: true })
+    location_id: string;
+
+    @Column({ type: 'text', nullable: true })
+    venue: string;
+
+    @Column({ nullable: true })
+    expected_participant_number: number;
+
     @Column({ type: 'timestamp', nullable: true })
     due_date: Date;
 
@@ -48,9 +57,7 @@ export class Event {
     })
     documents: Document[];
 
-    @OneToMany(() => EventDate, (eventDate) => eventDate.event, {
-        cascade: true,
-    })
+    @OneToMany(() => EventDate, (eventDate) => eventDate.event)
     event_dates: EventDate[];
 
     @Column({ default: false })

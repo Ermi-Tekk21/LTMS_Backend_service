@@ -2,7 +2,7 @@
 FROM node:20
 
 # Set environment variables
-ENV APP_PORT=3000
+ENV APP_PORT=4499
 
 # Set the working directory inside the container
 WORKDIR /usr/src/app

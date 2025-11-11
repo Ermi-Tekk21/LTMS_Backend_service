@@ -6,6 +6,7 @@ import {
   FindOptionsWhere,
   QueryRunner,
   ObjectLiteral,
+  Brackets,
 } from 'typeorm';
 
 /**
@@ -56,26 +57,84 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
   }
 
   async findAll(
-    options?: FindManyOptions<T>,
+    options?: FindManyOptions<T> & {
+      search?: { term: string; fields: (keyof T)[] };
+      page?: number;
+      limit?: number;
+    },
     queryRunner?: QueryRunner,
-  ): Promise<T[]> {
+  ): Promise<{ data: T[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
     try {
-      const defaultWhere = { is_deleted: false } as unknown as FindOptionsWhere<T>;
-
-      const finalOptions: FindManyOptions<T> = {
-        ...options,
-        where: { ...defaultWhere, ...(options?.where) },
-      };
-
       const repository = queryRunner
         ? queryRunner.manager.getRepository(this.repo.target)
         : this.repo;
 
-      return await repository.find(finalOptions);
+      const alias = 'entity';
+      const qb = repository.createQueryBuilder(alias);
+
+      // Soft delete filter
+      qb.where(`${alias}.deleted_at IS NULL`);
+
+      // Relations
+      if (options?.relations) {
+        (options.relations as string[]).forEach(relation => {
+          qb.leftJoinAndSelect(`${alias}.${relation}`, relation);
+        });
+      }
+
+      // Where clauses from options
+      if (options?.where) {
+        qb.andWhere(options.where);
+      }
+
+      // 🔍 Search logic
+      if (options?.search?.term && options.search.fields.length) {
+        const { term, fields } = options.search;
+        qb.andWhere(
+          new Brackets((qbWhere) => {
+            fields.forEach((field, i) => {
+              const param = `term${i}`;
+              qbWhere.orWhere(`LOWER(${alias}.${String(field)}) LIKE LOWER(:${param})`, {
+                [param]: `%${term}%`,
+              });
+            });
+          }),
+        );
+      }
+
+      // Pagination setup
+      const page = options?.page && options.page > 0 ? options.page : 1;
+      const limit = options?.limit && options.limit > 0 ? options.limit : 10;
+      const skip = (page - 1) * limit;
+
+      // Sorting logic (simplified)
+      if (options?.order) {
+        const order = options.order as { [key: string]: 'asc' | 'desc' };
+        Object.keys(order).forEach((key) => {
+          qb.addOrderBy(`${alias}.${key}`, order[key].toUpperCase() as 'ASC' | 'DESC');
+        });
+      }
+
+      // Execute with pagination and count
+      const [data, total] = await qb.skip(skip).take(limit).getManyAndCount();
+
+      // Return structured response
+      return {
+        data,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
     } catch (error) {
-      throw new Error(`DAL.findAll failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `DAL.findAll failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
+
 
   async findOne(
     options: FindOneOptions<T>,

@@ -39,19 +39,19 @@ export const fileTypes = {
 export type FileType = keyof typeof fileTypes;
 
 export const multerOptions = (
-  useMemory: boolean = true, 
-  fileType: FileType[] = ['image', 'pdf'], 
-  fileSize: number = MAX_FILE_SIZE_MB, 
+  useMemory: boolean = true,
+  fileType: FileType[] = ['image', 'pdf', 'doc', 'vid'],
+  fileSize: number = MAX_FILE_SIZE_MB,
 ): multer.Options => {
   const storage = useMemory
-    ? multer.memoryStorage() 
+    ? multer.memoryStorage()
     : diskStorage({
-        destination: './uploads', 
-        filename: (req, file, cb) => {
-          const ext = extname(file.originalname);
-          cb(null, `${uuid()}${ext}`); 
-        },
-      });
+      destination: './event-files',
+      filename: (req, file, cb) => {
+        const ext = extname(file.originalname);
+        cb(null, `${uuid()}${ext}`);
+      },
+    });
 
   return {
     storage,

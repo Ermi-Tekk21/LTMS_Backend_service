@@ -33,7 +33,6 @@ export class Trainer {
   @Column({ type: 'text', nullable: true })
   file_key: string;
 
-
   @Column({ type: "uuid", nullable: true })
   created_by: string
 
