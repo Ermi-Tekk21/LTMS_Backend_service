@@ -31,7 +31,7 @@ export class Event {
     name: string;
 
     @Column({ type: 'text', nullable: true })
-    location: string;
+    location_id: string;
 
     @Column({ type: 'text', nullable: true })
     venue: string;

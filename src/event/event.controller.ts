@@ -29,9 +29,9 @@ export class EventController {
     return this.eventService.findOne(id);
   }
 
-  @Get('tor/view-doc')
-  viewDoc() {
-    return this.eventService.viewDoc();
+  @Get('view/:key')
+  viewDoc(key: string) {
+    return this.eventService.viewDoc(key);
   }
 
   @Patch(':id')

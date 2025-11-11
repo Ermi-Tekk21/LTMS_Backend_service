@@ -23,49 +23,6 @@ export class DocumentService {
     }
   }
 
-  async viewFile(type: doc_type, event_id?: string, trainer_id?: string, event_activity_status_id?: string) {
-
-    const bucket = process.env.AWS_S3_BUCKET_NAME;
-    if (!bucket) {
-      throw new Error('AWS_S3_BUCKET_NAME is not set in environment');
-    }
-
-    let key: string | string[];
-    let res: string | string[];
-
-    if (type == doc_type.ATTENDANCE || type == doc_type.FEEDBACK || type == doc_type.MEDIA) {
-      const docs = await this.documentDal.findAll({
-        where: {
-          doc_type: type,
-          event: {
-            id: event_id
-          }
-        }
-      })
-
-      key = docs.map(d => d.path)
-      res = await Promise.all(key.map(k => this.awsS3Service.getPresignedUrl(bucket, k, 5000)));
-      return res
-    } else if (type == doc_type.PORTFOLIO) {
-      const doc = await this.documentDal.findOne({
-        where: {
-          doc_type: type, // needs to be modified after linking to the trainer table
-          event: {
-            id: event_id
-          }
-        }
-      })
-      key = doc?.path as string
-      res = await this.awsS3Service.getPresignedUrl(bucket, key, 5000);
-      return res
-    } else {
-
-    }
-
-    // res = await this.awsS3Service.getPresignedUrl(bucket, key, 5000);
-
-  }
-
   findAll() {
     return `This action returns all document`;
   }

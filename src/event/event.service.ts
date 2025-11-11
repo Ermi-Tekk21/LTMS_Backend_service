@@ -30,13 +30,13 @@ export class EventService {
 
     try {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-      const folder = 'TOR';
+      const folder = 'tor';
 
       const event = await this.eventDAL.create({
         project_id: dto.project_id,
         type: dto.type,
         name: dto.name,
-        location: dto.location,
+        location_id: dto.location_id,
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_no,
       }, queryRunner);
@@ -98,16 +98,13 @@ export class EventService {
     }
   }
 
-
   async findAll() {
     return await this.eventDAL.findAll();
   }
 
-  viewDoc() {
+  viewDoc(key: string) {
     const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-    console.log("bucket name: ", bucketName);
-
-    return this.awsS3Service.getPresignedUrl(bucketName, "trainers/0ad4fb94-1289-4963-8249-555ea52c49e0.png")
+    return this.awsS3Service.getPresignedUrl(bucketName, key)
   }
 
   async findOne(id: string) {

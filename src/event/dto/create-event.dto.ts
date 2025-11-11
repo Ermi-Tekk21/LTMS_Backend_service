@@ -14,7 +14,7 @@ export class CreateEventDto {
   expected_participant_no: number;
 
   @IsString()
-  location: string;
+  location_id: string;
 
   @IsString()
   venue: string;
