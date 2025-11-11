@@ -6,7 +6,7 @@ import { EventDate } from './entities/event_date.entity';
 
 @Injectable()
 export class EventDateService {
-  constructor(private readonly eventDateDAL: EventDateDal) {}
+  constructor(private readonly eventDateDAL: EventDateDal) { }
 
   async create(data: DeepPartial<EventDate>, queryRunner?: QueryRunner): Promise<EventDate> {
     try {
@@ -28,7 +28,7 @@ export class EventDateService {
     return `This action updates a #${id} eventDate`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} eventDate`;
+  remove(id: string) {
+    return this.eventDateDAL.delete(id)
   }
 }

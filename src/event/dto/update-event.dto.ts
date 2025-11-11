@@ -17,7 +17,7 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
 
   @IsOptional()
   @IsNumber()
-  expected_participant_no?: number;
+  expected_participant_number?: number;
 
   @IsOptional()
   @IsString()
@@ -26,11 +26,6 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
   @IsOptional()
   @IsString()
   venue?: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsUUID('4', { each: true })
-  trainers?: string[];
 
   @IsOptional()
   @IsArray()

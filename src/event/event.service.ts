@@ -105,6 +105,39 @@ export class EventService {
     }
   }
 
+  async update(id: string, updateEventDto: UpdateEventDto) {
+    const event = await this.findOne(id)
+    if (!event) {
+      throw new NotFoundException('event to be updated not found...')
+    }
+
+    const { trainers, event_dates, ...eventData } = updateEventDto;
+
+    // Update scalar properties
+    if (Object.keys(eventData).length > 0) {
+      await this.eventDAL.update(id, eventData);
+    }
+
+    // Update event_dates relation
+    if (event_dates) {
+      for (const event_date of event.event_dates) {
+        await this.eventDateService.remove(event_date.id)
+      }
+      for (const date of event_dates) {
+        const eventDate = await this.eventDateService.create(
+          { date, event }
+        );
+        await this.eventSessionService.create({
+          event_date: eventDate,
+          venue: event.venue,
+        });
+      }
+    }
+
+    // Return the updated event with relations
+    return this.findOne(id);
+  }
+
   async findAll(query?: {
     searchTerm?: string;
     searchFields?: string[];
@@ -387,16 +420,11 @@ export class EventService {
     return event.participants;
   }
 
-
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
-      relations: ['trainers', 'documents', 'participants']
+      relations: ['trainers', 'documents', 'participants', 'event_dates']
     })
-  }
-
-  update(id: string, updateEventDto: UpdateEventDto) {
-    return `This action updates a #${id} event`;
   }
 
   async remove(id: string) {
