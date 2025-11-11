@@ -105,12 +105,27 @@ export class EventService {
     }
   }
 
-  async findAll() {
-    return await this.eventDAL.findAll();
-  }
+  async findAll(query?: {
+    searchTerm?: string;
+    searchFields?: string[];
+    page?: number;
+    limit?: number;
+    order?: Record<string, 'asc' | 'desc'>;
+  }) {
+    const options: any = {};
 
-  viewDoc(key: string) {
-    return this.documentService.viewDoc(key)
+    if (query?.searchTerm && query?.searchFields?.length) {
+      options.search = {
+        term: query.searchTerm,
+        fields: query.searchFields,
+      };
+    }
+
+    if (query?.page) options.page = query.page;
+    if (query?.limit) options.limit = query.limit;
+    options.order = query?.order || { created_at: 'desc' };
+
+    return this.eventDAL.findAll(options);
   }
 
   async assignTrainersToEvent(eventId: string, trainerIds: string[]) {
