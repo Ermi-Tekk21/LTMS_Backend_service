@@ -46,7 +46,6 @@ export class ParticipantService {
 ): Promise<{ success: boolean; count: number }> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(file.buffer as any);
-
   const sheet = workbook.getWorksheet('Participants');
   if (!sheet) throw new NotFoundException('Worksheet "Participants" not found.');
 
@@ -79,7 +78,6 @@ export class ParticipantService {
     if (!gender) missingFields.push('gender');
     if (!phone) missingFields.push('phone');
     if (!region) missingFields.push('region');
-
     if (missingFields.length > 0) {
       invalidRows.push({ row: rowNumber, missingFields });
       return;
@@ -126,21 +124,45 @@ export class ParticipantService {
   };
 }
 
- async findAllPaginated(
-    page = 1,
-    limit = 10,
-  ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
-    const options: FindManyOptions<Participant> = {
-       where: { deleted_at: IsNull() },
+ async findAll(
+  page = 1,
+  limit = 10,
+  search?: string,
+): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+  try {
+    const options: FindManyOptions<Participant> & {
+      search?: { term: string; fields: (keyof Participant)[] };
+      page?: number;
+      limit?: number;
+    } = {
+      where: { deleted_at: IsNull() },
       order: { created_at: 'DESC' },
+      page,
+      limit,
     };
-    return this.participantDAL.findPaginated(options, page, limit);
-  }
 
-  // async findAll(): Promise<Participant[]> {
-  //   const participants = await this.participantDAL.findAll();
-  //   return participants.filter((p) => !p.deleted_at);
-  // }
+    if (search && search.trim() !== '') {
+      options.search = {
+        term: search,
+        fields: ['first_name', 'last_name', 'region','woreda','kebele','events'], 
+      };
+    }
+    const result = await this.participantDAL.findAll(options);
+    return {
+      data: result.data,
+      total: result.meta.total,
+      page: result.meta.page,
+      limit: result.meta.limit,
+    };
+  } catch (error) {
+    throw new Error(
+      `ParticipantService.findAll failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
 
   findOne(id: string) {
     return this.participantDAL.findById(id);

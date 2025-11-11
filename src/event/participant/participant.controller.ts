@@ -22,12 +22,14 @@ export class ParticipantController {
   // }
 
  @Get()
-  findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-  ) {
-    return this.participantService.findAllPaginated(page, limit);
-  }
+async getAllParticipants(
+  @Query('page') page = 1,
+  @Query('limit') limit = 10,
+  @Query('search') search?: string,
+) {
+  return this.participantService.findAll(Number(page), Number(limit), search);
+}
+
    @Get('template')
   async downloadTemplate(@Res() res: Response) {
     const buffer = await this.participantService.generateTemplate();
@@ -40,9 +42,9 @@ export class ParticipantController {
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-
     res.send(buffer);
   }
+  
    @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadExcel(
