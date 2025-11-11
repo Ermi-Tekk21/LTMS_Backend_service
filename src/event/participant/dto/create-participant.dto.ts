@@ -39,6 +39,6 @@ export class CreateParticipantDto {
   @IsString()
    created_by:string
 
-     @IsUUID()
+  @IsUUID()
   eventId?: string 
 }
