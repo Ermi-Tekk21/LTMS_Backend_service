@@ -109,9 +109,14 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
 
       // Sorting logic (simplified)
       if (options?.order) {
-        const order = options.order as { [key: string]: 'asc' | 'desc' };
-        Object.keys(order).forEach((key) => {
-          qb.addOrderBy(`${alias}.${key}`, order[key].toUpperCase() as 'ASC' | 'DESC');
+        const order = options.order as Record<string, string>;
+        Object.entries(order).forEach(([key, value]) => {
+          const direction = (value || '').toString().trim().toUpperCase();
+          if (direction === 'ASC' || direction === 'DESC') {
+            qb.addOrderBy(`${alias}.${key}`, direction as 'ASC' | 'DESC');
+          } else {
+            console.warn(`⚠️ Invalid order direction for "${key}": "${value}" — skipping`);
+          }
         });
       }
 

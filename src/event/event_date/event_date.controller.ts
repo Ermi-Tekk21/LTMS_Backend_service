@@ -5,7 +5,7 @@ import { UpdateEventDateDto } from './dto/update-event_date.dto';
 
 @Controller('event-date')
 export class EventDateController {
-  constructor(private readonly eventDateService: EventDateService) {}
+  constructor(private readonly eventDateService: EventDateService) { }
 
   @Post()
   create(@Body() createEventDateDto: CreateEventDateDto) {
@@ -29,6 +29,6 @@ export class EventDateController {
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.eventDateService.remove(+id);
+    return this.eventDateService.remove(id);
   }
 }

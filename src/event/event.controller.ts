@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query } from '@nestjs/common';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -20,8 +20,28 @@ export class EventController {
   }
 
   @Get()
-  findAll() {
-    return this.eventService.findAll();
+  findAll(
+    @Query('searchTerm') searchTerm?: string,
+    @Query('searchFields') searchFields?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('order') order?: string,
+  ) {
+    // Convert comma-separated fields (e.g., "name,description") into an array
+    const parsedFields = searchFields ? searchFields.split(',') : [];
+
+    // Convert order string (e.g., "createdAt:desc,name:asc") into an object
+    const parsedOrder = order
+      ? Object.fromEntries(order.split(',').map((o) => o.split(':')))
+      : undefined;
+
+    return this.eventService.findAll({
+      searchTerm,
+      searchFields: parsedFields,
+      page: Number(page),
+      limit: Number(limit),
+      order: parsedOrder,
+    });
   }
 
   @Get(':id')
@@ -29,24 +49,19 @@ export class EventController {
     return this.eventService.findOne(id);
   }
 
-  @Get('view/:key')
-  viewDoc(key: string) {
-    return this.eventService.viewDoc(key);
-  }
-
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
     return this.eventService.update(id, updateEventDto);
   }
 
-   @Post(':id/trainers')
+  @Post(':id/trainers')
   async assignTrainers(
     @Param('id') eventId: string,
     @Body('trainerIds') trainerIds: string[],
   ) {
     return this.eventService.assignTrainersToEvent(eventId, trainerIds);
   }
-  
+
   @Delete(':id/trainers')
   async removeTrainers(
     @Param('id') eventId: string,
@@ -68,7 +83,7 @@ export class EventController {
     return this.eventService.getEventTrainers(eventId);
   }
 
-    @Post(':id/participants')
+  @Post(':id/participants')
   async assignParticipants(
     @Param('id') eventId: string,
     @Body('participantIds') participantIds: string[],
@@ -96,7 +111,7 @@ export class EventController {
   async getEventParticipants(@Param('id') eventId: string) {
     return this.eventService.getEventParticipants(eventId);
   }
-  
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.eventService.remove(id);

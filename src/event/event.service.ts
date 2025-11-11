@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { DataSource, In } from 'typeorm';
@@ -7,7 +7,7 @@ import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from './document/document.service';
-import { doc_type } from 'src/common/enums/status_enums';
+import { doc_type, event_status } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { TrainerService } from './trainer/trainer.service';
 import { Event } from './entities/event.entity';
@@ -106,12 +106,60 @@ export class EventService {
     }
   }
 
-  async findAll() {
-    return await this.eventDAL.findAll();
+  async update(id: string, updateEventDto: UpdateEventDto) {
+    const event = await this.findOne(id)
+    if (!event) {
+      throw new NotFoundException('event to be updated not found...')
+    }
+
+    const { trainers, event_dates, ...eventData } = updateEventDto;
+
+    // Update scalar properties
+    if (Object.keys(eventData).length > 0) {
+      await this.eventDAL.update(id, eventData);
+    }
+
+    // Update event_dates relation
+    if (event_dates) {
+      for (const event_date of event.event_dates) {
+        await this.eventDateService.remove(event_date.id)
+      }
+      for (const date of event_dates) {
+        const eventDate = await this.eventDateService.create(
+          { date, event }
+        );
+        await this.eventSessionService.create({
+          event_date: eventDate,
+          venue: event.venue,
+        });
+      }
+    }
+
+    // Return the updated event with relations
+    return this.findOne(id);
   }
 
-  viewDoc(key: string) {
-    return this.documentService.viewDoc(key)
+  async findAll(query?: {
+    searchTerm?: string;
+    searchFields?: string[];
+    page?: number;
+    limit?: number;
+    order?: Record<string, 'asc' | 'desc'>;
+  }) {
+    const options: any = {};
+
+    if (query?.searchTerm && query?.searchFields?.length) {
+      options.search = {
+        term: query.searchTerm,
+        fields: query.searchFields,
+      };
+    }
+
+    if (query?.page) options.page = query.page;
+    if (query?.limit) options.limit = query.limit;
+    options.order = query?.order || { created_at: 'desc' };
+
+    return this.eventDAL.findAll(options);
   }
 
   async assignTrainersToEvent(eventId: string, trainerIds: string[]) {
@@ -277,43 +325,43 @@ export class EventService {
   }
   //  ASSIGN PARTICIPANTS TO EVENT
   async assignParticipantsToEvent(
-  eventId: string,
-  participantIds: string[],
-  queryRunner?: QueryRunner, // optional
-) {
-  const runner = queryRunner || this.dataSource.createQueryRunner();
-  let ownTransaction = false;
+    eventId: string,
+    participantIds: string[],
+    queryRunner?: QueryRunner, // optional
+  ) {
+    const runner = queryRunner || this.dataSource.createQueryRunner();
+    let ownTransaction = false;
 
-  if (!queryRunner) {
-    await runner.connect();
-    await runner.startTransaction();
-    ownTransaction = true;
+    if (!queryRunner) {
+      await runner.connect();
+      await runner.startTransaction();
+      ownTransaction = true;
+    }
+
+    try {
+      const eventRepo = runner.manager.getRepository(Event);
+      const participantRepo = runner.manager.getRepository(Participant);
+
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['participants'],
+      });
+      if (!event) throw new NotFoundException('Event not found');
+
+      const participants = await participantRepo.findBy({ id: In(participantIds) });
+
+      event.participants = [...(event.participants || []), ...participants];
+      const updatedEvent = await eventRepo.save(event);
+
+      if (ownTransaction) await runner.commitTransaction();
+      return updatedEvent;
+    } catch (err) {
+      if (ownTransaction) await runner.rollbackTransaction();
+      throw err;
+    } finally {
+      if (ownTransaction) await runner.release();
+    }
   }
-
-  try {
-    const eventRepo = runner.manager.getRepository(Event);
-    const participantRepo = runner.manager.getRepository(Participant);
-
-    const event = await eventRepo.findOne({
-      where: { id: eventId },
-      relations: ['participants'],
-    });
-    if (!event) throw new NotFoundException('Event not found');
-
-    const participants = await participantRepo.findBy({ id: In(participantIds) });
-
-    event.participants = [...(event.participants || []), ...participants];
-    const updatedEvent = await eventRepo.save(event);
-
-    if (ownTransaction) await runner.commitTransaction();
-    return updatedEvent;
-  } catch (err) {
-    if (ownTransaction) await runner.rollbackTransaction();
-    throw err;
-  } finally {
-    if (ownTransaction) await runner.release();
-  }
-}
 
   // REMOVE PARTICIPANTS FROM EVENT
   async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
@@ -383,20 +431,22 @@ export class EventService {
     return event.participants;
   }
 
-
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
-      relations: ['trainers', 'documents', 'participants']
+      relations: ['trainers', 'documents', 'participants', 'event_dates']
     })
-  }
-
-  update(id: string, updateEventDto: UpdateEventDto) {
-    return `This action updates a #${id} event`;
   }
 
   async remove(id: string) {
     try {
+      const event = await this.findOne(id)
+      if (!event) {
+        throw new NotFoundException("event to be deleted not found...")
+      }
+      if (event.event_status != event_status.INITATED) {
+        throw new BadRequestException('only event with status initiated can be deleted...')
+      }
       const result = await this.eventDAL.delete(id);
       return {
         success: true,
