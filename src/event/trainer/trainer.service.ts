@@ -48,7 +48,7 @@ export class TrainerService {
     if (search && search.trim() !== '') {
       options.search = {
         term: search,
-        fields: ['first_name', 'last_name', 'email', 'occupation','events'], 
+        fields: ['first_name', 'last_name', 'email', 'occupation'], 
       };
     }
 

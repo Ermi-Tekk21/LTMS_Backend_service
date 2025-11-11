@@ -176,7 +176,7 @@ export class ParticipantService {
     if (search && search.trim() !== '') {
       options.search = {
         term: search,
-        fields: ['first_name', 'last_name', 'region','woreda','kebele','events'], 
+        fields: ['first_name', 'last_name', 'region','woreda','kebele'], 
       };
     }
     const result = await this.participantDAL.findAll(options);
