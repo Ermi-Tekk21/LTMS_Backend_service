@@ -44,7 +44,7 @@ export class EventService {
         name: dto.name,
         location_id: dto.location_id,
         venue: dto.venue,
-        expected_participant_number: dto.expected_participant_no,
+        expected_participant_number: dto.expected_participant_number,
       }, queryRunner);
 
       const uploadedFile = await this.awsS3Service.uploadFile(
@@ -84,11 +84,14 @@ export class EventService {
       //   event.trainers = trainers;
       // }
 
-      const trainers = dto.trainers
-      await this.assignTrainersToEvent(event.id, trainers)
       await queryRunner.manager.save(event);
-
       await queryRunner.commitTransaction();
+
+
+      if (dto.trainers?.length) {
+        const trainers = dto.trainers
+        await this.assignTrainersToEvent(event.id, trainers)
+      }
 
       return {
         success: true,
@@ -147,7 +150,7 @@ export class EventService {
     order?: Record<string, 'asc' | 'desc'>;
   }) {
     const options: any = {};
-
+    options.relations = ['event_dates', 'event_dates.event_sessions']
     if (query?.searchTerm && query?.searchFields?.length) {
       options.search = {
         term: query.searchTerm,
@@ -158,7 +161,6 @@ export class EventService {
     if (query?.page) options.page = query.page;
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
-
     return this.eventDAL.findAll(options);
   }
 
@@ -434,7 +436,7 @@ export class EventService {
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
-      relations: ['trainers', 'documents', 'participants', 'event_dates']
+      relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates.event_sessions']
     })
   }
 
