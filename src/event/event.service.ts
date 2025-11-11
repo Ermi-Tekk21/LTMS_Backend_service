@@ -150,7 +150,7 @@ export class EventService {
     order?: Record<string, 'asc' | 'desc'>;
   }) {
     const options: any = {};
-    options.relations = ['event_dates']
+    options.relations = ['event_dates','documents']
     
     if (query?.searchTerm && query?.searchFields?.length) {
       options.search = {
