@@ -72,18 +72,6 @@ export class EventService {
         }, queryRunner);
       }
 
-      // if (dto.trainers?.length) {
-      //   const trainers: Trainer[] = [];
-      //   for (const trainerId of dto.trainers) {
-      //     const trainer = await this.trainerService.findOne(trainerId);
-      //     if (!trainer) {
-      //       throw new NotFoundException(`Trainer with ID ${trainerId} not found`);
-      //     }
-      //     trainers.push(trainer);
-      //   }
-      //   event.trainers = trainers;
-      // }
-
       const trainers = dto.trainers
       await this.assignTrainersToEvent(event.id, trainers)
       await queryRunner.manager.save(event);

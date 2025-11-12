@@ -73,11 +73,11 @@ export class ParticipantService {
     return await workbook.xlsx.writeBuffer();
   }
 
-  async importFromExcel(
+ async importFromExcel(
   file: Express.Multer.File,
   eventId: string,
-  created_by: string
-): Promise<{ success: boolean; count: number }> {
+  created_by: string,
+): Promise<{ success: boolean; count: number;  }> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(file.buffer as any);
   const sheet = workbook.getWorksheet('Participants');
@@ -86,10 +86,8 @@ export class ParticipantService {
   const participants: CreateParticipantDto[] = [];
   const invalidRows: { row: number; missingFields: string[] }[] = [];
 
-  // First pass: Validate all rows
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // skip header
-
     const values = Array.isArray(row.values) ? row.values : [];
     const [
       first_name,
@@ -105,7 +103,6 @@ export class ParticipantService {
       kebele,
     ] = values.slice(1) as any[];
 
-    // Check all required fields
     const missingFields: string[] = [];
     if (!first_name) missingFields.push('first_name');
     if (!last_name) missingFields.push('last_name');
@@ -116,7 +113,6 @@ export class ParticipantService {
       invalidRows.push({ row: rowNumber, missingFields });
       return;
     }
-
     participants.push({
       first_name,
       last_name,
@@ -130,29 +126,27 @@ export class ParticipantService {
       woreda,
       kebele,
       created_by,
-  
     });
   });
-
-  // Reject submission if any row has missing required fields
   if (invalidRows.length > 0) {
     const errorMessage = `File contains rows with missing required fields:\n${invalidRows
       .map((r) => `Row ${r.row}: missing ${r.missingFields.join(', ')}`)
       .join('\n')}`;
     throw new BadRequestException(errorMessage);
   }
-
   if (participants.length === 0) {
     throw new BadRequestException('No valid participant rows found in the file.');
   }
-  const savedParticipants = await this.participantDAL.createMany(participants);
-  const participantIds = savedParticipants.map((p) => p.id);
-  await this.eventService.assignParticipantsToEvent(eventId, participantIds);
+  const participantRepo = this.dataSource.getRepository(Participant);
+  const newParticipants: Participant[] = [];
+  const participantIds = newParticipants.map((p) => p.id);
+  if (participantIds.length > 0) {
+    await this.eventService.assignParticipantsToEvent(eventId, participantIds);
+  }
 
   return {
     success: true,
-    count: savedParticipants.length
-    
+    count: newParticipants.length,
   };
 }
 

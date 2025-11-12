@@ -43,31 +43,33 @@ async getAllParticipants(
     );
     res.send(buffer);
   }
-
-   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadExcel(
-    @UploadedFile() file: Express.Multer.File,
-    @Body('eventId') eventId: string,
-    @CurrentUser('userId') userId: string,
-  ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded.');
-    }
-    if (!eventId) {
-      throw new BadRequestException('Event ID is required.');
-    }
-
-    try {
-      const result = await this.participantService.importFromExcel(file, eventId, userId);
-      return {
-        message: 'Excel file imported successfully',
-        ...result,
-      };
-    } catch (error) {
-      throw new BadRequestException(`Failed to import Excel: ${error.message}`);
-    }
+@Post('upload/:eventId')
+@UseInterceptors(FileInterceptor('file'))
+async uploadExcel(
+  @UploadedFile() file: Express.Multer.File,
+  @Param('eventId') eventId: string,
+  @CurrentUser('userId') userId: string,
+) {
+  if (!file) {
+    throw new BadRequestException('No file uploaded.');
   }
+  if (!eventId) {
+    throw new BadRequestException('Event ID is required.');
+  }
+
+  try {
+    const result = await this.participantService.importFromExcel(file, eventId, userId);
+    return {
+      message: 'Excel file imported successfully',
+      ...result,
+    };
+  } catch (error) {
+    throw new BadRequestException(
+      `Failed to import Excel: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
 
 
   @Get(':id')
