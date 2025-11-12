@@ -27,6 +27,7 @@ export class AwsS3Service {
   //    Upload file to S3 
   async uploadFile(file: Express.Multer.File, bucket: string, folder = '', fileName?: string) {
     // get extention of the file
+
     const ext = file.originalname.split('.').pop();
     // generate unique file name
     const key = `${folder ? folder.replace(/\/?$/, '/') : ''}${fileName}.${ext}`;

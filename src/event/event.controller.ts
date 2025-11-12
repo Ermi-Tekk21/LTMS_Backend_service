@@ -10,7 +10,7 @@ export class EventController {
   constructor(private readonly eventService: EventService) { }
 
   @Post()
-  @UseInterceptors(FileInterceptor('TOR', multerOptions(true, ['pdf'], 20)))
+  @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
   async create(
     @Body("data") data: string,
     @UploadedFile() file: Express.Multer.File,
