@@ -14,6 +14,9 @@ import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
 import { EmailService } from 'src/common/notification/email.service';
 import { QueryRunner } from 'typeorm/browser';
+import PdfPrinter from 'pdfmake';
+import * as path from 'path';
+import * as fs from 'fs';
 
 
 @Injectable()
@@ -151,7 +154,7 @@ export class EventService {
   }) {
     const options: any = {};
     options.relations = ['event_dates']
-    
+
     if (query?.searchTerm && query?.searchFields?.length) {
       options.search = {
         term: query.searchTerm,
@@ -463,4 +466,127 @@ export class EventService {
       );
     }
   }
+  async generateAttendancePdf(eventId: string, date: string): Promise<Buffer> {
+    const event = await this.eventDAL.findOne({
+      where: { id: eventId },
+      relations: ['participants', 'trainers'],
+    });
+
+    if (!event) throw new Error('Event not found');
+
+    const fonts = {
+      Roboto: {
+        normal: path.join(__dirname, '..', 'fonts', 'Roboto-Regular.ttf'),
+        bold: path.join(__dirname, '..', 'fonts', 'Roboto-Medium.ttf'),
+        italics: path.join(__dirname, '..', 'fonts', 'Roboto-Italic.ttf'),
+        bolditalics: path.join(__dirname, '..', 'fonts', 'Roboto-MediumItalic.ttf'),
+      },
+    };
+
+    const printer = new PdfPrinter(fonts);
+
+    const participantsPerPage = 37;
+    const totalParticipants = event.participants.length;
+    const participantPages: (string | number)[][][] = [];
+
+    // 1. Split participants into pages with continuous numbering
+    for (let i = 0; i < totalParticipants; i += participantsPerPage) {
+      const pageParticipants = event.participants.slice(i, i + participantsPerPage);
+      const tableBody = [
+        ['#', 'Full Name', 'Phone No', 'Signature'],
+        ...pageParticipants.map((p, j) => [
+          String(i + j + 1),
+          `${p.first_name} ${p.last_name}`,
+          String(p.phone ?? ''),
+          '',
+        ]),
+      ];
+
+      // Fill remaining rows to complete page
+      const remainingRows = participantsPerPage - pageParticipants.length;
+      for (let j = 0; j < remainingRows; j++) {
+        tableBody.push([String(i + pageParticipants.length + j + 1), '', '', '']);
+      }
+
+      participantPages.push(tableBody);
+    }
+
+    // 2. Add blank page between participants and trainers
+    const lastParticipantNumber = totalParticipants > 0 ? totalParticipants : 0;
+    const blankPageBetween = [['#', 'Full Name', 'Phone No', 'Signature']];
+    for (let j = 0; j < participantsPerPage; j++) {
+      blankPageBetween.push([String(lastParticipantNumber + j + 1), '', '', '']);
+    }
+
+    // 3. Trainer table with extra empty row to render last line
+    const trainerTable = [
+      ['#', 'Full Name', 'Phone No', 'Signature'],
+      ...event.trainers.map((t, i) => [
+        String(i + 1),
+        `${t.first_name} ${t.last_name}`,
+        String(t.phone ?? ''),
+        '',
+      ]),
+      ['', '', '', ''], // extra row for bottom line
+    ];
+
+    // 4. Build PDF content
+    const content: any[] = [
+      ...participantPages.map((page, i) => {
+        const pageContent: any[] = [
+          { text: `${event.name} Attendance Sheet`, style: 'header' },
+          { text: `Date: ${date}`, margin: [0, 5, 0, 15] },
+          {
+            table: { widths: ['auto', '*', '*', '*'], body: page },
+            layout: 'lightHorizontalLines',
+          },
+        ];
+        if (i < participantPages.length - 1) {
+          pageContent.push({ text: '', pageBreak: 'after' });
+        }
+        return pageContent;
+      }).flat(),
+
+      // Blank page between participants and trainers
+      { text: '', pageBreak: 'after' } as any,
+      {
+        table: { widths: ['auto', '*', '*', '*'], body: blankPageBetween },
+        layout: 'lightHorizontalLines',
+        pageBreak: 'after',
+      },
+
+      // Trainer section
+      { text: 'Trainer Attendance', style: 'subheader', margin: [0, 10, 0, 5] },
+      {
+        table: { widths: ['auto', '*', '*', '*'], body: trainerTable },
+        layout: 'lightHorizontalLines',
+      },
+    ];
+
+    const docDefinition: any = {
+      content,
+      footer: function (currentPage, pageCount) {
+        return { text: `${currentPage} of ${pageCount}`, alignment: 'center' };
+      },
+      styles: {
+        header: { fontSize: 18, bold: true, alignment: 'center' },
+        subheader: { fontSize: 14, bold: true },
+      },
+      defaultStyle: { font: 'Roboto', fontSize: 11 },
+    };
+
+    // 5. Create PDF
+    const pdfDoc = printer.createPdfKitDocument(docDefinition);
+    const chunks: any[] = [];
+
+    return new Promise<Buffer>((resolve, reject) => {
+      pdfDoc.on('data', (chunk) => chunks.push(chunk));
+      pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+      pdfDoc.on('error', reject);
+      pdfDoc.end();
+    });
+  }
+
+
+
 }

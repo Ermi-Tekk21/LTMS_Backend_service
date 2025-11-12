@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -115,6 +116,28 @@ export class EventController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.eventService.remove(id);
+  }
+
+  @Get('attendance/:eventId/pdf')
+  async downloadAttendancePdf(
+    @Param('eventId') eventId: string,
+    @Query('date') date: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, date);
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="attendance-${eventId}.pdf"`,
+        'Content-Length': pdfBuffer.length,
+      });
+
+      res.end(pdfBuffer);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+    }
   }
 }
 
