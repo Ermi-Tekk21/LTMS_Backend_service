@@ -9,7 +9,6 @@ import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from './document/document.service';
 import { doc_type, event_status } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
-import { TrainerService } from './trainer/trainer.service';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
 import { EmailService } from 'src/common/notification/email.service';
@@ -26,7 +25,6 @@ export class EventService {
     private readonly documentService: DocumentService,
     private readonly eventDateService: EventDateService,
     private readonly eventSessionService: EventSessionService,
-    private readonly trainerService: TrainerService,
     private readonly awsS3Service: AwsS3Service,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource,
