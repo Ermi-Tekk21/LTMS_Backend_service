@@ -51,8 +51,6 @@ export class ParticipantService {
     await queryRunner.release();
   }
 }
-
-
   async generateTemplate(): Promise<Buffer | ArrayBuffer | Uint8Array> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Participants');

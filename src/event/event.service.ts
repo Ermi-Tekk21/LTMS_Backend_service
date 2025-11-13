@@ -200,7 +200,7 @@ export class EventService {
         }
       }
       await queryRunner.commitTransaction();
-
+    await this.updateEventStatusIfReady(eventId);
       // return fresh event with trainers relation
       return await eventRepo.findOne({
         where: { id: eventId },
@@ -211,6 +211,7 @@ export class EventService {
       throw err;
     } finally {
       await queryRunner.release();
+
     }
   }
 
@@ -366,6 +367,7 @@ export class EventService {
       const updatedEvent = await eventRepo.save(event);
 
       if (ownTransaction) await runner.commitTransaction();
+      await this.updateEventStatusIfReady(eventId);
       return updatedEvent;
     } catch (err) {
       if (ownTransaction) await runner.rollbackTransaction();
@@ -462,7 +464,26 @@ export class EventService {
   };
 }
 
+private async updateEventStatusIfReady(eventId: string) {
+    const eventRepo = this.dataSource.getRepository(Event);
+    const event = await eventRepo.findOne({
+      where: { id: eventId },
+      relations: ['participants', 'trainers'],
+    });
+    if (!event) return;
 
+    const hasParticipants = event.participants?.length > 0;
+    const hasTrainers = event.trainers?.length > 0;
+
+    if (hasParticipants && hasTrainers && event.event_status !== event_status.READY) {
+      event.event_status = event_status.READY;
+      await eventRepo.save(event);
+      console.log(` Event ${event.id} marked as READY`);
+    } else if ((!hasParticipants || !hasTrainers) && event.event_status === event_status.READY) {
+      event.event_status = event_status.INITATED;
+      await eventRepo.save(event);
+    }
+  }
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
