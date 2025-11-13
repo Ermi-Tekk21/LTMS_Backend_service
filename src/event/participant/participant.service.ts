@@ -77,9 +77,10 @@ export class ParticipantService {
   file: Express.Multer.File,
   eventId: string,
   created_by: string,
-): Promise<{ success: boolean; count: number;  }> {
+): Promise<{ success: boolean; count: number }> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(file.buffer as any);
+
   const sheet = workbook.getWorksheet('Participants');
   if (!sheet) throw new NotFoundException('Worksheet "Participants" not found.');
 
@@ -109,10 +110,12 @@ export class ParticipantService {
     if (!gender) missingFields.push('gender');
     if (!phone) missingFields.push('phone');
     if (!region) missingFields.push('region');
+
     if (missingFields.length > 0) {
       invalidRows.push({ row: rowNumber, missingFields });
       return;
     }
+
     participants.push({
       first_name,
       last_name,
@@ -128,27 +131,34 @@ export class ParticipantService {
       created_by,
     });
   });
+
   if (invalidRows.length > 0) {
     const errorMessage = `File contains rows with missing required fields:\n${invalidRows
       .map((r) => `Row ${r.row}: missing ${r.missingFields.join(', ')}`)
       .join('\n')}`;
     throw new BadRequestException(errorMessage);
   }
+
   if (participants.length === 0) {
     throw new BadRequestException('No valid participant rows found in the file.');
   }
+
+  //  Save participants into DB
   const participantRepo = this.dataSource.getRepository(Participant);
-  const newParticipants: Participant[] = [];
-  const participantIds = newParticipants.map((p) => p.id);
+  const savedParticipants = await participantRepo.save(participants);
+
+  //  Assign saved participants to event
+  const participantIds = savedParticipants.map((p) => p.id);
   if (participantIds.length > 0) {
     await this.eventService.assignParticipantsToEvent(eventId, participantIds);
   }
 
   return {
     success: true,
-    count: newParticipants.length,
+    count: savedParticipants.length,
   };
 }
+
 
  async findAll(
   page = 1,

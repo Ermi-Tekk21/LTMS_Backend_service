@@ -79,7 +79,13 @@ export class EventController {
   }
 
   @Get(':id/trainers')
-  async getEventTrainers(@Param('id') eventId: string) {
+  async getEventTrainers(
+    @Param('id') eventId: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,) 
+  {
+  const pageNumber = Number(page) || 1;
+  const limitNumber = Number(limit) || 10;
     return this.eventService.getEventTrainers(eventId);
   }
 
@@ -108,9 +114,18 @@ export class EventController {
   }
 
   @Get(':id/participants')
-  async getEventParticipants(@Param('id') eventId: string) {
-    return this.eventService.getEventParticipants(eventId);
-  }
+async getEventParticipants(
+  @Param('id') eventId: string,
+  @Query('page') page = 1,
+  @Query('limit') limit = 10,
+) {
+  // Convert page and limit to numbers
+  const pageNumber = Number(page) || 1;
+  const limitNumber = Number(limit) || 10;
+
+  return this.eventService.getEventParticipants(eventId, pageNumber, limitNumber);
+}
+
 
   @Delete(':id')
   remove(@Param('id') id: string) {

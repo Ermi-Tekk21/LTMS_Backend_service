@@ -14,8 +14,6 @@ import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
 import { EmailService } from 'src/common/notification/email.service';
 import { QueryRunner } from 'typeorm/browser';
-
-
 @Injectable()
 export class EventService {
   constructor(
@@ -71,19 +69,6 @@ export class EventService {
           venue: event.venue,
         }, queryRunner);
       }
-
-      // if (dto.trainers?.length) {
-      //   const trainers: Trainer[] = [];
-      //   for (const trainerId of dto.trainers) {
-      //     const trainer = await this.trainerService.findOne(trainerId);
-      //     if (!trainer) {
-      //       throw new NotFoundException(`Trainer with ID ${trainerId} not found`);
-      //     }
-      //     trainers.push(trainer);
-      //   }
-      //   event.trainers = trainers;
-      // }
-
       await queryRunner.manager.save(event);
       await queryRunner.commitTransaction();
 
@@ -291,14 +276,33 @@ export class EventService {
     }
   }
 
-  async getEventTrainers(eventId: string) {
-    const event = await this.dataSource.getRepository(Event).findOne({
-      where: { id: eventId },
-      relations: ['trainers'],
-    });
-    if (!event) throw new NotFoundException('Event not found');
-    return event.trainers;
-  }
+  async getEventTrainers(
+  eventId: string,
+  page = 1,
+  limit = 10,
+): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
+  const eventRepo = this.dataSource.getRepository(Event);
+
+  const event = await eventRepo.findOne({ where: { id: eventId } });
+  if (!event) throw new NotFoundException('Event not found');
+
+  const trainerRepo = this.dataSource.getRepository(Trainer);
+
+  const [data, total] = await trainerRepo
+    .createQueryBuilder('trainer')
+    .innerJoin('trainer.events', 'event', 'event.id = :eventId', { eventId })
+    .skip((page - 1) * limit)
+    .take(limit)
+    .getManyAndCount();
+
+  return {
+    data,
+    total,
+    page,
+    limit,
+  };
+}
+
 
   async removeTrainersFromEvent(eventId: string, trainerIds: string[]) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -425,14 +429,34 @@ export class EventService {
   }
 
   // GET ALL PARTICIPANTS ASSIGNED TO EVENT
-  async getEventParticipants(eventId: string) {
-    const event = await this.dataSource.getRepository(Event).findOne({
-      where: { id: eventId },
-      relations: ['participants'],
-    });
-    if (!event) throw new NotFoundException('Event not found');
-    return event.participants;
-  }
+  async getEventParticipants(
+  eventId: string,
+  page = 1,
+  limit = 10,
+): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+  const eventRepo = this.dataSource.getRepository(Event);
+
+  // Check if the event exists
+  const event = await eventRepo.findOne({ where: { id: eventId } });
+  if (!event) throw new NotFoundException('Event not found');
+
+  const participantRepo = this.dataSource.getRepository(Participant);
+
+  const [data, total] = await participantRepo
+    .createQueryBuilder('participant')
+    .innerJoin('participant.events', 'event', 'event.id = :eventId', { eventId })
+    .skip((page - 1) * limit)
+    .take(limit)
+    .getManyAndCount();
+
+  return {
+    data,
+    total,
+    page,
+    limit,
+  };
+}
+
 
   async findOne(id: string) {
     return await this.eventDAL.findOne({
