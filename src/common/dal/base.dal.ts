@@ -84,7 +84,10 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
 
       // Where clauses from options
       if (options?.where) {
-        qb.andWhere(options.where);
+        const where = options.where as Record<string, any>;
+        for (const [key, value] of Object.entries(where)) {
+          qb.andWhere(`${alias}.${key} = :${key}`, { [key]: value });
+        }
       }
 
       // 🔍 Search logic

@@ -17,7 +17,6 @@ import PdfPrinter from 'pdfmake';
 import * as path from 'path';
 import * as fs from 'fs';
 
-
 @Injectable()
 export class EventService {
   constructor(
@@ -146,12 +145,15 @@ export class EventService {
   async findAll(query?: {
     searchTerm?: string;
     searchFields?: string[];
+    status?: event_status,
+    locationId?: string,
+    projectId?: string,
     page?: number;
     limit?: number;
     order?: Record<string, 'asc' | 'desc'>;
   }) {
     const options: any = {};
-    options.relations = ['event_dates']
+    options.relations = ['event_dates', 'trainers']
 
     if (query?.searchTerm && query?.searchFields?.length) {
       options.search = {
@@ -159,7 +161,9 @@ export class EventService {
         fields: query.searchFields,
       };
     }
-
+    if (query?.status) options.where = { event_status: query.status }
+    if (query?.locationId) options.where = { location_id: query.locationId }
+    if (query?.projectId) options.where = { project_id: query.projectId }
     if (query?.page) options.page = query.page;
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
@@ -178,6 +182,7 @@ export class EventService {
         where: { id: eventId },
         relations: ['trainers'],
       });
+
       if (!event) throw new NotFoundException('Event not found');
 
       // load trainers by ids
@@ -606,7 +611,4 @@ export class EventService {
       pdfDoc.end();
     });
   }
-
-
-
 }

@@ -5,7 +5,8 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
-import { doc_type } from 'src/common/enums/status_enums';
+import { doc_type, event_status } from 'src/common/enums/status_enums';
+import type { UUID } from 'crypto';
 
 @Controller('event')
 export class EventController {
@@ -25,6 +26,9 @@ export class EventController {
   findAll(
     @Query('searchTerm') searchTerm?: string,
     @Query('searchFields') searchFields?: string,
+    @Query('status') status?: event_status,
+    @Query('locationId') locationId?: UUID,
+    @Query('projectId') projectId?: UUID,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('order') order?: string,
@@ -40,8 +44,11 @@ export class EventController {
     return this.eventService.findAll({
       searchTerm,
       searchFields: parsedFields,
-      page: Number(page),
-      limit: Number(limit),
+      status: status,
+      locationId: locationId,
+      projectId: projectId,
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
       order: parsedOrder,
     });
   }
