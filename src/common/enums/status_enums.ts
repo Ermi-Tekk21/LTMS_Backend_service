@@ -26,5 +26,6 @@ export enum doc_type {
     FEEDBACK = "feedback",
     ATTENDANCE = "attendance",
     MEDIA = "media",
-    PORTFOLIO = "portfolio"
+    PORTFOLIO = "portfolio",
+    REPORT = "report",
 }

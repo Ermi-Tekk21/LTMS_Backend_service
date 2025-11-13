@@ -9,7 +9,6 @@ import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from './document/document.service';
 import { doc_type, event_status } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
-import { TrainerService } from './trainer/trainer.service';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
 import { EmailService } from 'src/common/notification/email.service';
@@ -18,7 +17,6 @@ import PdfPrinter from 'pdfmake';
 import * as path from 'path';
 import * as fs from 'fs';
 
-
 @Injectable()
 export class EventService {
   constructor(
@@ -26,7 +24,6 @@ export class EventService {
     private readonly documentService: DocumentService,
     private readonly eventDateService: EventDateService,
     private readonly eventSessionService: EventSessionService,
-    private readonly trainerService: TrainerService,
     private readonly awsS3Service: AwsS3Service,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource,
@@ -135,12 +132,15 @@ export class EventService {
   async findAll(query?: {
     searchTerm?: string;
     searchFields?: string[];
+    status?: event_status,
+    locationId?: string,
+    projectId?: string,
     page?: number;
     limit?: number;
     order?: Record<string, 'asc' | 'desc'>;
   }) {
     const options: any = {};
-    options.relations = ['event_dates']
+    options.relations = ['event_dates', 'trainers']
 
     if (query?.searchTerm && query?.searchFields?.length) {
       options.search = {
@@ -148,7 +148,9 @@ export class EventService {
         fields: query.searchFields,
       };
     }
-
+    if (query?.status) options.where = { event_status: query.status }
+    if (query?.locationId) options.where = { location_id: query.locationId }
+    if (query?.projectId) options.where = { project_id: query.projectId }
     if (query?.page) options.page = query.page;
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
@@ -167,6 +169,7 @@ export class EventService {
         where: { id: eventId },
         relations: ['trainers'],
       });
+
       if (!event) throw new NotFoundException('Event not found');
 
       // load trainers by ids
@@ -491,6 +494,28 @@ private async updateEventStatusIfReady(eventId: string) {
     })
   }
 
+  async eventDocsPath(id: string, doc_type?: doc_type) {
+    const event = await this.eventDAL.findOne({
+      where: { id },
+      relations: ['documents'],
+    });
+
+    if (!event) throw new Error('Event not found');
+
+    const filteredDocs = doc_type
+      ? event.documents.filter(doc => doc.doc_type === doc_type)
+      : event.documents;
+
+    const paths = filteredDocs.map(doc => doc.path);
+
+    const presignedUrls = await Promise.all(
+      paths.map(path => this.documentService.viewDoc(path))
+    );
+
+    return presignedUrls;
+  }
+
+
   async remove(id: string) {
     try {
       const event = await this.findOne(id)
@@ -519,7 +544,7 @@ private async updateEventStatusIfReady(eventId: string) {
       relations: ['participants', 'trainers'],
     });
 
-    if (!event) throw new Error('Event not found');
+    if (!event) throw new NotFoundException('Event not found');
 
     const fonts = {
       Roboto: {
@@ -633,7 +658,4 @@ private async updateEventStatusIfReady(eventId: string) {
       pdfDoc.end();
     });
   }
-
-
-
 }
