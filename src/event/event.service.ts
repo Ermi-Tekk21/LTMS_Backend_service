@@ -442,6 +442,28 @@ export class EventService {
     })
   }
 
+  async eventDocsPath(id: string, doc_type?: doc_type) {
+    const event = await this.eventDAL.findOne({
+      where: { id },
+      relations: ['documents'],
+    });
+
+    if (!event) throw new Error('Event not found');
+
+    const filteredDocs = doc_type
+      ? event.documents.filter(doc => doc.doc_type === doc_type)
+      : event.documents;
+
+    const paths = filteredDocs.map(doc => doc.path);
+
+    const presignedUrls = await Promise.all(
+      paths.map(path => this.documentService.viewDoc(path))
+    );
+
+    return presignedUrls;
+  }
+
+
   async remove(id: string) {
     try {
       const event = await this.findOne(id)
@@ -470,7 +492,7 @@ export class EventService {
       relations: ['participants', 'trainers'],
     });
 
-    if (!event) throw new Error('Event not found');
+    if (!event) throw new NotFoundException('Event not found');
 
     const fonts = {
       Roboto: {

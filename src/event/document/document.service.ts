@@ -1,18 +1,23 @@
-import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException, UploadedFiles } from '@nestjs/common';
 import { UpdateDocumentDto } from './dto/update-document.dto';
-import { DeepPartial } from 'typeorm';
+import { DeepPartial, Repository } from 'typeorm';
 import { QueryRunner } from 'typeorm';
 import { DocumentDAL } from './dal/document.dal';
 import { Document } from './entities/document.entity';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { EventService } from '../event.service';
-import { doc_type } from 'src/common/enums/status_enums';
+import { doc_type, event_status } from 'src/common/enums/status_enums';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class DocumentService {
   constructor(
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
+
     private readonly documentDal: DocumentDAL,
     private readonly awsS3Service: AwsS3Service,
+
     @Inject(forwardRef(() => EventService))
     private eventService: EventService,
   ) { }
@@ -25,15 +30,23 @@ export class DocumentService {
     }
   }
 
-  async createAndUploadMultipleFile(files: Express.Multer.File[], eventID: string, fileType: doc_type, bucketName: string) {
+  async createAndUploadMultipleFile(files: Express.Multer.File[], eventID: string, docType: doc_type, bucketName: string) {
     try {
-      const uploadedFiles = await this.awsS3Service.uploadMultipleFiles(files, bucketName, fileType);
+      const doctype = docType.toLocaleLowerCase()
+      const uploadedFiles = await this.awsS3Service.uploadMultipleFiles(files, bucketName, doctype);
+
       const event = await this.eventService.findOne(eventID)
       if (!event) {
         throw new NotFoundException('not found')
       }
-      // uploadedFiles contains { key, url } while the original `files` array has the mimetype,
-      // so map by index to get the original mimetype.
+      if (doctype == doc_type.REPORT) {
+        event.event_status = event_status.CLOSED
+        await this.eventRepo.save(event)
+        console.log(
+          `[${new Date().toISOString()}] Event ${eventID} (${event?.name ?? 'untitled'}) marked as ${event.event_status} after uploading ${uploadedFiles.length} ${uploadedFiles.length === 1 ? 'file' : 'files'} to bucket "${bucketName}" (docType=${doctype})`
+        );
+      }
+
       for (let i = 0; i < uploadedFiles.length; i++) {
         const uploaded = uploadedFiles[i];
         const original = files[i];
@@ -41,9 +54,10 @@ export class DocumentService {
           event,
           path: uploaded.key,
           file_type: original?.mimetype?.split('/')[1] ?? '',
-          doc_type: fileType,
+          doc_type: doctype as doc_type,
         })
       }
+
     } catch (err) {
       console.error(err)
     }
