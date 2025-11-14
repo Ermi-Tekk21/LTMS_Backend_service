@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import type { Response } from 'express';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
+import { doc_type, event_status } from 'src/common/enums/status_enums';
+import type { UUID } from 'crypto';
 
 @Controller('event')
 export class EventController {
@@ -24,6 +26,9 @@ export class EventController {
   findAll(
     @Query('searchTerm') searchTerm?: string,
     @Query('searchFields') searchFields?: string,
+    @Query('status') status?: event_status,
+    @Query('locationId') locationId?: UUID,
+    @Query('projectId') projectId?: UUID,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('order') order?: string,
@@ -39,8 +44,11 @@ export class EventController {
     return this.eventService.findAll({
       searchTerm,
       searchFields: parsedFields,
-      page: Number(page),
-      limit: Number(limit),
+      status: status,
+      locationId: locationId,
+      projectId: projectId,
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
       order: parsedOrder,
     });
   }
@@ -48,6 +56,14 @@ export class EventController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.eventService.findOne(id);
+  }
+
+  @Get('docs/:id')
+  eventDosPath(
+    @Param('id') id: string,
+    @Query('doc-type') docType?: doc_type
+  ) {
+    return this.eventService.eventDocsPath(id, docType);
   }
 
   @Patch(':id')
@@ -151,7 +167,11 @@ async getEventParticipants(
       res.end(pdfBuffer);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+      if (error instanceof NotFoundException) {
+        throw error
+      } else {
+        throw new InternalServerErrorException("unable to generate pdf")
+      }
     }
   }
 }

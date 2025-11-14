@@ -23,7 +23,6 @@ export class AwsS3Service {
     });
   }
 
-
   //    Upload file to S3 
   async uploadFile(file: Express.Multer.File, bucket: string, folder = '', fileName?: string) {
     // get extention of the file
@@ -59,7 +58,7 @@ export class AwsS3Service {
       // get extention of the file
       const ext = file.originalname.split('.').pop();
       // generate unique file name
-      const key = `${folder}${uuid()}.${ext}`;
+      const key = `${folder}/${uuid()}.${ext}`;
 
       const command = new PutObjectCommand({
         Bucket: bucket,
@@ -69,7 +68,6 @@ export class AwsS3Service {
       });
 
       await this.s3.send(command);
-
       return {
         key,
         url: await this.getPresignedUrl(bucket, key),
