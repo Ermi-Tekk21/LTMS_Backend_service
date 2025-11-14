@@ -11,6 +11,7 @@ import { AwsS3Module } from './common/aws-s3/aws-s3.module';
 import { AuthModule } from './common/guards/auth.module';
 import { EventDateModule } from './event/event_date/event_date.module';
 import { EventSessionModule } from './event/event_session/event_session.module';
+import { DashboardReportModule } from './dashboard_report/dashboard_report.module';
 
 @Module({
 
@@ -25,7 +26,8 @@ import { EventSessionModule } from './event/event_session/event_session.module';
     AwsS3Module,
     EventModule,
     EventDateModule,
-    EventSessionModule
+    EventSessionModule,
+    DashboardReportModule
   ],
   controllers: [AppController],
   providers: [AppService],

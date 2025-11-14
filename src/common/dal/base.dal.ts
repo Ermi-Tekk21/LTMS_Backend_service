@@ -285,4 +285,19 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       await queryRunner.release();
     }
   }
+
+  async count(options?: FindManyOptions<T>, queryRunner?: QueryRunner): Promise<number> {
+    try {
+      const repository = queryRunner
+        ? queryRunner.manager.getRepository(this.repo.target)
+        : this.repo;
+
+      const where = { ...(options?.where as any), is_deleted: false } as FindOptionsWhere<T>;
+      return await repository.count({ where });
+    } catch (error) {
+      throw new Error(
+        `DAL.count failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 }
