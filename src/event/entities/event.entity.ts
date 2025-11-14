@@ -83,7 +83,7 @@ export class Event {
 
     @ManyToMany(() => Participant, (participant) => participant.events, {
         cascade: true,
-        onDelete: 'CASCADE',
+        
         nullable: true
     })
     @JoinTable({
