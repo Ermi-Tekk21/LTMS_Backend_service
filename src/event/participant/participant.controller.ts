@@ -11,7 +11,7 @@ import { Permission } from 'src/common/decorators/permission.decorator';
 
 @Controller('participant') 
 
-// @UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
 @Permission('create', 'participant')
