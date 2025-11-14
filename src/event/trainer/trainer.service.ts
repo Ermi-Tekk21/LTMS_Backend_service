@@ -27,47 +27,47 @@ export class TrainerService {
     });
     return trainer;
   }
+
+
   async findAll(
-  page = 1,
-  limit = 10,
-  search?: string,
-): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
-  try {
-    const options: FindManyOptions<Trainer> & {
-      search?: { term: string; fields: (keyof Trainer)[] };
-      page?: number;
-      limit?: number;
-    } = {
-      where: { deleted_at: IsNull() },
-      order: { created_at: 'DESC' },
-      page,
-      limit,
-    };
-
-    // Optional search support
-    if (search && search.trim() !== '') {
-      options.search = {
-        term: search,
-        fields: ['first_name', 'last_name', 'email', 'occupation'], 
+    page = 1,
+    limit = 10,
+    search?: string,
+  ): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
+    try {
+      const options: FindManyOptions<Trainer> & {
+        search?: { term: string; fields: (keyof Trainer)[] };
+        page?: number;
+        limit?: number;
+      } = {
+        order: { created_at: 'DESC' },
+        page,
+        limit,
       };
+
+      // Optional search support
+      if (search && search.trim() !== '') {
+        options.search = {
+          term: search,
+          fields: ['first_name', 'last_name', 'email', 'occupation'],
+        };
+      }
+
+      const result = await this.trainerDAL.findAll(options);
+
+      return {
+        data: result.data,
+        total: result.meta.total,
+        page: result.meta.page,
+        limit: result.meta.limit,
+      };
+    } catch (error) {
+      throw new Error(
+        `TrainerService.findAll failed: ${error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
-
-    const result = await this.trainerDAL.findAll(options);
-
-    return {
-      data: result.data,
-      total: result.meta.total,
-      page: result.meta.page,
-      limit: result.meta.limit,
-    };
-  } catch (error) {
-    throw new Error(
-      `TrainerService.findAll failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
   }
-}
 
 
 
