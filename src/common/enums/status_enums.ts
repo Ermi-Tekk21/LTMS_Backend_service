@@ -28,3 +28,10 @@ export enum doc_type {
     MEDIA = "media",
     PORTFOLIO = "portfolio"
 }
+
+export enum community_type {
+ IDPs = 'idps',
+  Refugees = 'refugees',
+  HostResident = 'hostresident',
+  Returning = 'returning',
+}

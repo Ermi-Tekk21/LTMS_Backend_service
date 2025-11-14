@@ -199,7 +199,7 @@ export class EventService {
           }
         }
       }
-      await queryRunner.commitTransaction();
+    await queryRunner.commitTransaction();
     await this.updateEventStatusIfReady(eventId);
       // return fresh event with trainers relation
       return await eventRepo.findOne({
