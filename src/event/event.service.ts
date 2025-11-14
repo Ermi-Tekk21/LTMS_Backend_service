@@ -260,8 +260,8 @@ export class EventService {
           }
         }
       }
-    await queryRunner.commitTransaction();
-    await this.updateEventStatusIfReady(eventId);
+      await queryRunner.commitTransaction();
+      await this.updateEventStatusIfReady(eventId);
       // return fresh event with trainers relation
       return await eventRepo.findOne({
         where: { id: eventId },
@@ -344,31 +344,31 @@ export class EventService {
   }
 
   async getEventTrainers(
-  eventId: string,
-  page = 1,
-  limit = 10,
-): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
-  const eventRepo = this.dataSource.getRepository(Event);
+    eventId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
+    const eventRepo = this.dataSource.getRepository(Event);
 
-  const event = await eventRepo.findOne({ where: { id: eventId } });
-  if (!event) throw new NotFoundException('Event not found');
+    const event = await eventRepo.findOne({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
 
-  const trainerRepo = this.dataSource.getRepository(Trainer);
+    const trainerRepo = this.dataSource.getRepository(Trainer);
 
-  const [data, total] = await trainerRepo
-    .createQueryBuilder('trainer')
-    .innerJoin('trainer.events', 'event', 'event.id = :eventId', { eventId })
-    .skip((page - 1) * limit)
-    .take(limit)
-    .getManyAndCount();
+    const [data, total] = await trainerRepo
+      .createQueryBuilder('trainer')
+      .innerJoin('trainer.events', 'event', 'event.id = :eventId', { eventId })
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
-  return {
-    data,
-    total,
-    page,
-    limit,
-  };
-}
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
 
 
   async removeTrainersFromEvent(eventId: string, trainerIds: string[]) {
@@ -498,34 +498,34 @@ export class EventService {
 
   // GET ALL PARTICIPANTS ASSIGNED TO EVENT
   async getEventParticipants(
-  eventId: string,
-  page = 1,
-  limit = 10,
-): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
-  const eventRepo = this.dataSource.getRepository(Event);
+    eventId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+    const eventRepo = this.dataSource.getRepository(Event);
 
-  // Check if the event exists
-  const event = await eventRepo.findOne({ where: { id: eventId } });
-  if (!event) throw new NotFoundException('Event not found');
+    // Check if the event exists
+    const event = await eventRepo.findOne({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
 
-  const participantRepo = this.dataSource.getRepository(Participant);
+    const participantRepo = this.dataSource.getRepository(Participant);
 
-  const [data, total] = await participantRepo
-    .createQueryBuilder('participant')
-    .innerJoin('participant.events', 'event', 'event.id = :eventId', { eventId })
-    .skip((page - 1) * limit)
-    .take(limit)
-    .getManyAndCount();
+    const [data, total] = await participantRepo
+      .createQueryBuilder('participant')
+      .innerJoin('participant.events', 'event', 'event.id = :eventId', { eventId })
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
-  return {
-    data,
-    total,
-    page,
-    limit,
-  };
-}
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
 
-private async updateEventStatusIfReady(eventId: string) {
+  private async updateEventStatusIfReady(eventId: string) {
     const eventRepo = this.dataSource.getRepository(Event);
     const event = await eventRepo.findOne({
       where: { id: eventId },
