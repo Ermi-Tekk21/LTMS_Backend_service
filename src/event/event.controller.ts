@@ -71,7 +71,7 @@ export class EventController {
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto,@CurrentUser() user: any,) {
-    return this.eventService.update(id, updateEventDto,user);
+    return this.eventService.update(id, updateEventDto);
   }
 
   @Patch(':id/replace-tor')
