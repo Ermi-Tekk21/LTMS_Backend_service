@@ -9,15 +9,17 @@ import { FileInterceptor } from '@nestjs/platform-express';
 @Controller('trainer')
 export class TrainerController {
   constructor(private readonly trainerService: TrainerService) {}
-  @Post()
+  @Post() 
   @UseInterceptors(FileInterceptor('file', multerOptions(true, ['pdf','image'], 10)))
   create(
+    @CurrentUser() user: any,
     @Body("data") data:string,
     @UploadedFile() file?: Express.Multer.File, 
+    
   ) 
   {
      const dto: CreateTrainerDto = JSON.parse(data);
-    return this.trainerService.create(dto, file);
+    return this.trainerService.create(dto,user, file);
   }
 @Get()
 async getAllTrainers(
@@ -27,7 +29,6 @@ async getAllTrainers(
 ) {
   return this.trainerService.findAll(Number(page), Number(limit), search);
 }
-
 
   @Get(':id')
   findOne(@Param('id') id: string) {

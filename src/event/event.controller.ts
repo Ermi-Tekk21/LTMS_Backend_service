@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -7,7 +7,9 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
 import { doc_type, event_status } from 'src/common/enums/status_enums';
 import type { UUID } from 'crypto';
-
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+@UseGuards(JwtAuthGuard)
 @Controller('event')
 export class EventController {
   constructor(private readonly eventService: EventService) { }
@@ -15,11 +17,12 @@ export class EventController {
   @Post()
   @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
   async create(
+    @CurrentUser() user: any,
     @Body("data") data: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
     const parsedData: CreateEventDto = JSON.parse(data)
-    return this.eventService.create(parsedData, file);
+    return this.eventService.create(parsedData,file,user);
   }
 
   @Get()
@@ -67,12 +70,13 @@ export class EventController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
-    return this.eventService.update(id, updateEventDto);
+  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto,@CurrentUser() user: any,) {
+    return this.eventService.update(id, updateEventDto,user);
   }
 
   @Post(':id/trainers')
   async assignTrainers(
+    @CurrentUser() user: any,
     @Param('id') eventId: string,
     @Body('trainerIds') trainerIds: string[],
   ) {

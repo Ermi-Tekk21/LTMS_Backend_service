@@ -29,7 +29,7 @@ export class EventService {
     private readonly dataSource: DataSource,
   ) { }
 
-  async create(dto: CreateEventDto, file: Express.Multer.File) {
+  async create(dto: CreateEventDto, file: Express.Multer.File,created_by:string) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -86,6 +86,7 @@ export class EventService {
         data: {
           event,
           torDocument: uploadedFile,
+          created_by,
         },
       };
     } catch (error) {
@@ -96,7 +97,7 @@ export class EventService {
     }
   }
 
-  async update(id: string, updateEventDto: UpdateEventDto) {
+  async update(id: string, updateEventDto: UpdateEventDto,created_by:string) {
     const event = await this.findOne(id)
     if (!event) {
       throw new NotFoundException('event to be updated not found...')
@@ -467,7 +468,7 @@ export class EventService {
   };
 }
 
-private async updateEventStatusIfReady(eventId: string) {
+async updateEventStatusIfReady(eventId: string) {
     const eventRepo = this.dataSource.getRepository(Event);
     const event = await eventRepo.findOne({
       where: { id: eventId },

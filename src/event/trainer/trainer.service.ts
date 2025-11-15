@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UseGuards } from '@nestjs/common';
 import { CreateTrainerDto } from './dto/create-trainer.dto';
 import { UpdateTrainerDto } from './dto/update-trainer.dto';
 import { TrainerDAL } from './dal/trainer.dal';
@@ -6,13 +6,16 @@ import { FindManyOptions, IsNull } from 'typeorm';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { ConfigService } from '@nestjs/config';
 import { Trainer } from './entities/trainer.entity';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+
+@UseGuards(JwtAuthGuard)
 @Injectable()
 export class TrainerService {
   private readonly bucketName: string;
   constructor(private readonly trainerDAL: TrainerDAL,
     private readonly awsS3Service: AwsS3Service,
     private readonly configService: ConfigService,) { this.bucketName = this.configService.getOrThrow<string>('AWS_S3_BUCKET_NAME'); }
-  async create(createTrainerDto: CreateTrainerDto, file?: Express.Multer.File) {
+  async create(createTrainerDto: CreateTrainerDto, created_by:string,file?: Express.Multer.File) {
     let file_key: string | undefined = undefined;
     if (file) {
       const folder = 'trainers/';
@@ -22,7 +25,8 @@ export class TrainerService {
     const trainer = await this.trainerDAL.create({
       ...createTrainerDto,
       file_key,
-      created_at: new Date(),
+      // created_at: new Date(),
+      created_by
 
     });
     return trainer;

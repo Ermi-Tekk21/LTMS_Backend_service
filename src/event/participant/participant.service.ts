@@ -129,10 +129,12 @@ export class ParticipantService {
     const missingFields: string[] = [];
     if (!first_name) missingFields.push('first_name');
     if (!last_name) missingFields.push('last_name');
+    if (!age) missingFields.push('age');
     if (!gender) missingFields.push('gender');
     if (!phone) missingFields.push('phone');
     if (!region) missingFields.push('region');
-
+    if (!woreda) missingFields.push('woreda');
+    if (!kebele) missingFields.push('kebele');
     if (missingFields.length > 0) {
       invalidRows.push({ row: rowNumber, missingFields });
       return;
@@ -195,7 +197,6 @@ export class ParticipantService {
       page?: number;
       limit?: number;
     } = {
-      where: { deleted_at: IsNull() },
       order: { created_at: 'DESC' },
       page,
       limit,
