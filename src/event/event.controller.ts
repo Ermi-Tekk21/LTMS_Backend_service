@@ -74,6 +74,15 @@ export class EventController {
     return this.eventService.update(id, updateEventDto,user);
   }
 
+  @Patch(':id/replace-tor')
+  @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
+  replaceTOR(
+    @Param('id') id: UUID,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.eventService.replaceTOR(id, file);
+  }
+
   @Post(':id/trainers')
   async assignTrainers(
     @CurrentUser() user: any,

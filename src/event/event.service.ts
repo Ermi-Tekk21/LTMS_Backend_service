@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { DataSource, In } from 'typeorm';
@@ -16,6 +16,7 @@ import { QueryRunner } from 'typeorm/browser';
 import PdfPrinter from 'pdfmake';
 import * as path from 'path';
 import * as fs from 'fs';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class EventService {
@@ -97,7 +98,64 @@ export class EventService {
     }
   }
 
-  async update(id: string, updateEventDto: UpdateEventDto,created_by:string) {
+  async replaceTOR(id: UUID, file: Express.Multer.File) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+      const folder = 'tor';
+
+      const event = await this.findOne(String(id));
+      if (!event) {
+        throw new NotFoundException(`Event not found`);
+      }
+      if (event.event_status != event_status.INITATED) {
+        throw new BadRequestException(
+          `Cannot replace TOR for event ${event.id}: event must be in '${event_status.INITATED}' status (current: '${event.event_status}').`
+        );
+      }
+      await this.documentService.remove(event.documents.filter(docs => docs.doc_type == doc_type.TOR)[0].id)
+
+      const uploadedFile = await this.awsS3Service.uploadFile(
+        file,
+        bucketName,
+        folder,
+        event.id as string,
+      );
+
+      await this.documentService.create({
+        event,
+        path: uploadedFile.key,
+        file_type: file.mimetype.split('/')[1],
+        doc_type: doc_type.TOR,
+      }, queryRunner);
+
+      // No dto here - replaceTOR only replaces the TOR document.
+      await queryRunner.manager.save(event);
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: 'TOR replaced successfully',
+        data: {
+          event,
+          torDocument: uploadedFile,
+        },
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      if (error instanceof NotFoundException || error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException(
+        `Failed to replace TOR for event: ${error instanceof Error ? error.message : String(error)}`
+      )
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async update(id: string, updateEventDto: UpdateEventDto) {
     const event = await this.findOne(id)
     if (!event) {
       throw new NotFoundException('event to be updated not found...')
@@ -203,8 +261,8 @@ export class EventService {
           }
         }
       }
-    await queryRunner.commitTransaction();
-    await this.updateEventStatusIfReady(eventId);
+      await queryRunner.commitTransaction();
+      await this.updateEventStatusIfReady(eventId);
       // return fresh event with trainers relation
       return await eventRepo.findOne({
         where: { id: eventId },
@@ -287,31 +345,31 @@ export class EventService {
   }
 
   async getEventTrainers(
-  eventId: string,
-  page = 1,
-  limit = 10,
-): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
-  const eventRepo = this.dataSource.getRepository(Event);
+    eventId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
+    const eventRepo = this.dataSource.getRepository(Event);
 
-  const event = await eventRepo.findOne({ where: { id: eventId } });
-  if (!event) throw new NotFoundException('Event not found');
+    const event = await eventRepo.findOne({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
 
-  const trainerRepo = this.dataSource.getRepository(Trainer);
+    const trainerRepo = this.dataSource.getRepository(Trainer);
 
-  const [data, total] = await trainerRepo
-    .createQueryBuilder('trainer')
-    .innerJoin('trainer.events', 'event', 'event.id = :eventId', { eventId })
-    .skip((page - 1) * limit)
-    .take(limit)
-    .getManyAndCount();
+    const [data, total] = await trainerRepo
+      .createQueryBuilder('trainer')
+      .innerJoin('trainer.events', 'event', 'event.id = :eventId', { eventId })
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
-  return {
-    data,
-    total,
-    page,
-    limit,
-  };
-}
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
 
 
   async removeTrainersFromEvent(eventId: string, trainerIds: string[]) {
@@ -441,34 +499,34 @@ export class EventService {
 
   // GET ALL PARTICIPANTS ASSIGNED TO EVENT
   async getEventParticipants(
-  eventId: string,
-  page = 1,
-  limit = 10,
-): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
-  const eventRepo = this.dataSource.getRepository(Event);
+    eventId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+    const eventRepo = this.dataSource.getRepository(Event);
 
-  // Check if the event exists
-  const event = await eventRepo.findOne({ where: { id: eventId } });
-  if (!event) throw new NotFoundException('Event not found');
+    // Check if the event exists
+    const event = await eventRepo.findOne({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
 
-  const participantRepo = this.dataSource.getRepository(Participant);
+    const participantRepo = this.dataSource.getRepository(Participant);
 
-  const [data, total] = await participantRepo
-    .createQueryBuilder('participant')
-    .innerJoin('participant.events', 'event', 'event.id = :eventId', { eventId })
-    .skip((page - 1) * limit)
-    .take(limit)
-    .getManyAndCount();
+    const [data, total] = await participantRepo
+      .createQueryBuilder('participant')
+      .innerJoin('participant.events', 'event', 'event.id = :eventId', { eventId })
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
-  return {
-    data,
-    total,
-    page,
-    limit,
-  };
-}
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
 
-async updateEventStatusIfReady(eventId: string) {
+  private async updateEventStatusIfReady(eventId: string) {
     const eventRepo = this.dataSource.getRepository(Event);
     const event = await eventRepo.findOne({
       where: { id: eventId },
@@ -516,7 +574,6 @@ async updateEventStatusIfReady(eventId: string) {
     return presignedUrls;
   }
 
-
   async remove(id: string) {
     try {
       const event = await this.findOne(id)
@@ -539,6 +596,7 @@ async updateEventStatusIfReady(eventId: string) {
       );
     }
   }
+
   async generateAttendancePdf(eventId: string, date: string): Promise<Buffer> {
     const event = await this.eventDAL.findOne({
       where: { id: eventId },

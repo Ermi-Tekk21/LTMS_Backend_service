@@ -80,7 +80,30 @@ export class DocumentService {
     return `This action updates a #${id} document`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} document`;
+  async remove(id: string, queryRunner?: QueryRunner) {
+    try {
+      const document = await this.documentDal.findOne({
+        where: {
+          id: id
+        }
+      });
+      if (!document) {
+        throw new NotFoundException('Document not found');
+      }
+
+      const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+      if (document.path) {
+        try {
+          await this.awsS3Service.deleteFile(bucketName, document.path);
+        } catch (s3Err) {
+          console.warn(`Failed to delete S3 object ${document.path}:`, s3Err);
+        }
+      }
+
+      await this.documentDal.delete(document, queryRunner);
+      return true;
+    } catch (error) {
+      throw new Error(`DocumentService.remove failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
