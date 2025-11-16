@@ -1,11 +1,10 @@
-import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseInterceptors, UploadedFile, UseGuards } from '@nestjs/common';
 import { TrainerService } from './trainer.service';
 import { CreateTrainerDto } from './dto/create-trainer.dto';
 import { UpdateTrainerDto } from './dto/update-trainer.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
 import { FileInterceptor } from '@nestjs/platform-express';
-
 @Controller('trainer')
 export class TrainerController {
   constructor(private readonly trainerService: TrainerService) {}

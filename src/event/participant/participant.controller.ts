@@ -10,8 +10,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Permission } from 'src/common/decorators/permission.decorator';
 
 @Controller('participant') 
-
-@UseGuards(JwtAuthGuard)
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
 @Permission('create', 'participant')
@@ -34,7 +32,7 @@ async getAllParticipants(
   return this.participantService.findAll(Number(page), Number(limit), search);
 }
 
-// @Permission('manage', 'participant')
+ @Permission('create', 'participant')
    @Get('template')
   async downloadTemplate(@Res() res: Response) {
     const buffer = await this.participantService.generateTemplate();
@@ -49,7 +47,7 @@ async getAllParticipants(
     );
     res.send(buffer);
   }
-// @Permission('create', 'participant')
+@Permission('create', 'participant')
    @Post('upload/:eventId')
   @UseInterceptors(FileInterceptor('file'))
   async uploadExcel(
@@ -99,7 +97,7 @@ async getAllParticipants(
   // delete(@Param('id') id:string,){
   // return this.participantService.remove(id)
   // }
-  
+  @Permission("delete","participant")
   @Delete(':id')
   remove(@Param('id') id: string,@CurrentUser('userId') userId: string) {
   return this.participantService.softDelete(id,userId);
