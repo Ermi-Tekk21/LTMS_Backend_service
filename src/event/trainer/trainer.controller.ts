@@ -11,18 +11,17 @@ export class TrainerController {
   constructor(private readonly trainerService: TrainerService) {}
   @Permission('create', 'trainer')
   @Post() 
-  @UseInterceptors(FileInterceptor('file', multerOptions(true, ['pdf','image'], 10)))
-  create(
-    @CurrentUser() user: any,
-    @Body("data") data:string,
-    @UploadedFile() file?: Express.Multer.File, 
-    
-  ) 
-  {
-     const dto: CreateTrainerDto = JSON.parse(data);
-    return this.trainerService.create(dto,user, file);
-  }
-   @Permission('read', 'trainer')
+@UseInterceptors(FileInterceptor('file', multerOptions(true, ['pdf','image'], 10)))
+create(
+  @CurrentUser() user: any,
+  @Body("data") data: string,
+  @UploadedFile() file?: Express.Multer.File,
+) {
+  const dto: CreateTrainerDto = JSON.parse(data);
+  return this.trainerService.create(dto, user.userId, file);
+}
+
+@Permission('read', 'trainer')
 @Get()
 async getAllTrainers(
   @Query('page') page = 1,

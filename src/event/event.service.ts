@@ -526,7 +526,7 @@ export class EventService {
     };
   }
 
-  private async updateEventStatusIfReady(eventId: string) {
+   async updateEventStatusIfReady(eventId: string) {
     const eventRepo = this.dataSource.getRepository(Event);
     const event = await eventRepo.findOne({
       where: { id: eventId },

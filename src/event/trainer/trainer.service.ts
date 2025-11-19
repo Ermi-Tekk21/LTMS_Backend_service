@@ -27,7 +27,6 @@ export class TrainerService {
       file_key,
       // created_at: new Date(),
       created_by
-
     });
     return trainer;
   }
@@ -72,8 +71,6 @@ export class TrainerService {
       );
     }
   }
-
-
 
   async findOne(id: string) {
     const trainer = await this.trainerDAL.findById(id);

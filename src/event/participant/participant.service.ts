@@ -42,6 +42,7 @@ export class ParticipantService {
     );
 
     await queryRunner.commitTransaction();
+      await this.eventService.updateEventStatusIfReady(eventId);
     return participant;
   } catch (error) {
     await queryRunner.rollbackTransaction();
@@ -107,6 +108,7 @@ export class ParticipantService {
   const participants: CreateParticipantDto[] = [];
   const invalidRows: { row: number; missingFields: string[] }[] = [];
 
+  // Parse Excel rows
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // skip header
     const values = Array.isArray(row.values) ? row.values : [];
@@ -135,6 +137,7 @@ export class ParticipantService {
     if (!region) missingFields.push('region');
     if (!woreda) missingFields.push('woreda');
     if (!kebele) missingFields.push('kebele');
+
     if (missingFields.length > 0) {
       invalidRows.push({ row: rowNumber, missingFields });
       return;
@@ -169,20 +172,44 @@ export class ParticipantService {
     throw new BadRequestException('No valid participant rows found in the file.');
   }
 
-  //  Save participants into DB
-  const participantRepo = this.dataSource.getRepository(Participant);
-  const savedParticipants = await participantRepo.save(participants);
+  // Start transaction
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  //  Assign saved participants to event
-  const participantIds = savedParticipants.map((p) => p.id);
-  if (participantIds.length > 0) {
-    await this.eventService.assignParticipantsToEvent(eventId, participantIds);
+  try {
+    // Save participants inside transaction
+    const participantRepo = queryRunner.manager.getRepository(Participant);
+    const savedParticipants = await participantRepo.save(participants);
+
+    // Assign participants to event inside same transaction
+    const participantIds = savedParticipants.map((p) => p.id);
+    if (participantIds.length > 0) {
+      await this.eventService.assignParticipantsToEvent(
+        eventId,
+        participantIds,
+        queryRunner, // use same transaction
+      );
+    }
+
+    // Commit transaction
+    await queryRunner.commitTransaction();
+
+    // Update event status after commit
+    await this.eventService.updateEventStatusIfReady(eventId);
+
+    return {
+      success: true,
+      count: savedParticipants.length,
+    };
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw new BadRequestException(
+      `Failed to import participants: ${err instanceof Error ? err.message : String(err)}`
+    );
+  } finally {
+    await queryRunner.release();
   }
-
-  return {
-    success: true,
-    count: savedParticipants.length,
-  };
 }
 
 
