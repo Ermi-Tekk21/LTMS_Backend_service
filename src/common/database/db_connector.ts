@@ -2,7 +2,7 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Event } from 'src/event/entities/event.entity';
 import { Activity } from 'src/event/activity/entities/activity.entity';
-import { Document } from 'src/event/document/entities/document.entity';
+import { Document } from 'src/document/entities/document.entity';
 import { Participant } from 'src/event/participant/entities/participant.entity';
 import { SessionParticipantMap } from 'src/event/participant/entities/sessionParticipantMap.entity';
 import { EventSession } from 'src/event/event_session/entities/event_session.entity';

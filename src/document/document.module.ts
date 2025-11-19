@@ -5,8 +5,8 @@ import { DocumentDAL } from './dal/document.dal';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
 import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
-import { EventModule } from '../event.module';
-import { EventService } from '../event.service';
+import { EventModule } from 'src/event/event.module';
+import { EventService } from 'src/event/event.service';
 
 @Module({
   imports: [

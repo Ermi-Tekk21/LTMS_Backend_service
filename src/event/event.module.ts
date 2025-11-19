@@ -4,7 +4,7 @@ import { EventController } from './event.controller';
 import { TrainerModule } from './trainer/trainer.module';
 import { ParticipantModule } from './participant/participant.module';
 import { ActivityModule } from './activity/activity.module';
-import { DocumentModule } from './document/document.module';
+import { DocumentModule } from 'src/document/document.module';
 import { EventDateModule } from './event_date/event_date.module';
 import { EventSessionModule } from './event_session/event_session.module';
 import { EventDAL } from './dal/event.dal';
