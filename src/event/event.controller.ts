@@ -7,10 +7,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
 import { doc_type, event_status } from 'src/common/enums/status_enums';
 import type { UUID } from 'crypto';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Permission } from 'src/common/decorators/permission.decorator';
-@UseGuards(JwtAuthGuard)
 @Controller('event')
 export class EventController {
   constructor(private readonly eventService: EventService) { }

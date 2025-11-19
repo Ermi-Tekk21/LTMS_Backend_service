@@ -36,3 +36,8 @@ export enum community_type {
   HostResident = 'hostresident',
   Returning = 'returning',
 }
+
+export enum attendance {
+    PRESENT = 'present',
+    ABSENT = 'absent'
+}

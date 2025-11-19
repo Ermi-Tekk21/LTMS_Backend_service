@@ -1,13 +1,13 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { DataSource, In } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { EventDAL } from './dal/event.dal';
 import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from './document/document.service';
-import { doc_type, event_status } from 'src/common/enums/status_enums';
+import { attendance, doc_type, event_status } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
@@ -17,10 +17,19 @@ import PdfPrinter from 'pdfmake';
 import * as path from 'path';
 import * as fs from 'fs';
 import { UUID } from 'crypto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { EventSession } from './event_session/entities/event_session.entity';
+import { SessionParticipantMap } from './participant/entities/sessionParticipantMap.entity';
 
 @Injectable()
 export class EventService {
   constructor(
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
+
+    @InjectRepository(SessionParticipantMap)
+    private readonly sessionParticipantMapRepo: Repository<SessionParticipantMap>,
+
     private readonly eventDAL: EventDAL,
     private readonly documentService: DocumentService,
     private readonly eventDateService: EventDateService,
@@ -30,10 +39,11 @@ export class EventService {
     private readonly dataSource: DataSource,
   ) { }
 
-  async create(dto: CreateEventDto, file: Express.Multer.File,created_by:string) {
+  async create(dto: CreateEventDto, file: Express.Multer.File, created_by: string) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
 
     try {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
@@ -63,14 +73,38 @@ export class EventService {
       }, queryRunner);
 
       for (const date of dto.event_dates || []) {
+
         const eventDate = await this.eventDateService.create(
           { date, event },
           queryRunner,
         );
+        const morningStart = new Date(date);
+        morningStart.setHours(9, 0, 0, 0);
+
+        const morningEnd = new Date(date);
+        morningEnd.setHours(12, 0, 0, 0);
+
+        const afternoonStart = new Date(date);
+        afternoonStart.setHours(13, 0, 0, 0);
+
+        const afternoonEnd = new Date(date);
+        afternoonEnd.setHours(17, 0, 0, 0);
+
+        // morning session
         await this.eventSessionService.create({
           event_date: eventDate,
           venue: event.venue,
+          starts_at: morningStart,
+          ends_at: morningEnd
         }, queryRunner);
+        //afternoon session
+        await this.eventSessionService.create({
+          event_date: eventDate,
+          venue: event.venue,
+          starts_at: afternoonStart,
+          ends_at: afternoonEnd
+        }, queryRunner);
+
       }
       await queryRunner.manager.save(event);
       await queryRunner.commitTransaction();
@@ -214,6 +248,41 @@ export class EventService {
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
     return this.eventDAL.findAll(options);
+  }
+
+  async participantSessionMap(eventId: string) {
+    const event = await this.eventRepo.findOne({
+      where: {
+        id: eventId
+      },
+      relations: ['participants', 'event_dates', 'event_dates.event_sessions']
+    })
+    if (!event) {
+      throw new NotFoundException('event with specified id not found.')
+    }
+    const participants: Participant[] = event?.participants
+    const sessions: EventSession[] = event?.event_dates.flatMap(date => date?.event_sessions)
+    for (const session of sessions) {
+      for (const participant of participants) {
+        // if participant and session id doesnot combinetion exists
+        const sessionParticipantExist = await this.sessionParticipantMapRepo.find({
+          where: {
+            participant: participant,
+            event_session: session
+          }
+        })
+        if (!sessionParticipantExist) {
+          const sessionPaticipantMapObj = this.sessionParticipantMapRepo.create({
+            participant: participant,
+            event_session: session,
+            attendance: {
+              status: null
+            }
+          })
+          await this.sessionParticipantMapRepo.save(sessionPaticipantMapObj)
+        }
+      }
+    }
   }
 
   async assignTrainersToEvent(eventId: string, trainerIds: string[]) {
@@ -526,7 +595,7 @@ export class EventService {
     };
   }
 
-   async updateEventStatusIfReady(eventId: string) {
+  async updateEventStatusIfReady(eventId: string) {
     const eventRepo = this.dataSource.getRepository(Event);
     const event = await eventRepo.findOne({
       where: { id: eventId },
@@ -602,9 +671,8 @@ export class EventService {
       where: { id: eventId },
       relations: ['participants', 'trainers'],
     });
-
+    await this.participantSessionMap(eventId)
     if (!event) throw new NotFoundException('Event not found');
-
     const fonts = {
       Roboto: {
         normal: path.join(__dirname, '..', 'fonts', 'Roboto-Regular.ttf'),
@@ -627,7 +695,7 @@ export class EventService {
         ['#', 'Full Name', 'Phone No', 'Signature'],
         ...pageParticipants.map((p, j) => [
           String(i + j + 1),
-          `${p.first_name} ${p.last_name}`,
+          `${p.first_name} ${p.father_name}`,
           String(p.phone ?? ''),
           '',
         ]),

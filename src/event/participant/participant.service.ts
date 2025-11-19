@@ -60,18 +60,19 @@ export class ParticipantService {
   // Define columns
   sheet.columns = [
     { header: 'First Name', key: 'first_name', width: 20 },
-    { header: 'Last Name', key: 'last_name', width: 20 },
+    { header: 'Father Name', key: 'father_name', width: 20 },
+    { header: 'Father Name', key: 'father_name', width: 20 },
     { header: 'Gender', key: 'gender', width: 10 },
     { header: 'Age', key: 'age', width: 15 },
+    { header: 'Region', key: 'region', width: 20 },
+    { header: 'Woreda', key: 'woreda', width: 20 },
+    { header: 'Kebele', key: 'kebele', width: 20 },
     { header: 'Disability', key: 'disability', width: 15 },
     { header: 'Phone', key: 'phone', width: 15 },
     { header: 'Occupation', key: 'occupation', width: 20 },
     { header: 'Organization', key: 'organization', width: 25 },
     { header: 'Community Type', key: 'community_type', width: 20 },
     { header: 'Literacy Level', key: 'letracy_level', width: 20 },
-    { header: 'Region', key: 'region', width: 20 },
-    { header: 'Woreda', key: 'woreda', width: 20 },
-    { header: 'Kebele', key: 'kebele', width: 20 },
   ];
 
   // Bold header row
@@ -114,7 +115,8 @@ export class ParticipantService {
     const values = Array.isArray(row.values) ? row.values : [];
     const [
       first_name,
-      last_name,
+      father_name,
+      Grandfather_name,
       gender,
       age,
       disability,
@@ -127,10 +129,9 @@ export class ParticipantService {
       woreda,
       kebele,
     ] = values.slice(1) as any[];
-
     const missingFields: string[] = [];
     if (!first_name) missingFields.push('first_name');
-    if (!last_name) missingFields.push('last_name');
+    if (!father_name) missingFields.push('father_name');
     if (!age) missingFields.push('age');
     if (!gender) missingFields.push('gender');
     if (!phone) missingFields.push('phone');
@@ -145,7 +146,8 @@ export class ParticipantService {
 
     participants.push({
       first_name,
-      last_name,
+      father_name,
+      Grandfather_name,
       gender,
       age,
       disability,
@@ -197,7 +199,6 @@ export class ParticipantService {
 
     // Update event status after commit
     await this.eventService.updateEventStatusIfReady(eventId);
-
     return {
       success: true,
       count: savedParticipants.length,
@@ -232,7 +233,7 @@ export class ParticipantService {
     if (search && search.trim() !== '') {
       options.search = {
         term: search,
-        fields: ['first_name', 'last_name', 'region','woreda','kebele'], 
+        fields: ['first_name', 'father_name', 'region','woreda','kebele'], 
       };
     }
     const result = await this.participantDAL.findAll(options);
@@ -255,7 +256,6 @@ export class ParticipantService {
   findOne(id: string) {
     return this.participantDAL.findById(id);
   }
-
  update(id: string, dto: UpdateParticipantDto, updated_by: string) {
   return this.participantDAL.update(id, {
     ...dto,

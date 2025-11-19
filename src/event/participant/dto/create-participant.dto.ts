@@ -6,10 +6,13 @@ export class CreateParticipantDto {
   first_name: string;
 
   @IsString()
-  last_name: string;
+  father_name: string;
 
   @IsString()
   gender: string;
+ 
+  @IsString()
+  Grandfather_name?:string
 
   @IsString()
   phone: string;

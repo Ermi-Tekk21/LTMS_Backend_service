@@ -20,8 +20,11 @@ export class Participant {
     @Column({ type: 'text' })
     first_name: string;
 
-    @Column({ type: 'text' })
-    last_name: string;
+    @Column({ type: 'text', nullable:true })
+    father_name: string;
+
+    @Column({ type: 'text', nullable:true })
+    Grandfather_name:string
 
     @Column({type:'text'})
     age:string;

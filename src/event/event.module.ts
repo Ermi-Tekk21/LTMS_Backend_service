@@ -12,10 +12,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Event } from './entities/event.entity';
 import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
 import { EmailModule } from 'src/common/notification/email.module';
+import { SessionParticipantMap } from './participant/entities/sessionParticipantMap.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Event]),
+    TypeOrmModule.forFeature([Event, SessionParticipantMap]),
     forwardRef(() => EventDateModule),
     forwardRef(() => EventSessionModule),
     forwardRef(() => DocumentModule),
