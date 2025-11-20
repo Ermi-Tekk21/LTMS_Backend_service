@@ -40,6 +40,9 @@ community_type: community_type;
    @IsString()
   region: string;
 
+ @IsString()
+  zone: string;
+
   @IsString()
   woreda: string;
 

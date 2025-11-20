@@ -40,7 +40,7 @@ export class DocumentService {
         throw new NotFoundException('not found')
       }
       if (doctype == doc_type.REPORT) {
-        event.event_status = event_status.CLOSED
+        event.event_status = event_status.COMPLATED
         await this.eventRepo.save(event)
         console.log(
           `[${new Date().toISOString()}] Event ${eventID} (${event?.name ?? 'untitled'}) marked as ${event.event_status} after uploading ${uploadedFiles.length} ${uploadedFiles.length === 1 ? 'file' : 'files'} to bucket "${bucketName}" (docType=${doctype})`

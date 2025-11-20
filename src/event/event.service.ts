@@ -595,26 +595,31 @@ export class EventService {
     };
   }
 
+  
   async updateEventStatusIfReady(eventId: string) {
-    const eventRepo = this.dataSource.getRepository(Event);
-    const event = await eventRepo.findOne({
-      where: { id: eventId },
-      relations: ['participants', 'trainers'],
-    });
-    if (!event) return;
+  const eventRepo = this.dataSource.getRepository(Event);
 
-    const hasParticipants = event.participants?.length > 0;
-    const hasTrainers = event.trainers?.length > 0;
+  const event = await eventRepo.findOne({
+    where: { id: eventId },
+    relations: ['participants'], 
+  });
 
-    if (hasParticipants && hasTrainers && event.event_status !== event_status.READY) {
-      event.event_status = event_status.READY;
-      await eventRepo.save(event);
-      console.log(` Event ${event.id} marked as READY`);
-    } else if ((!hasParticipants || !hasTrainers) && event.event_status === event_status.READY) {
-      event.event_status = event_status.INITATED;
-      await eventRepo.save(event);
-    }
+  if (!event) return;
+
+  const hasParticipants = event.participants?.length > 0;
+
+  if (hasParticipants && event.event_status !== event_status.ONGOING) {
+    event.event_status = event_status.ONGOING;
+    await eventRepo.save(event);
+    console.log(`Event ${event.id} marked as ONGOING`);
+  } 
+  else if (!hasParticipants && event.event_status === event_status.ONGOING) {
+    event.event_status = event_status.INITATED;
+    await eventRepo.save(event);
+    console.log(`Event ${event.id} reverted back to INITIATED`);
   }
+}
+
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
