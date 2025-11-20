@@ -121,11 +121,10 @@ export class EventController {
   @Get('attendance/:eventId/pdf')
   async downloadAttendancePdf(
     @Param('eventId') eventId: string,
-    @Query('date') date: string,
     @Res() res: Response,
   ) {
     try {
-      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, date);
+      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId);
 
       res.set({
         'Content-Type': 'application/pdf',

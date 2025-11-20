@@ -20,7 +20,7 @@ export class Participant {
     @Column({ type: 'text' })
     first_name: string;
 
-    @Column({ type: 'text' })
+    @Column({ type: 'text' , nullable: true})
     last_name: string;
 
     @Column({ type: 'text' })
@@ -38,7 +38,7 @@ export class Participant {
     @Column({ type: 'text', nullable: true })
     community_type : string | null;
 
-    @Column({type:'text'})
+    @Column({type:'text', nullable: true})
     letracy_level:string 
 
     @Column({ type: 'text'})
