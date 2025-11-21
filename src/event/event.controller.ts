@@ -10,9 +10,10 @@ import type { UUID } from 'crypto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Permission } from 'src/common/decorators/permission.decorator';
 @Controller('event')
+
 export class EventController {
   constructor(private readonly eventService: EventService) { }
-@Permission('create', 'event')
+  @Permission('create', 'event')
   @Post()
   @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
   async create(
@@ -21,9 +22,9 @@ export class EventController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     const parsedData: CreateEventDto = JSON.parse(data)
-    return this.eventService.create(parsedData,file,user);
+    return this.eventService.create(parsedData, file, user);
   }
-@Permission('read', 'event')
+  @Permission('read', 'event')
   @Get()
   findAll(
     @Query('searchTerm') searchTerm?: string,
@@ -54,12 +55,12 @@ export class EventController {
       order: parsedOrder,
     });
   }
-@Permission('read', 'event')
+  @Permission('read', 'event')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.eventService.findOne(id);
   }
-@Permission('read', 'event')
+  @Permission('read', 'event')
   @Get('docs/:id')
   eventDosPath(
     @Param('id') id: string,
@@ -67,12 +68,12 @@ export class EventController {
   ) {
     return this.eventService.eventDocsPath(id, docType);
   }
-@Permission('update', 'event')
+  @Permission('update', 'event')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto,@CurrentUser() user: any,) {
+  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto, @CurrentUser() user: any,) {
     return this.eventService.update(id, updateEventDto);
   }
-@Permission('update', 'event')
+  @Permission('update', 'event')
   @Patch(':id/replace-tor')
   @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
   replaceTOR(
@@ -81,7 +82,7 @@ export class EventController {
   ) {
     return this.eventService.replaceTOR(id, file);
   }
-@Permission('manage', 'trainer')
+  @Permission('manage', 'trainer')
   @Post(':id/trainers')
   async assignTrainers(
     @CurrentUser() user: any,
@@ -90,7 +91,7 @@ export class EventController {
   ) {
     return this.eventService.assignTrainersToEvent(eventId, trainerIds);
   }
-@Permission('manage', 'trainer')
+  @Permission('manage', 'trainer')
   @Delete(':id/trainers')
   async removeTrainers(
     @Param('id') eventId: string,
@@ -98,7 +99,7 @@ export class EventController {
   ) {
     return this.eventService.removeTrainersFromEvent(eventId, trainerIds);
   }
-@Permission('manage', 'trainer')
+  @Permission('manage', 'trainer')
   @Patch(':id/trainers')
   async updateTrainers(
     @Param('id') eventId: string,
@@ -106,18 +107,17 @@ export class EventController {
   ) {
     return this.eventService.updateTrainersForEvent(eventId, trainerIds);
   }
-@Permission('manage', 'trainer')
+  @Permission('manage', 'trainer')
   @Get(':id/trainers')
   async getEventTrainers(
     @Param('id') eventId: string,
     @Query('page') page = 1,
-    @Query('limit') limit = 10,) 
-  {
-  const pageNumber = Number(page) || 1;
-  const limitNumber = Number(limit) || 10;
+    @Query('limit') limit = 10,) {
+    const pageNumber = Number(page) || 1;
+    const limitNumber = Number(limit) || 10;
     return this.eventService.getEventTrainers(eventId);
   }
-@Permission('manage', 'participant')
+  @Permission('manage', 'participant')
   @Post(':id/participants')
   async assignParticipants(
     @Param('id') eventId: string,
@@ -125,7 +125,7 @@ export class EventController {
   ) {
     return this.eventService.assignParticipantsToEvent(eventId, participantIds);
   }
-@Permission('manage', 'participant')
+  @Permission('manage', 'participant')
   @Delete(':id/participants')
   async removeParticipants(
     @Param('id') eventId: string,
@@ -133,7 +133,7 @@ export class EventController {
   ) {
     return this.eventService.removeParticipantsFromEvent(eventId, participantIds);
   }
-@Permission('manage', 'participant')
+  @Permission('manage', 'participant')
   @Patch(':id/participants')
   async updateParticipants(
     @Param('id') eventId: string,
@@ -141,26 +141,27 @@ export class EventController {
   ) {
     return this.eventService.updateParticipantsForEvent(eventId, participantIds);
   }
-@Permission('manage', 'participant')
+  @Permission('manage', 'participant')
   @Get(':id/participants')
-async getEventParticipants(
-  @Param('id') eventId: string,
-  @Query('page') page = 1,
-  @Query('limit') limit = 10,
-) {
-  // Convert page and limit to numbers
-  const pageNumber = Number(page) || 1;
-  const limitNumber = Number(limit) || 10;
+  async getEventParticipants(
+    @Param('id') eventId: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+  ) {
+    // Convert page and limit to numbers
+    const pageNumber = Number(page) || 1;
+    const limitNumber = Number(limit) || 10;
 
-  return this.eventService.getEventParticipants(eventId, pageNumber, limitNumber);
-}
+    return this.eventService.getEventParticipants(eventId, pageNumber, limitNumber);
+  }
 
-@Permission('delete', 'event')
+  @Permission('delete', 'event')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.eventService.remove(id);
   }
-@Permission('read', 'event')
+
+  // @Permission('read', 'event')
   @Get('attendance/:eventId/pdf')
   async downloadAttendancePdf(
     @Param('eventId') eventId: string,
@@ -168,7 +169,6 @@ async getEventParticipants(
   ) {
     try {
       const pdfBuffer = await this.eventService.generateAttendancePdf(eventId);
-
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="attendance-${eventId}.pdf"`,
