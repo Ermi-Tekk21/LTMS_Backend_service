@@ -13,6 +13,7 @@ import { Event } from './entities/event.entity';
 import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
 import { EmailModule } from 'src/common/notification/email.module';
 import { SessionParticipantMap } from './participant/entities/sessionParticipantMap.entity';
+import { ZoneModule } from './adress/zone.module';
 
 @Module({
   imports: [
@@ -23,6 +24,8 @@ import { SessionParticipantMap } from './participant/entities/sessionParticipant
     forwardRef(() => TrainerModule),
     forwardRef(() => AwsS3Module),
     TrainerModule,
+    ZoneModule,
+
    
     forwardRef(() => ParticipantModule),
     ActivityModule,

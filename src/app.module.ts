@@ -14,6 +14,7 @@ import { EventSessionModule } from './event/event_session/event_session.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
+// import { ZoneModule } from './event/adress/zone.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -27,6 +28,7 @@ import { PermissionGuard } from './common/guards/permission.guard';
     EventModule,
     EventDateModule,
     EventSessionModule,
+    
   ],
   controllers: [AppController],
   providers: [
