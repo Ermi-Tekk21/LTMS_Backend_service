@@ -1,15 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { DataSource, In } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { EventDAL } from './dal/event.dal';
 import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
-import { DocumentService } from './document/document.service';
-import { doc_type, event_status } from 'src/common/enums/status_enums';
+import { DocumentService } from 'src/document/document.service';
+import { attendance, doc_type, event_status } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
-import { TrainerService } from './trainer/trainer.service';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
 import { EmailService } from 'src/common/notification/email.service';
@@ -17,25 +16,34 @@ import { QueryRunner } from 'typeorm/browser';
 import PdfPrinter from 'pdfmake';
 import * as path from 'path';
 import * as fs from 'fs';
-
+import { UUID } from 'crypto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { EventSession } from './event_session/entities/event_session.entity';
+import { SessionParticipantMap } from './participant/entities/sessionParticipantMap.entity';
 
 @Injectable()
 export class EventService {
   constructor(
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
+
+    @InjectRepository(SessionParticipantMap)
+    private readonly sessionParticipantMapRepo: Repository<SessionParticipantMap>,
+
     private readonly eventDAL: EventDAL,
     private readonly documentService: DocumentService,
     private readonly eventDateService: EventDateService,
     private readonly eventSessionService: EventSessionService,
-    private readonly trainerService: TrainerService,
     private readonly awsS3Service: AwsS3Service,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource,
   ) { }
 
-  async create(dto: CreateEventDto, file: Express.Multer.File) {
+  async create(dto: CreateEventDto, file: Express.Multer.File, created_by: string) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
 
     try {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
@@ -65,28 +73,39 @@ export class EventService {
       }, queryRunner);
 
       for (const date of dto.event_dates || []) {
+
         const eventDate = await this.eventDateService.create(
           { date, event },
           queryRunner,
         );
+        const morningStart = new Date(date);
+        morningStart.setHours(9, 0, 0, 0);
+
+        const morningEnd = new Date(date);
+        morningEnd.setHours(12, 0, 0, 0);
+
+        const afternoonStart = new Date(date);
+        afternoonStart.setHours(13, 0, 0, 0);
+
+        const afternoonEnd = new Date(date);
+        afternoonEnd.setHours(17, 0, 0, 0);
+
+        // morning session
         await this.eventSessionService.create({
           event_date: eventDate,
           venue: event.venue,
+          starts_at: morningStart,
+          ends_at: morningEnd
         }, queryRunner);
+        //afternoon session
+        await this.eventSessionService.create({
+          event_date: eventDate,
+          venue: event.venue,
+          starts_at: afternoonStart,
+          ends_at: afternoonEnd
+        }, queryRunner);
+
       }
-
-      // if (dto.trainers?.length) {
-      //   const trainers: Trainer[] = [];
-      //   for (const trainerId of dto.trainers) {
-      //     const trainer = await this.trainerService.findOne(trainerId);
-      //     if (!trainer) {
-      //       throw new NotFoundException(`Trainer with ID ${trainerId} not found`);
-      //     }
-      //     trainers.push(trainer);
-      //   }
-      //   event.trainers = trainers;
-      // }
-
       await queryRunner.manager.save(event);
       await queryRunner.commitTransaction();
 
@@ -102,11 +121,69 @@ export class EventService {
         data: {
           event,
           torDocument: uploadedFile,
+          created_by,
         },
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async replaceTOR(id: UUID, file: Express.Multer.File) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+      const folder = 'tor';
+
+      const event = await this.findOne(String(id));
+      if (!event) {
+        throw new NotFoundException(`Event not found`);
+      }
+      if (event.event_status != event_status.INITATED) {
+        throw new BadRequestException(
+          `Cannot replace TOR for event ${event.id}: event must be in '${event_status.INITATED}' status (current: '${event.event_status}').`
+        );
+      }
+      await this.documentService.remove(event.documents.filter(docs => docs.doc_type == doc_type.TOR)[0].id)
+
+      const uploadedFile = await this.awsS3Service.uploadFile(
+        file,
+        bucketName,
+        folder,
+        event.id as string,
+      );
+
+      await this.documentService.create({
+        event,
+        path: uploadedFile.key,
+        file_type: file.mimetype.split('/')[1],
+        doc_type: doc_type.TOR,
+      }, queryRunner);
+
+      // No dto here - replaceTOR only replaces the TOR document.
+      await queryRunner.manager.save(event);
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: 'TOR replaced successfully',
+        data: {
+          event,
+          torDocument: uploadedFile,
+        },
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      if (error instanceof NotFoundException || error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException(
+        `Failed to replace TOR for event: ${error instanceof Error ? error.message : String(error)}`
+      )
     } finally {
       await queryRunner.release();
     }
@@ -148,12 +225,15 @@ export class EventService {
   async findAll(query?: {
     searchTerm?: string;
     searchFields?: string[];
+    status?: event_status,
+    locationId?: string,
+    projectId?: string,
     page?: number;
     limit?: number;
     order?: Record<string, 'asc' | 'desc'>;
   }) {
     const options: any = {};
-    options.relations = ['event_dates']
+    options.relations = ['event_dates', 'trainers']
 
     if (query?.searchTerm && query?.searchFields?.length) {
       options.search = {
@@ -161,11 +241,48 @@ export class EventService {
         fields: query.searchFields,
       };
     }
-
+    if (query?.status) options.where = { event_status: query.status }
+    if (query?.locationId) options.where = { location_id: query.locationId }
+    if (query?.projectId) options.where = { project_id: query.projectId }
     if (query?.page) options.page = query.page;
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
     return this.eventDAL.findAll(options);
+  }
+
+  async participantSessionMap(eventId: string) {
+    const event = await this.eventRepo.findOne({
+      where: {
+        id: eventId
+      },
+      relations: ['participants', 'event_dates', 'event_dates.event_sessions']
+    })
+    if (!event) {
+      throw new NotFoundException('event with specified id not found.')
+    }
+    const participants: Participant[] = event?.participants
+    const sessions: EventSession[] = event?.event_dates.flatMap(date => date?.event_sessions)
+    for (const session of sessions) {
+      for (const participant of participants) {
+        // if participant and session id doesnot combinetion exists
+        const sessionParticipantExist = await this.sessionParticipantMapRepo.find({
+          where: {
+            participant: participant,
+            event_session: session
+          }
+        })
+        if (!sessionParticipantExist) {
+          const sessionPaticipantMapObj = this.sessionParticipantMapRepo.create({
+            participant: participant,
+            event_session: session,
+            attendance: {
+              status: null
+            }
+          })
+          await this.sessionParticipantMapRepo.save(sessionPaticipantMapObj)
+        }
+      }
+    }
   }
 
   async assignTrainersToEvent(eventId: string, trainerIds: string[]) {
@@ -180,6 +297,7 @@ export class EventService {
         where: { id: eventId },
         relations: ['trainers'],
       });
+
       if (!event) throw new NotFoundException('Event not found');
 
       // load trainers by ids
@@ -213,7 +331,7 @@ export class EventService {
         }
       }
       await queryRunner.commitTransaction();
-
+      await this.updateEventStatusIfReady(eventId);
       // return fresh event with trainers relation
       return await eventRepo.findOne({
         where: { id: eventId },
@@ -224,6 +342,7 @@ export class EventService {
       throw err;
     } finally {
       await queryRunner.release();
+
     }
   }
 
@@ -294,14 +413,33 @@ export class EventService {
     }
   }
 
-  async getEventTrainers(eventId: string) {
-    const event = await this.dataSource.getRepository(Event).findOne({
-      where: { id: eventId },
-      relations: ['trainers'],
-    });
+  async getEventTrainers(
+    eventId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
+    const eventRepo = this.dataSource.getRepository(Event);
+
+    const event = await eventRepo.findOne({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Event not found');
-    return event.trainers;
+
+    const trainerRepo = this.dataSource.getRepository(Trainer);
+
+    const [data, total] = await trainerRepo
+      .createQueryBuilder('trainer')
+      .innerJoin('trainer.events', 'event', 'event.id = :eventId', { eventId })
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
+
 
   async removeTrainersFromEvent(eventId: string, trainerIds: string[]) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -360,6 +498,7 @@ export class EventService {
       const updatedEvent = await eventRepo.save(event);
 
       if (ownTransaction) await runner.commitTransaction();
+      await this.updateEventStatusIfReady(eventId);
       return updatedEvent;
     } catch (err) {
       if (ownTransaction) await runner.rollbackTransaction();
@@ -428,20 +567,85 @@ export class EventService {
   }
 
   // GET ALL PARTICIPANTS ASSIGNED TO EVENT
-  async getEventParticipants(eventId: string) {
-    const event = await this.dataSource.getRepository(Event).findOne({
-      where: { id: eventId },
-      relations: ['participants'],
-    });
+  async getEventParticipants(
+    eventId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+    const eventRepo = this.dataSource.getRepository(Event);
+
+    // Check if the event exists
+    const event = await eventRepo.findOne({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Event not found');
-    return event.participants;
+
+    const participantRepo = this.dataSource.getRepository(Participant);
+
+    const [data, total] = await participantRepo
+      .createQueryBuilder('participant')
+      .innerJoin('participant.events', 'event', 'event.id = :eventId', { eventId })
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
+
+  
+  async updateEventStatusIfReady(eventId: string) {
+  const eventRepo = this.dataSource.getRepository(Event);
+
+  const event = await eventRepo.findOne({
+    where: { id: eventId },
+    relations: ['participants'], 
+  });
+
+  if (!event) return;
+
+  const hasParticipants = event.participants?.length > 0;
+
+  if (hasParticipants && event.event_status !== event_status.ONGOING) {
+    event.event_status = event_status.ONGOING;
+    await eventRepo.save(event);
+    console.log(`Event ${event.id} marked as ONGOING`);
+  } 
+  else if (!hasParticipants && event.event_status === event_status.ONGOING) {
+    event.event_status = event_status.INITATED;
+    await eventRepo.save(event);
+    console.log(`Event ${event.id} reverted back to INITIATED`);
+  }
+}
 
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
       relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates']
     })
+  }
+
+  async eventDocsPath(id: string, doc_type?: doc_type) {
+    const event = await this.eventDAL.findOne({
+      where: { id },
+      relations: ['documents'],
+    });
+
+    if (!event) throw new Error('Event not found');
+
+    const filteredDocs = doc_type
+      ? event.documents.filter(doc => doc.doc_type === doc_type)
+      : event.documents;
+
+    const paths = filteredDocs.map(doc => doc.path);
+
+    const presignedUrls = await Promise.all(
+      paths.map(path => this.documentService.viewDoc(path))
+    );
+
+    return presignedUrls;
   }
 
   async remove(id: string) {

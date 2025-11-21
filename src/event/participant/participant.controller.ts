@@ -6,12 +6,14 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+// import { PermissionGuard } from 'src/common/guards/permission.guard';
+import { Permission } from 'src/common/decorators/permission.decorator';
+
 @Controller('participant') 
-@UseGuards(JwtAuthGuard)
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
-
-  @Post(':eventId')
+@Permission('create', 'participant')
+@Post(':eventId')
 async createParticipant(
   @Param('eventId') eventId: string,
   @Body() dto: CreateParticipantDto,
@@ -20,6 +22,7 @@ async createParticipant(
   return this.participantService.create(dto, currentUser.id, eventId);
 }
 
+@Permission('read', 'participant')
  @Get()
 async getAllParticipants(
   @Query('page') page = 1,
@@ -29,6 +32,7 @@ async getAllParticipants(
   return this.participantService.findAll(Number(page), Number(limit), search);
 }
 
+ @Permission('create', 'participant')
    @Get('template')
   async downloadTemplate(@Res() res: Response) {
     const buffer = await this.participantService.generateTemplate();
@@ -43,38 +47,46 @@ async getAllParticipants(
     );
     res.send(buffer);
   }
-
-   @Post('upload')
+@Permission('create', 'participant')
+   @Post('upload/:eventId')
   @UseInterceptors(FileInterceptor('file'))
   async uploadExcel(
+    @Param('eventId') eventId: string,
     @UploadedFile() file: Express.Multer.File,
-    @Body('eventId') eventId: string,
     @CurrentUser('userId') userId: string,
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded.');
     }
+
     if (!eventId) {
       throw new BadRequestException('Event ID is required.');
     }
 
     try {
-      const result = await this.participantService.importFromExcel(file, eventId, userId);
+      const result = await this.participantService.importFromExcel(
+        file,
+        eventId,
+        userId,
+      );
       return {
         message: 'Excel file imported successfully',
         ...result,
       };
     } catch (error) {
-      throw new BadRequestException(`Failed to import Excel: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to import Excel: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
-
-
+@Permission('read', 'participant')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.participantService.findOne(id);
   }
-
+@Permission('update', 'participant')
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateParticipantDto: UpdateParticipantDto,@CurrentUser('userId') userId: string) {
     return this.participantService.update(id, updateParticipantDto,userId);
@@ -85,7 +97,7 @@ async getAllParticipants(
   // delete(@Param('id') id:string,){
   // return this.participantService.remove(id)
   // }
-  
+  @Permission("delete","participant")
   @Delete(':id')
   remove(@Param('id') id: string,@CurrentUser('userId') userId: string) {
   return this.participantService.softDelete(id,userId);

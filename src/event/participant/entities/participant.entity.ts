@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { Event } from 'src/event/entities/event.entity';
 import { SessionParticipantMap } from './sessionParticipantMap.entity';
-
+import { community_type } from 'src/common/enums/status_enums';
 @Entity('participant')
 export class Participant {
     @PrimaryGeneratedColumn('uuid')
@@ -20,11 +20,20 @@ export class Participant {
     @Column({ type: 'text' })
     first_name: string;
 
-    @Column({ type: 'text' , nullable: true})
-    last_name: string;
+    @Column({ type: 'text', nullable:true })
+    father_name: string;
+
+    @Column({ type: 'text', nullable:true })
+    Grandfather_name:string
+
+    @Column({type:'text'})
+    age:string;
 
     @Column({ type: 'text' })
     gender: string 
+ 
+    @Column({ type: 'text',nullable: true  })
+    disability:string
 
     @Column({ type: 'text',unique:true})
     phone: string 
@@ -35,14 +44,16 @@ export class Participant {
     @Column({ type: 'text', nullable: true })
     organization: string | null;
 
-    @Column({ type: 'text', nullable: true })
-    community_type : string | null;
+    @Column({type: 'enum',enum: community_type,nullable: true,})community_type: community_type | null;
 
-    @Column({type:'text', nullable: true})
-    letracy_level:string 
+    @Column({type:'text',nullable: true })
+    letracy_level:string | null
 
     @Column({ type: 'text'})
-    region: string | null;
+    region: string ;
+
+    @Column({type:'text'})
+    zone:string 
 
     @Column({ type: 'text' })
     woreda: string ;
@@ -68,8 +79,9 @@ export class Participant {
     @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
     deleted_at: Date | null;
 
-    @ManyToMany(() => Event, (event) => event.participants)
+    @ManyToMany(() => Event, (event) => event.participants,{onDelete: 'CASCADE',})
     events: Event[] | null;
+    
 
     @OneToMany(
         () => SessionParticipantMap,

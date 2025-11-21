@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UseGuards } from '@nestjs/common';
 import { CreateTrainerDto } from './dto/create-trainer.dto';
 import { UpdateTrainerDto } from './dto/update-trainer.dto';
 import { TrainerDAL } from './dal/trainer.dal';
@@ -6,13 +6,16 @@ import { FindManyOptions, IsNull } from 'typeorm';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { ConfigService } from '@nestjs/config';
 import { Trainer } from './entities/trainer.entity';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+
+@UseGuards(JwtAuthGuard)
 @Injectable()
 export class TrainerService {
   private readonly bucketName: string;
   constructor(private readonly trainerDAL: TrainerDAL,
     private readonly awsS3Service: AwsS3Service,
     private readonly configService: ConfigService,) { this.bucketName = this.configService.getOrThrow<string>('AWS_S3_BUCKET_NAME'); }
-  async create(createTrainerDto: CreateTrainerDto, file?: Express.Multer.File) {
+  async create(createTrainerDto: CreateTrainerDto, created_by:string,file?: Express.Multer.File) {
     let file_key: string | undefined = undefined;
     if (file) {
       const folder = 'trainers/';
@@ -22,54 +25,52 @@ export class TrainerService {
     const trainer = await this.trainerDAL.create({
       ...createTrainerDto,
       file_key,
-      created_at: new Date(),
-
+      // created_at: new Date(),
+      created_by
     });
     return trainer;
   }
+
+
   async findAll(
-  page = 1,
-  limit = 10,
-  search?: string,
-): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
-  try {
-    const options: FindManyOptions<Trainer> & {
-      search?: { term: string; fields: (keyof Trainer)[] };
-      page?: number;
-      limit?: number;
-    } = {
-      where: { deleted_at: IsNull() },
-      order: { created_at: 'DESC' },
-      page,
-      limit,
-    };
-
-    // Optional search support
-    if (search && search.trim() !== '') {
-      options.search = {
-        term: search,
-        fields: ['first_name', 'last_name', 'email', 'occupation'], 
+    page = 1,
+    limit = 10,
+    search?: string,
+  ): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
+    try {
+      const options: FindManyOptions<Trainer> & {
+        search?: { term: string; fields: (keyof Trainer)[] };
+        page?: number;
+        limit?: number;
+      } = {
+        order: { created_at: 'DESC' },
+        page,
+        limit,
       };
+
+      // Optional search support
+      if (search && search.trim() !== '') {
+        options.search = {
+          term: search,
+          fields: ['first_name', 'last_name', 'email', 'occupation'],
+        };
+      }
+
+      const result = await this.trainerDAL.findAll(options);
+
+      return {
+        data: result.data,
+        total: result.meta.total,
+        page: result.meta.page,
+        limit: result.meta.limit,
+      };
+    } catch (error) {
+      throw new Error(
+        `TrainerService.findAll failed: ${error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
-
-    const result = await this.trainerDAL.findAll(options);
-
-    return {
-      data: result.data,
-      total: result.meta.total,
-      page: result.meta.page,
-      limit: result.meta.limit,
-    };
-  } catch (error) {
-    throw new Error(
-      `TrainerService.findAll failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
   }
-}
-
-
 
   async findOne(id: string) {
     const trainer = await this.trainerDAL.findById(id);

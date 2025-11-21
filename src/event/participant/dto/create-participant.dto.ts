@@ -1,19 +1,27 @@
-import {  IsString, IsUUID } from 'class-validator';
+import {  IsString, IsUUID,IsEnum } from 'class-validator';
+import { community_type } from 'src/common/enums/status_enums';
+
 export class CreateParticipantDto {
   @IsString()
   first_name: string;
 
   @IsString()
-  last_name: string;
+  father_name: string;
 
   @IsString()
   gender: string;
+ 
+  @IsString()
+  Grandfather_name?:string
 
   @IsString()
   phone: string;
 
-  // @IsString()
-  // age: string;
+  @IsString()
+  age: string;
+
+  @IsString()
+disability:string;
 
   @IsString()
   occupation: string;
@@ -21,8 +29,9 @@ export class CreateParticipantDto {
   @IsString()
   organization?: string;
 
-  @IsString()
-  community_type: string;
+ @IsEnum(community_type)
+community_type: community_type;
+
 
   @IsString()
   letracy_level:string 
@@ -30,6 +39,9 @@ export class CreateParticipantDto {
 
    @IsString()
   region: string;
+
+ @IsString()
+  zone: string;
 
   @IsString()
   woreda: string;

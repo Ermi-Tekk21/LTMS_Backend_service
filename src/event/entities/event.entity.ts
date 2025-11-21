@@ -11,7 +11,7 @@ import {
     DeleteDateColumn,
 } from 'typeorm';
 import { Activity } from '../activity/entities/activity.entity';
-import { Document } from '../document/entities/document.entity';
+import { Document } from 'src/document/entities/document.entity';
 import { Participant } from '../participant/entities/participant.entity';
 import { Trainer } from '../trainer/entities/trainer.entity';
 import { EventDate } from '../event_date/entities/event_date.entity';
@@ -83,7 +83,7 @@ export class Event {
 
     @ManyToMany(() => Participant, (participant) => participant.events, {
         cascade: true,
-        onDelete: 'CASCADE',
+        
         nullable: true
     })
     @JoinTable({

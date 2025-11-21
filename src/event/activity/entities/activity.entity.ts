@@ -1,4 +1,4 @@
-import { Document } from "src/event/document/entities/document.entity";
+import { Document } from "src/document/entities/document.entity";
 import { Event } from "src/event/entities/event.entity";
 import { activity_status_type, progres_status } from "src/common/enums/status_enums";
 import { Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";

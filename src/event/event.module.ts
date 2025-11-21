@@ -4,7 +4,7 @@ import { EventController } from './event.controller';
 import { TrainerModule } from './trainer/trainer.module';
 import { ParticipantModule } from './participant/participant.module';
 import { ActivityModule } from './activity/activity.module';
-import { DocumentModule } from './document/document.module';
+import { DocumentModule } from 'src/document/document.module';
 import { EventDateModule } from './event_date/event_date.module';
 import { EventSessionModule } from './event_session/event_session.module';
 import { EventDAL } from './dal/event.dal';
@@ -12,10 +12,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Event } from './entities/event.entity';
 import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
 import { EmailModule } from 'src/common/notification/email.module';
+import { SessionParticipantMap } from './participant/entities/sessionParticipantMap.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Event]),
+    TypeOrmModule.forFeature([Event, SessionParticipantMap]),
     forwardRef(() => EventDateModule),
     forwardRef(() => EventSessionModule),
     forwardRef(() => DocumentModule),

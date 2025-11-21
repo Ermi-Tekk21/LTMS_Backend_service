@@ -11,23 +11,34 @@ import { AwsS3Module } from './common/aws-s3/aws-s3.module';
 import { AuthModule } from './common/guards/auth.module';
 import { EventDateModule } from './event/event_date/event_date.module';
 import { EventSessionModule } from './event/event_session/event_session.module';
-
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { PermissionGuard } from './common/guards/permission.guard';
 @Module({
-
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true,  
-    }),    
+      isGlobal: true,
+    }),
     TypeOrmModule.forRoot(typeOrmConfig),
-     AuditLogModule,
+    AuditLogModule,
     AuthModule,
     EmailModule,
     AwsS3Module,
     EventModule,
     EventDateModule,
-    EventSessionModule
+    EventSessionModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard, // <-- GLOBAL GUARD
+    },
+    {
+    provide: APP_GUARD,
+    useClass: PermissionGuard,// permission guard
+},
+  ],
 })
 export class AppModule {}
