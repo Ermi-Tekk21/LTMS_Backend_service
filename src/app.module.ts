@@ -33,14 +33,14 @@ import { PermissionGuard } from './common/guards/permission.guard';
   controllers: [AppController],
   providers: [
     AppService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard, // <-- GLOBAL GUARD
-    },
-    {
-    provide: APP_GUARD,
-    useClass: PermissionGuard,// permission guard
-},
+//     {
+//       provide: APP_GUARD,
+//       useClass: JwtAuthGuard, // <-- GLOBAL GUARD
+//     },
+//     {
+//     provide: APP_GUARD,
+//     useClass: PermissionGuard,// permission guard
+// },
   ],
 })
 export class AppModule {}
