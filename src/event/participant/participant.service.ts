@@ -7,9 +7,12 @@ import { FindManyOptions, DataSource} from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 import { community_type,gender } from 'src/common/enums/status_enums';
+// import { Zone } from '../adress/entities/zone.entity';
+import { ZoneService } from '../adress/zone.service';
 @Injectable()
 export class ParticipantService {
   constructor(private readonly participantDAL: ParticipantDAL,
+    private readonly zoneService: ZoneService,
     private readonly eventService: EventService,
      private readonly dataSource: DataSource,
   ) {}
@@ -53,11 +56,11 @@ export class ParticipantService {
     await queryRunner.release();
   }
 }
-  async generateTemplate(): Promise<Buffer | ArrayBuffer | Uint8Array> {
+
+async generateTemplate(): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Participants');
 
-  // Define columns
   sheet.columns = [
     { header: 'First Name', key: 'first_name', width: 20 },
     { header: 'Father Name', key: 'father_name', width: 20 },
@@ -73,42 +76,62 @@ export class ParticipantService {
     { header: 'Occupation', key: 'occupation', width: 20 },
     { header: 'Organization', key: 'organization', width: 25 },
     { header: 'Community Type', key: 'community_type', width: 20 },
-    { header: 'Literacy Level', key: 'letracy_level', width: 20 },
+    { header: 'Literacy Level', key: 'literacy_level', width: 20 },
   ];
 
-  // Bold header row
+  // Bold header
   sheet.getRow(1).font = { bold: true };
+  const genderValues = Object.values(gender); 
+  const communityValues = Object.values(community_type); 
+  
+  for (let row = 2; row <= 100; row++) {
+    sheet.getCell(`D${row}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [`"${genderValues.join(',')}"`],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Gender',
+      error: 'Please select a valid gender.',
+    };
 
-  // GENDER dropdown → Column 4 → Column letter = D
-const genderValues = Object.values(gender); // ['Male','Female']
+    sheet.getCell(`N${row}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [`"${communityValues.join(',')}"`],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Community Type',
+      error: 'Please select a valid Community Type.',
+    };
+  }
 
-for (let row = 2; row <= 100; row++) {
-  sheet.getCell(`D${row}`).dataValidation = {
-    type: 'list',
-    allowBlank: true,
-    formulae: [`"${genderValues.join(',')}"`],
-    showErrorMessage: true,
-    errorTitle: 'Invalid Gender',
-    error: 'Please select a valid gender from the dropdown.',
-  };
+  const zones = await this.zoneService.getZonesWithWoredas(); 
+  const zoneNames = zones.map(z => z.name);
+  const allWoredas = zones.flatMap(z => z.woredas);
+
+  for (let row = 2; row <= 100; row++) {
+  
+    sheet.getCell(`H${row}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [`"${zoneNames.join(',')}"`],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Zone',
+      error: 'Please select a valid Zone.',
+    };
+
+    sheet.getCell(`I${row}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [`"${allWoredas.join(',')}"`],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Woreda',
+      error: 'Please select a Woreda.',
+    };
+  }
+
+  return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
 }
 
-const communityValues = Object.values(community_type); // ['IDPs','Refugees','HostResident','Returning']
-
-for (let row = 2; row <= 100; row++) {
-  sheet.getCell(`N${row}`).dataValidation = {
-    type: 'list',
-    allowBlank: true,
-    formulae: [`"${communityValues.join(',')}"`],
-    showErrorMessage: true,
-    errorTitle: 'Invalid Community Type',
-    error: 'Please select a valid Community Type from the dropdown.',
-  };
-}
-
-
-  return await workbook.xlsx.writeBuffer();
-}
 
 
  async importFromExcel(
@@ -273,10 +296,10 @@ for (let row = 2; row <= 100; row++) {
 
 
  async findAll(
-  page = 1,
-  limit = 10,
+    page = 1,
+    limit = 10,
   search?: string,
-): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+  ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
   try {
     const options: FindManyOptions<Participant> & {
       search?: { term: string; fields: (keyof Participant)[] };

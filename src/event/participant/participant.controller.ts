@@ -9,7 +9,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 // import { PermissionGuard } from 'src/common/guards/permission.guard';
 import { Permission } from 'src/common/decorators/permission.decorator';
 
-@Controller('participant') 
+@Controller('participant')
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
 @Permission('create', 'participant')
