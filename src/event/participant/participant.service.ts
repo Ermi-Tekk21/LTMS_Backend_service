@@ -3,13 +3,16 @@ import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
 import { Participant } from './entities/participant.entity';
-import { FindManyOptions, IsNull, DataSource} from 'typeorm';
+import { FindManyOptions, DataSource} from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
-import { community_type } from 'src/common/enums/status_enums';
+import { community_type,gender } from 'src/common/enums/status_enums';
+// import { Zone } from '../adress/entities/zone.entity';
+import { ZoneService } from '../adress/zone.service';
 @Injectable()
 export class ParticipantService {
   constructor(private readonly participantDAL: ParticipantDAL,
+    private readonly zoneService: ZoneService,
     private readonly eventService: EventService,
      private readonly dataSource: DataSource,
   ) {}
@@ -42,6 +45,7 @@ export class ParticipantService {
     );
 
     await queryRunner.commitTransaction();
+      await this.eventService.updateEventStatusIfReady(eventId);
     return participant;
   } catch (error) {
     await queryRunner.rollbackTransaction();
@@ -52,52 +56,89 @@ export class ParticipantService {
     await queryRunner.release();
   }
 }
-  async generateTemplate(): Promise<Buffer | ArrayBuffer | Uint8Array> {
+
+async generateTemplate(): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Participants');
 
-  // Define columns
   sheet.columns = [
     { header: 'First Name', key: 'first_name', width: 20 },
-    { header: 'Last Name', key: 'last_name', width: 20 },
+    { header: 'Father Name', key: 'father_name', width: 20 },
+    { header: 'Grandfather Name', key: 'grandfather_name', width: 20 },
     { header: 'Gender', key: 'gender', width: 10 },
     { header: 'Age', key: 'age', width: 15 },
-    { header: 'Disability', key: 'disability', width: 15 },
     { header: 'Phone', key: 'phone', width: 15 },
+    { header: 'Region', key: 'region', width: 20 },
+    { header: 'Zone', key: 'zone', width: 20 },
+    { header: 'Woreda', key: 'woreda', width: 20 },
+    { header: 'Kebele', key: 'kebele', width: 20 },
+    { header: 'Disability', key: 'disability', width: 15 },
     { header: 'Occupation', key: 'occupation', width: 20 },
     { header: 'Organization', key: 'organization', width: 25 },
     { header: 'Community Type', key: 'community_type', width: 20 },
-    { header: 'Literacy Level', key: 'letracy_level', width: 20 },
-    { header: 'Region', key: 'region', width: 20 },
-    { header: 'Woreda', key: 'woreda', width: 20 },
-    { header: 'Kebele', key: 'kebele', width: 20 },
+    { header: 'Literacy Level', key: 'literacy_level', width: 20 },
   ];
 
-  // Bold header row
+  // Bold header
   sheet.getRow(1).font = { bold: true };
-
-  // Apply dropdown for Community Type (column I = 9th column)
-  const communityValues = Object.values(community_type); // ['IDPs', 'Refugees', 'HostResident', 'Returning']
+  const genderValues = Object.values(gender); 
+  const communityValues = Object.values(community_type); 
+  
   for (let row = 2; row <= 100; row++) {
-    sheet.getCell(`I${row}`).dataValidation = {
+    sheet.getCell(`D${row}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [`"${genderValues.join(',')}"`],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Gender',
+      error: 'Please select a valid gender.',
+    };
+
+    sheet.getCell(`N${row}`).dataValidation = {
       type: 'list',
       allowBlank: true,
       formulae: [`"${communityValues.join(',')}"`],
       showErrorMessage: true,
-      errorTitle: 'Invalid Selection',
-      error: 'Please select a valid Community Type from the list.',
+      errorTitle: 'Invalid Community Type',
+      error: 'Please select a valid Community Type.',
     };
   }
 
-  return await workbook.xlsx.writeBuffer();
+  const zones = await this.zoneService.getZonesWithWoredas(); 
+  const zoneNames = zones.map(z => z.name);
+  const allWoredas = zones.flatMap(z => z.woredas);
+
+  for (let row = 2; row <= 100; row++) {
+  
+    sheet.getCell(`H${row}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [`"${zoneNames.join(',')}"`],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Zone',
+      error: 'Please select a valid Zone.',
+    };
+
+    sheet.getCell(`I${row}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [`"${allWoredas.join(',')}"`],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Woreda',
+      error: 'Please select a Woreda.',
+    };
+  }
+
+  return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
 }
+
 
 
  async importFromExcel(
   file: Express.Multer.File,
   eventId: string,
   created_by: string,
-): Promise<{ success: boolean; count: number }> {
+): Promise<{ success: boolean; count: number; conflicts: any[] }> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(file.buffer as any);
 
@@ -106,32 +147,40 @@ export class ParticipantService {
 
   const participants: CreateParticipantDto[] = [];
   const invalidRows: { row: number; missingFields: string[] }[] = [];
-
+  const conflicts: any[] = []; // <-- report mismatched names
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // skip header
+
     const values = Array.isArray(row.values) ? row.values : [];
     const [
       first_name,
-      last_name,
+      father_name,
+      Grandfather_name,
       gender,
       age,
-      disability,
       phone,
+      region,
+      zone,
+      woreda,
+      kebele,
+      disability,     
       occupation,
       organization,
       community_type,
       letracy_level,
-      region,
-      woreda,
-      kebele,
+      
     ] = values.slice(1) as any[];
 
     const missingFields: string[] = [];
     if (!first_name) missingFields.push('first_name');
-    if (!last_name) missingFields.push('last_name');
+    if (!father_name) missingFields.push('father_name');
+    if (!age) missingFields.push('age');
     if (!gender) missingFields.push('gender');
     if (!phone) missingFields.push('phone');
     if (!region) missingFields.push('region');
+    if (!zone) missingFields.push('zone');
+    if (!woreda) missingFields.push('woreda');
+    if (!kebele) missingFields.push('kebele');
 
     if (missingFields.length > 0) {
       invalidRows.push({ row: rowNumber, missingFields });
@@ -140,7 +189,8 @@ export class ParticipantService {
 
     participants.push({
       first_name,
-      last_name,
+      father_name,
+      Grandfather_name,
       gender,
       age,
       disability,
@@ -150,6 +200,7 @@ export class ParticipantService {
       community_type,
       letracy_level,
       region,
+      zone,
       woreda,
       kebele,
       created_by,
@@ -157,9 +208,9 @@ export class ParticipantService {
   });
 
   if (invalidRows.length > 0) {
-    const errorMessage = `File contains rows with missing required fields:\n${invalidRows
+    const errorMessage = invalidRows
       .map((r) => `Row ${r.row}: missing ${r.missingFields.join(', ')}`)
-      .join('\n')}`;
+      .join('\n');
     throw new BadRequestException(errorMessage);
   }
 
@@ -167,35 +218,94 @@ export class ParticipantService {
     throw new BadRequestException('No valid participant rows found in the file.');
   }
 
-  //  Save participants into DB
-  const participantRepo = this.dataSource.getRepository(Participant);
-  const savedParticipants = await participantRepo.save(participants);
+  // Transaction
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  //  Assign saved participants to event
-  const participantIds = savedParticipants.map((p) => p.id);
-  if (participantIds.length > 0) {
-    await this.eventService.assignParticipantsToEvent(eventId, participantIds);
+  try {
+    const participantRepo = queryRunner.manager.getRepository(Participant);
+    const finalParticipantIds: string[] = [];
+
+    // Deduplication logic (by phone)
+    for (const p of participants) {
+      const existing = await participantRepo.findOne({ where: { phone: p.phone } });
+
+      if (existing) {
+        // Check for name mismatch
+        const mismatch =
+          existing.first_name !== p.first_name ||
+          existing.father_name !== p.father_name ||
+          existing.Grandfather_name !== p.Grandfather_name;
+
+        if (mismatch) {
+          conflicts.push({
+            phone: p.phone,
+            existingName: {
+              first_name: existing.first_name,
+              father_name: existing.father_name,
+              Grandfather_name: existing.Grandfather_name,
+            },
+            ignoredExcelName: {
+              first_name: p.first_name,
+              father_name: p.father_name,
+              Grandfather_name: p.Grandfather_name,
+            },
+            message: 'Excel name ignored; existing participant reused.',
+          });
+
+          console.warn(
+            `Name mismatch for phone ${p.phone}. Using existing participant ${existing.id}.`,
+          );
+        }
+
+        finalParticipantIds.push(existing.id);
+        continue;
+      }
+      const saved = await participantRepo.save(p);
+      finalParticipantIds.push(saved.id);
+    }
+
+    if (finalParticipantIds.length > 0) {
+      await this.eventService.assignParticipantsToEvent(
+        eventId,
+        finalParticipantIds,
+        queryRunner,
+      );
+    }
+    await queryRunner.commitTransaction();
+    await this.eventService.updateEventStatusIfReady(eventId);
+
+    return {
+      success: true,
+      count: finalParticipantIds.length,
+      conflicts, // <-- return ignored Excel names
+    };
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw new BadRequestException(
+      `Failed to import participants: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  } finally {
+    await queryRunner.release();
   }
-
-  return {
-    success: true,
-    count: savedParticipants.length,
-  };
 }
 
 
+
  async findAll(
-  page = 1,
-  limit = 10,
+    page = 1,
+    limit = 10,
   search?: string,
-): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+  ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
   try {
     const options: FindManyOptions<Participant> & {
       search?: { term: string; fields: (keyof Participant)[] };
       page?: number;
       limit?: number;
     } = {
-      where: { deleted_at: IsNull() },
       order: { created_at: 'DESC' },
       page,
       limit,
@@ -204,7 +314,7 @@ export class ParticipantService {
     if (search && search.trim() !== '') {
       options.search = {
         term: search,
-        fields: ['first_name', 'last_name', 'region','woreda','kebele'], 
+        fields: ['first_name', 'father_name', 'region','woreda','kebele'], 
       };
     }
     const result = await this.participantDAL.findAll(options);
@@ -222,12 +332,9 @@ export class ParticipantService {
     );
   }
 }
-
-
   findOne(id: string) {
     return this.participantDAL.findById(id);
   }
-
  update(id: string, dto: UpdateParticipantDto, updated_by: string) {
   return this.participantDAL.update(id, {
     ...dto,

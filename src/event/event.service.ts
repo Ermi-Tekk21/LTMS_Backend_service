@@ -1,13 +1,13 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { DataSource, In } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { EventDAL } from './dal/event.dal';
 import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
-import { DocumentService } from './document/document.service';
-import { doc_type, event_status } from 'src/common/enums/status_enums';
+import { DocumentService } from 'src/document/document.service';
+import { attendance, doc_type, event_status } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
@@ -17,10 +17,22 @@ import PdfPrinter from 'pdfmake';
 import * as path from 'path';
 import * as fs from 'fs';
 import { UUID } from 'crypto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { EventSession } from './event_session/entities/event_session.entity';
+import { SessionParticipantMap } from './participant/entities/sessionParticipantMap.entity';
+import { CapitalizeInterceptor } from 'src/common/database/capitalize-response.interceptor';
+import axios from 'axios';
+import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
 
 @Injectable()
 export class EventService {
   constructor(
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
+
+    @InjectRepository(SessionParticipantMap)
+    private readonly sessionParticipantMapRepo: Repository<SessionParticipantMap>,
+
     private readonly eventDAL: EventDAL,
     private readonly documentService: DocumentService,
     private readonly eventDateService: EventDateService,
@@ -30,10 +42,11 @@ export class EventService {
     private readonly dataSource: DataSource,
   ) { }
 
-  async create(dto: CreateEventDto, file: Express.Multer.File) {
+  async create(dto: CreateEventDto, file: Express.Multer.File, created_by: string) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
 
     try {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
@@ -63,14 +76,38 @@ export class EventService {
       }, queryRunner);
 
       for (const date of dto.event_dates || []) {
+
         const eventDate = await this.eventDateService.create(
           { date, event },
           queryRunner,
         );
+        const morningStart = new Date(date);
+        morningStart.setHours(9, 0, 0, 0);
+
+        const morningEnd = new Date(date);
+        morningEnd.setHours(12, 0, 0, 0);
+
+        const afternoonStart = new Date(date);
+        afternoonStart.setHours(13, 0, 0, 0);
+
+        const afternoonEnd = new Date(date);
+        afternoonEnd.setHours(17, 0, 0, 0);
+
+        // morning session
         await this.eventSessionService.create({
           event_date: eventDate,
           venue: event.venue,
+          starts_at: morningStart,
+          ends_at: morningEnd
         }, queryRunner);
+        //afternoon session
+        await this.eventSessionService.create({
+          event_date: eventDate,
+          venue: event.venue,
+          starts_at: afternoonStart,
+          ends_at: afternoonEnd
+        }, queryRunner);
+
       }
       await queryRunner.manager.save(event);
       await queryRunner.commitTransaction();
@@ -87,6 +124,7 @@ export class EventService {
         data: {
           event,
           torDocument: uploadedFile,
+          created_by,
         },
       };
     } catch (error) {
@@ -213,6 +251,42 @@ export class EventService {
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
     return this.eventDAL.findAll(options);
+  }
+
+  async participantSessionMap(eventId: string) {
+    const event = await this.eventRepo.findOne({
+      where: {
+        id: eventId
+      },
+      relations: ['participants', 'event_dates', 'event_dates.event_sessions']
+    })
+    if (!event) {
+      throw new NotFoundException('event with specified id not found.')
+    }
+    const participants: Participant[] = event?.participants
+    const sessions: EventSession[] = event?.event_dates.flatMap(date => date?.event_sessions)
+
+    for (const session of sessions) {
+      for (const participant of participants) {
+        // if participant and session id doesnot combinetion exists
+        const sessionParticipantExist = await this.sessionParticipantMapRepo.find({
+          where: {
+            participant: participant,
+            event_session: session
+          }
+        })
+        if (sessionParticipantExist.length == 0) {
+          const sessionPaticipantMapObj = this.sessionParticipantMapRepo.create({
+            participant: participant,
+            event_session: session,
+            attendance: {
+              status: null
+            }
+          })
+          await this.sessionParticipantMapRepo.save(sessionPaticipantMapObj)
+        }
+      }
+    }
   }
 
   async assignTrainersToEvent(eventId: string, trainerIds: string[]) {
@@ -525,26 +599,31 @@ export class EventService {
     };
   }
 
-  private async updateEventStatusIfReady(eventId: string) {
+
+  async updateEventStatusIfReady(eventId: string) {
     const eventRepo = this.dataSource.getRepository(Event);
+
     const event = await eventRepo.findOne({
       where: { id: eventId },
-      relations: ['participants', 'trainers'],
+      relations: ['participants'],
     });
+
     if (!event) return;
 
     const hasParticipants = event.participants?.length > 0;
-    const hasTrainers = event.trainers?.length > 0;
 
-    if (hasParticipants && hasTrainers && event.event_status !== event_status.READY) {
-      event.event_status = event_status.READY;
+    if (hasParticipants && event.event_status !== event_status.ONGOING) {
+      event.event_status = event_status.ONGOING;
       await eventRepo.save(event);
-      console.log(` Event ${event.id} marked as READY`);
-    } else if ((!hasParticipants || !hasTrainers) && event.event_status === event_status.READY) {
+      console.log(`Event ${event.id} marked as ONGOING`);
+    }
+    else if (!hasParticipants && event.event_status === event_status.ONGOING) {
       event.event_status = event_status.INITATED;
       await eventRepo.save(event);
+      console.log(`Event ${event.id} reverted back to INITIATED`);
     }
   }
+
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
@@ -596,13 +675,30 @@ export class EventService {
     }
   }
 
-  async generateAttendancePdf(eventId: string, date: string): Promise<Buffer> {
+  async getImageBase64(url: string): Promise<string> {
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const base64 = Buffer.from(response.data, 'binary').toString('base64');
+    const ext = url.split('.').pop();
+    return `data:image/${ext};base64,${base64}`;
+  }
+
+  async generateAttendancePdf(eventId: string): Promise<Buffer> {
     const event = await this.eventDAL.findOne({
       where: { id: eventId },
-      relations: ['participants', 'trainers'],
+      relations: ['participants', 'event_dates'],
     });
 
-    if (!event) throw new NotFoundException('Event not found');
+    if (!event) throw new Error('Event not found');
+
+    // Capitalize participant data for consistent display in PDF
+    event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
+    event.participants = event.participants.sort((a, b) =>
+      a.first_name.localeCompare(b.first_name, undefined, { sensitivity: 'base' })
+    );
+    event.name = event.name.split(" ").map(word => capitalizeFirstLetter(word)).join(" ")
+    const logoBase64 = await this.getImageBase64(
+      'https://lersha.com/wp-content/uploads/2023/09/lerlogo-1024x313.png'
+    );
 
     const fonts = {
       Roboto: {
@@ -615,100 +711,173 @@ export class EventService {
 
     const printer = new PdfPrinter(fonts);
 
-    const participantsPerPage = 37;
-    const totalParticipants = event.participants.length;
-    const participantPages: (string | number)[][][] = [];
+    const participantsPerPage = 20;
+    const datesPerPage = 3;
 
-    // 1. Split participants into pages with continuous numbering
-    for (let i = 0; i < totalParticipants; i += participantsPerPage) {
-      const pageParticipants = event.participants.slice(i, i + participantsPerPage);
-      const tableBody = [
-        ['#', 'Full Name', 'Phone No', 'Signature'],
-        ...pageParticipants.map((p, j) => [
-          String(i + j + 1),
-          `${p.first_name} ${p.last_name}`,
-          String(p.phone ?? ''),
-          '',
-        ]),
+    const participants = event.participants;
+    const eventDates = event.event_dates.map(d => d.date);
+
+    let content: any[] = [];
+    // rowNumber is reset per date group
+
+    // Split dates into chunks of 3
+    function chunkDates<T>(list: T[], size: number): T[][] {
+      const out: T[][] = [];
+      for (let i = 0; i < list.length; i += size) {
+        out.push(list.slice(i, i + size));
+      }
+      return out;
+    }
+
+    const dateGroups = chunkDates(eventDates, datesPerPage);
+
+    // Create table for each group of 3 dates
+    for (let dgIndex = 0; dgIndex < dateGroups.length; dgIndex++) {
+      const dateSet = dateGroups[dgIndex];
+
+      // Reset row number to 1 for each date group
+      let rowNumber = 1;
+
+      // Add header (logo and company name) for this group
+      content.push(
+        {
+          columns: [
+            { image: logoBase64, width: 100 },
+          ],
+          columnGap: 10,
+          margin: [0, 0, 0, 10],
+        },
+        {
+          text: 'Green Agro-Solution PLC (Lersha)',
+          style: {
+            fontSize: 20, bold: true
+          },
+          margin: [0, 0, 0, 10],
+          alignment: 'center',
+        },
+        {
+          text: 'Project Name: -',
+          style: {
+            fontSize: 17
+          },
+          margin: [0, 0, 0, 10],
+          alignment: 'center',
+        }
+      );
+
+      // Build header row 1 (date titles)
+      const headerRow1 = [
+        { text: '#', rowSpan: 2, bold: true, alignment: 'center' },
+        { text: 'Full Name', rowSpan: 2, bold: true, alignment: 'center' },
+        { text: 'Phone No', rowSpan: 2, bold: true, alignment: 'center' },
+        ...dateSet.flatMap(date => ([
+          { text: date, alignment: 'center', bold: true, colSpan: 2 },
+          {} // filler cell for the colSpan
+        ]))
       ];
 
-      // Fill remaining rows to complete page
-      const remainingRows = participantsPerPage - pageParticipants.length;
-      for (let j = 0; j < remainingRows; j++) {
-        tableBody.push([String(i + pageParticipants.length + j + 1), '', '', '']);
-      }
+      // Header Row 2 (Morning / Afternoon)
+      const headerRow2 = [
+        {},
+        {},
+        {},
+        ...dateSet.flatMap(() => ([
+          { text: 'Morning', alignment: 'center', bold: true },
+          { text: 'Afternoon', alignment: 'center', bold: true }
+        ]))
+      ];
 
-      participantPages.push(tableBody);
-    }
+      const tableHeader = [headerRow1, headerRow2];
 
-    // 2. Add blank page between participants and trainers
-    const lastParticipantNumber = totalParticipants > 0 ? totalParticipants : 0;
-    const blankPageBetween = [['#', 'Full Name', 'Phone No', 'Signature']];
-    for (let j = 0; j < participantsPerPage; j++) {
-      blankPageBetween.push([String(lastParticipantNumber + j + 1), '', '', '']);
-    }
-
-    // 3. Trainer table with extra empty row to render last line
-    const trainerTable = [
-      ['#', 'Full Name', 'Phone No', 'Signature'],
-      ...event.trainers.map((t, i) => [
-        String(i + 1),
-        `${t.first_name} ${t.last_name}`,
-        String(t.phone ?? ''),
-        '',
-      ]),
-      ['', '', '', ''], // extra row for bottom line
-    ];
-
-    // 4. Build PDF content
-    const content: any[] = [
-      ...participantPages.map((page, i) => {
-        const pageContent: any[] = [
-          { text: `${event.name} Attendance Sheet`, style: 'header' },
-          { text: `Date: ${date}`, margin: [0, 5, 0, 15] },
-          {
-            table: { widths: ['auto', '*', '*', '*'], body: page },
-            layout: 'lightHorizontalLines',
-          },
-        ];
-        if (i < participantPages.length - 1) {
-          pageContent.push({ text: '', pageBreak: 'after' });
+      // Create participant pages
+      for (let i = 0; i < participants.length; i += participantsPerPage) {
+        const pageParticipants = participants.slice(i, i + participantsPerPage);
+        const tableBody: any[] = [...tableHeader];
+        // Fill participant rows
+        for (let j = 0; j < pageParticipants.length; j++) {
+          const p = pageParticipants[j];
+          tableBody.push([
+            String(rowNumber++),
+            `${p.first_name} ${p.father_name}`,
+            p.phone ?? '',
+            ...dateSet.flatMap(() => ['', '']) // Morning, Afternoon blanks
+          ]);
         }
-        return pageContent;
-      }).flat(),
 
-      // Blank page between participants and trainers
-      { text: '', pageBreak: 'after' } as any,
-      {
-        table: { widths: ['auto', '*', '*', '*'], body: blankPageBetween },
-        layout: 'lightHorizontalLines',
-        pageBreak: 'after',
-      },
+        // Fill empty rows for remaining space
+        const remainingRows = participantsPerPage - pageParticipants.length;
+        for (let k = 0; k < remainingRows; k++) {
+          tableBody.push([
+            String(rowNumber++),
+            '',
+            '',
+            ...dateSet.flatMap(() => ['', ''])
+          ]);
+        }
 
-      // Trainer section
-      { text: 'Trainer Attendance', style: 'subheader', margin: [0, 10, 0, 5] },
-      {
-        table: { widths: ['auto', '*', '*', '*'], body: trainerTable },
-        layout: 'lightHorizontalLines',
-      },
-    ];
+        // two additional page
+        for (let i = 0; i < 50; i++) {
+          tableBody.push([
+            String(rowNumber++),
+            '',
+            '',
+            ...dateSet.flatMap(() => ['', ''])
+          ]);
+        }
+
+        content.push(
+          {
+            text: `${event.name} Attendance Sheet`,
+            style: 'header',
+            margin: [0, 5, 0, 15],
+          },
+          {
+            table: {
+              headerRows: 2,
+              widths: [
+                'auto',
+                '*',
+                '*',
+                ...dateSet.flatMap(() => ['*', '*']) // Morning/Afternoon
+              ],
+              body: tableBody
+            },
+            layout: {
+              fillColor: function (rowIndex: number) {
+                return rowIndex < 2 ? '#F5F5F5' : null; // shade headers
+              },
+              hLineWidth: () => 0.5,
+              vLineWidth: () => 0.5
+            }
+          }
+        );
+
+        // Add page break if needed
+        const isLastDateGroup = dgIndex === dateGroups.length - 1;
+        const isLastParticipantPage = i + participantsPerPage >= participants.length;
+
+        if (!(isLastDateGroup && isLastParticipantPage)) {
+          content.push({ text: '', pageBreak: 'after' });
+        }
+      }
+    }
 
     const docDefinition: any = {
-      content,
-      footer: function (currentPage, pageCount) {
-        return { text: `${currentPage} of ${pageCount}`, alignment: 'center' };
-      },
+      pageOrientation: 'landscape',
+      pageSize: 'A4',
+      content: content, // table content with headers
+      footer: (currentPage, pageCount) =>
+        ({ text: `${currentPage} of ${pageCount}`, alignment: 'center' }),
       styles: {
         header: { fontSize: 18, bold: true, alignment: 'center' },
-        subheader: { fontSize: 14, bold: true },
+        subheader: { fontSize: 14, bold: true }
       },
-      defaultStyle: { font: 'Roboto', fontSize: 11 },
+      defaultStyle: { font: 'Roboto', fontSize: 11 }
     };
 
-    // 5. Create PDF
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
-    const chunks: any[] = [];
-
+    const chunks: Uint8Array[] = [];
+    await this.participantSessionMap(eventId)
     return new Promise<Buffer>((resolve, reject) => {
       pdfDoc.on('data', (chunk) => chunks.push(chunk));
       pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));

@@ -39,6 +39,6 @@ export class EventDate {
     @DeleteDateColumn({ type: "timestamp", nullable: true, default: null })
     deleted_at: Date | null;
 
-    @OneToMany(() => EventSession, (eventSession) => eventSession )
+    @OneToMany(() => EventSession, (eventSession) => eventSession.event_date )
     event_sessions: EventSession[];
 }

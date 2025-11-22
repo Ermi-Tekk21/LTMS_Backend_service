@@ -20,8 +20,11 @@ export class Participant {
     @Column({ type: 'text' })
     first_name: string;
 
-    @Column({ type: 'text' })
-    last_name: string;
+    @Column({ type: 'text', nullable:true })
+    father_name: string;
+
+    @Column({ type: 'text', nullable:true })
+    Grandfather_name:string
 
     @Column({type:'text'})
     age:string;
@@ -29,7 +32,7 @@ export class Participant {
     @Column({ type: 'text' })
     gender: string 
  
-    @Column({ type: 'text' })
+    @Column({ type: 'text',nullable: true  })
     disability:string
 
     @Column({ type: 'text',unique:true})
@@ -44,11 +47,14 @@ export class Participant {
     @Column({type: 'enum',enum: community_type,nullable: true,})
     community_type: community_type | null;
 
-    @Column({type:'text'})
-    letracy_level:string 
+    @Column({type:'text',nullable: true })
+    letracy_level:string | null
 
     @Column({ type: 'text'})
-    region: string | null;
+    region: string ;
+
+    @Column({type:'text'})
+    zone:string 
 
     @Column({ type: 'text' })
     woreda: string ;

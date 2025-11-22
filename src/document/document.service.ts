@@ -5,7 +5,7 @@ import { QueryRunner } from 'typeorm';
 import { DocumentDAL } from './dal/document.dal';
 import { Document } from './entities/document.entity';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
-import { EventService } from '../event.service';
+import { EventService } from 'src/event/event.service';
 import { doc_type, event_status } from 'src/common/enums/status_enums';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -40,7 +40,7 @@ export class DocumentService {
         throw new NotFoundException('not found')
       }
       if (doctype == doc_type.REPORT) {
-        event.event_status = event_status.CLOSED
+        event.event_status = event_status.COMPLATED
         await this.eventRepo.save(event)
         console.log(
           `[${new Date().toISOString()}] Event ${eventID} (${event?.name ?? 'untitled'}) marked as ${event.event_status} after uploading ${uploadedFiles.length} ${uploadedFiles.length === 1 ? 'file' : 'files'} to bucket "${bucketName}" (docType=${doctype})`

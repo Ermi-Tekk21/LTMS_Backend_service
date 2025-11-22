@@ -1,24 +1,27 @@
-import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseInterceptors, UploadedFile, UseGuards } from '@nestjs/common';
 import { TrainerService } from './trainer.service';
 import { CreateTrainerDto } from './dto/create-trainer.dto';
 import { UpdateTrainerDto } from './dto/update-trainer.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
 import { FileInterceptor } from '@nestjs/platform-express';
-
+import { Permission } from 'src/common/decorators/permission.decorator';
 @Controller('trainer')
 export class TrainerController {
   constructor(private readonly trainerService: TrainerService) {}
-  @Post()
-  @UseInterceptors(FileInterceptor('file', multerOptions(true, ['pdf','image'], 10)))
-  create(
-    @Body("data") data:string,
-    @UploadedFile() file?: Express.Multer.File, 
-  ) 
-  {
-     const dto: CreateTrainerDto = JSON.parse(data);
-    return this.trainerService.create(dto, file);
-  }
+  @Permission('create', 'trainer')
+  @Post() 
+@UseInterceptors(FileInterceptor('file', multerOptions(true, ['pdf','image'], 10)))
+create(
+  @CurrentUser() user: any,
+  @Body("data") data: string,
+  @UploadedFile() file?: Express.Multer.File,
+) {
+  const dto: CreateTrainerDto = JSON.parse(data);
+  return this.trainerService.create(dto, user.userId, file);
+}
+
+@Permission('read', 'trainer')
 @Get()
 async getAllTrainers(
   @Query('page') page = 1,
@@ -28,12 +31,13 @@ async getAllTrainers(
   return this.trainerService.findAll(Number(page), Number(limit), search);
 }
 
-
+@Permission('read', 'trainer')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.trainerService.findOne(id);
   }
 
+  @Permission('update', 'trainer')
   @Patch(':id')
   @UseInterceptors(FileInterceptor('file', multerOptions(false, ['pdf'], 10)))
   update(@Param('id') id: string, @Body()
@@ -42,7 +46,7 @@ async getAllTrainers(
   {
     return this.trainerService.update(id, dto, userId,file);
   }
-
+@Permission('delete', 'trainer')
   @Delete(':id')
   softDelete(@Param('id') id: string,@CurrentUser('userId') userId: string) 
   {

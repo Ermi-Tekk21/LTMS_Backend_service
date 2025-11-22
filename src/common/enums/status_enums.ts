@@ -1,9 +1,9 @@
 export enum event_status {
     INITATED = "initiated",
     IN_PREPARATION = "in_preparation",
-    READY = "ready",
+    ONGOING = "on-going",
     ACTIVE = "active",
-    CLOSED = "closed"
+    COMPLATED = "completed"
 }
 
 export enum activity_status_type {
@@ -35,4 +35,13 @@ export enum community_type {
   Refugees = 'refugees',
   HostResident = 'hostresident',
   Returning = 'returning',
+}
+
+export enum attendance {
+    PRESENT = 'present',
+    ABSENT = 'absent'
+}
+export enum gender{
+    MALE='male',
+    FEMAL='femal'
 }
