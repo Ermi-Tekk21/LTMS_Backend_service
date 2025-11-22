@@ -59,6 +59,7 @@ export class EventService {
         location_id: dto.location_id,
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
+        is_day_based: dto.is_day_based
       }, queryRunner);
 
       const uploadedFile = await this.awsS3Service.uploadFile(
@@ -730,13 +731,18 @@ export class EventService {
     }
 
     const dateGroups = chunkDates(eventDates, datesPerPage);
+    const isDayBased = event.is_day_based;
+
+    // Track page numbers per date group
+    let overallPageNumber = 1;
 
     // Create table for each group of 3 dates
     for (let dgIndex = 0; dgIndex < dateGroups.length; dgIndex++) {
       const dateSet = dateGroups[dgIndex];
 
-      // Reset row number to 1 for each date group
+      // Reset row number and page counter to 1 for each date group
       let rowNumber = 1;
+      let groupPageNumber = 1;
 
       // Add header (logo and company name) for this group
       content.push(
@@ -766,28 +772,77 @@ export class EventService {
       );
 
       // Build header row 1 (date titles)
-      const headerRow1 = [
-        { text: '#', rowSpan: 2, bold: true, alignment: 'center' },
-        { text: 'Full Name', rowSpan: 2, bold: true, alignment: 'center' },
-        { text: 'Phone No', rowSpan: 2, bold: true, alignment: 'center' },
-        ...dateSet.flatMap(date => ([
-          { text: date, alignment: 'center', bold: true, colSpan: 2 },
-          {} // filler cell for the colSpan
-        ]))
-      ];
+      let headerRow1: any[];
+      let headerRow2: any[] | undefined;
+      let tableHeader: any[][];
 
-      // Header Row 2 (Morning / Afternoon)
-      const headerRow2 = [
-        {},
-        {},
-        {},
-        ...dateSet.flatMap(() => ([
-          { text: 'Morning', alignment: 'center', bold: true },
-          { text: 'Afternoon', alignment: 'center', bold: true }
-        ]))
-      ];
+      let headerRowsCount: number;
 
-      const tableHeader = [headerRow1, headerRow2];
+      if (isDayBased) {
+        // Row 1: Signature spanning all dates
+        headerRow1 = [
+          { text: '#', bold: true, alignment: 'center' },
+          { text: 'Full Name', bold: true, alignment: 'center' },
+          { text: 'Gender', bold: true, alignment: 'center' },
+          { text: 'Phone No', bold: true, alignment: 'center' },
+          { text: 'Signature', alignment: 'center', bold: true, colSpan: dateSet.length },
+        ];
+        // Fillers for the colSpan
+        for (let i = 1; i < dateSet.length; i++) {
+          headerRow1.push({});
+        }
+
+        // Row 2: Dates
+        headerRow2 = [
+          {},
+          {},
+          {},
+          {},
+          ...dateSet.flatMap(date => ({ text: date, alignment: 'center', bold: true }))
+        ];
+        tableHeader = [headerRow1, headerRow2];
+        headerRowsCount = 2;
+      } else {
+        // Row 1: Signature spanning all date sub-columns
+        const totalSpan = dateSet.length * 2; // 2 per date (morning/afternoon)
+        headerRow1 = [
+          { text: '#', rowSpan: 3, bold: true, alignment: 'center' },
+          { text: 'Full Name', rowSpan: 3, bold: true, alignment: 'center' },
+          { text: 'Gender', rowSpan: 3, bold: true, alignment: 'center' },
+          { text: 'Phone No', rowSpan: 3, bold: true, alignment: 'center' },
+          { text: 'Signature', alignment: 'center', bold: true, colSpan: totalSpan },
+        ];
+        // Fillers for the colSpan
+        for (let i = 1; i < totalSpan; i++) {
+          headerRow1.push({});
+        }
+
+        // Row 2: Dates
+        headerRow2 = [
+          {},
+          {},
+          {},
+          {},
+          ...dateSet.flatMap(date => ([
+            { text: date, alignment: 'center', bold: true, colSpan: 2 },
+            {} // filler cell for the colSpan
+          ]))
+        ];
+
+        // Row 3: Morning / Afternoon
+        const headerRow3 = [
+          {},
+          {},
+          {},
+          {},
+          ...dateSet.flatMap(() => ([
+            { text: 'Morning', alignment: 'center' },
+            { text: 'Afternoon', alignment: 'center' }
+          ]))
+        ];
+        tableHeader = [headerRow1, headerRow2, headerRow3];
+        headerRowsCount = 3;
+      }
 
       // Create participant pages
       for (let i = 0; i < participants.length; i += participantsPerPage) {
@@ -799,8 +854,9 @@ export class EventService {
           tableBody.push([
             String(rowNumber++),
             `${p.first_name} ${p.father_name}`,
+            p.gender ?? '',
             p.phone ?? '',
-            ...dateSet.flatMap(() => ['', '']) // Morning, Afternoon blanks
+            ...dateSet.flatMap(() => isDayBased ? [''] : ['', '']) // Day: single, else Morning/Afternoon blanks
           ]);
         }
 
@@ -811,19 +867,23 @@ export class EventService {
             String(rowNumber++),
             '',
             '',
-            ...dateSet.flatMap(() => ['', ''])
+            '',
+            ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
           ]);
         }
 
         // two additional page
-        for (let i = 0; i < 50; i++) {
+        for (let extra = 0; extra < participantsPerPage; extra++) {
           tableBody.push([
             String(rowNumber++),
             '',
             '',
-            ...dateSet.flatMap(() => ['', ''])
+            '',
+            ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
           ]);
         }
+
+        const totalPagesInGroup = Math.ceil(participants.length / participantsPerPage);
 
         content.push(
           {
@@ -833,24 +893,29 @@ export class EventService {
           },
           {
             table: {
-              headerRows: 2,
+              headerRows: headerRowsCount,
               widths: [
-                'auto',
-                '*',
-                '*',
-                ...dateSet.flatMap(() => ['*', '*']) // Morning/Afternoon
+                15, // #
+                '*', // Full Name (takes remaining space)
+                48, // Gender
+                68, // Phone (9 digits)
+                ...dateSet.flatMap(() => isDayBased ? [50] : [50, 50]) // Signature cells (narrow)
               ],
               body: tableBody
             },
             layout: {
-              fillColor: function (rowIndex: number) {
-                return rowIndex < 2 ? '#F5F5F5' : null; // shade headers
-              },
+              fillColor: function (rowIndex: number) { return rowIndex < headerRowsCount ? '#F5F5F5' : null; },
               hLineWidth: () => 0.5,
               vLineWidth: () => 0.5
             }
+          },
+          {
+            text: `Page ${groupPageNumber} of ${totalPagesInGroup}`,
+            alignment: 'center',
+            margin: [0, 10, 0, 0]
           }
         );
+        groupPageNumber++;
 
         // Add page break if needed
         const isLastDateGroup = dgIndex === dateGroups.length - 1;

@@ -34,14 +34,14 @@ import { DashboardReportModule } from './dashboard_report/dashboard_report.modul
   controllers: [AppController],
   providers: [
     AppService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard, // <-- GLOBAL GUARD
-    },
-    {
-    provide: APP_GUARD,
-    useClass: PermissionGuard,// permission guard
-},
+//     {
+//       provide: APP_GUARD,
+//       useClass: JwtAuthGuard, // <-- GLOBAL GUARD
+//     },
+//     {
+//     provide: APP_GUARD,
+//     useClass: PermissionGuard,// permission guard
+// },
   ],
 })
 export class AppModule {}
