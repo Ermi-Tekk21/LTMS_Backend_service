@@ -13,10 +13,37 @@ export class DashboardReportService {
         private readonly eventDal: EventDAL
     ) { }
 
-    async loadParticipantStats(eventId?: UUID) {
-        const where: FindOptionsWhere<Participant> | undefined = eventId
-            ? ({ eventId } as unknown as FindOptionsWhere<Participant>)
-            : undefined;
+    private getDateRange(period?: 'week' | 'month' | 'year') {
+        if (!period) return null;
+        const now = new Date();
+        let startDate: Date;
+        switch (period) {
+            case 'week':
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - 7);
+                break;
+            case 'month':
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                break;
+            case 'year':
+                startDate = new Date(now.getFullYear(), 0, 1);
+                break;
+            default:
+                return null;
+        }
+        return { startDate, endDate: now };
+    }
+
+    async loadParticipantStats(eventId?: UUID, period?: 'week' | 'month' | 'year') {
+        let where: FindOptionsWhere<Participant> = {};
+        if (eventId) {
+            // filter by the related event's id
+            where = { ...where, event: { id: eventId as any } } as any;
+        }
+        const dateRange = this.getDateRange(period);
+        if (dateRange) {
+            where.created_at = Between(dateRange.startDate, dateRange.endDate);
+        }
 
         const totalParticipants = await this.participantDAL.count({ where });
 
@@ -93,10 +120,12 @@ export class DashboardReportService {
             other: 0,
         };
 
+        const regionStats: Record<string, number> = {};
+
         const participants = await this.participantDAL.findAll(
             {
                 where,
-                select: ['occupation'],
+                select: ['occupation', 'region'],
                 limit: 10000000,
             }
         );
@@ -110,6 +139,10 @@ export class DashboardReportService {
             } else {
                 occupationStats.other++;
             }
+
+            if (p.region) {
+                regionStats[p.region] = (regionStats[p.region] || 0) + 1;
+            }
         }
 
         return {
@@ -117,31 +150,41 @@ export class DashboardReportService {
             "participant stats": {
                 totalParticipants,
                 ageGroups: ageGroupCounts,
-                communityTypes: communityStats,
-                pwd,
-                nonPwd,
+                // communityTypes: communityStats,
+                // pwd,
+                // nonPwd,
                 male,
                 female,
-                occupationStats
+                // occupationStats,
+                regionStats
             }
         };
     }
 
-    async eventStats() {
-        const totalEvents = await this.eventDal.count();
+    async eventStats(period?: 'week' | 'month' | 'year') {
+        let where: FindOptionsWhere<any> = {};
+        const dateRange = this.getDateRange(period);
+        if (dateRange) {
+            where.created_at = Between(dateRange.startDate, dateRange.endDate);
+        }
+
+        const totalEvents = await this.eventDal.count({ where });
         const initatedEvents = await this.eventDal.count({
             where: {
+                ...where,
                 event_status: event_status.INITATED
             }
         });
-        const readyEvents = await this.eventDal.count({
+        const ongoingEvents = await this.eventDal.count({
             where: {
-                event_status: event_status.READY
+                ...where,
+                event_status: event_status.ONGOING
             }
         });
-        const closedEvents = await this.eventDal.count({
+        const completedEvents = await this.eventDal.count({
             where: {
-                event_status: event_status.CLOSED
+                ...where,
+                event_status: event_status.COMPLATED
             }
         });
 
@@ -150,8 +193,8 @@ export class DashboardReportService {
             "events stats": {
                 totalEvents,
                 initatedEvents,
-                readyEvents,
-                closedEvents
+                ongoingEvents,
+                completedEvents
             }
         };
     }
