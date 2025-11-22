@@ -60,6 +60,9 @@ export class Event {
     @OneToMany(() => EventDate, (eventDate) => eventDate.event)
     event_dates: EventDate[];
 
+    @Column({ default: false, nullable:true })
+    is_day_based: boolean
+
     @Column({ default: false })
     is_deleted: boolean
 
