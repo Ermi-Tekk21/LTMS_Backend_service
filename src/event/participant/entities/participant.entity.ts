@@ -44,7 +44,8 @@ export class Participant {
     @Column({ type: 'text', nullable: true })
     organization: string | null;
 
-    @Column({type: 'enum',enum: community_type,nullable: true,})community_type: community_type | null;
+    @Column({type: 'enum',enum: community_type,nullable: true,})
+    community_type: community_type | null;
 
     @Column({type:'text',nullable: true })
     letracy_level:string | null

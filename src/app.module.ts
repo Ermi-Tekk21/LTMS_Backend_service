@@ -14,6 +14,7 @@ import { EventSessionModule } from './event/event_session/event_session.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
+import { DashboardReportModule } from './dashboard_report/dashboard_report.module';
 // import { ZoneModule } from './event/adress/zone.module';
 @Module({
   imports: [
@@ -28,19 +29,19 @@ import { PermissionGuard } from './common/guards/permission.guard';
     EventModule,
     EventDateModule,
     EventSessionModule,
-    
+    DashboardReportModule
   ],
   controllers: [AppController],
   providers: [
     AppService,
-//     {
-//       provide: APP_GUARD,
-//       useClass: JwtAuthGuard, // <-- GLOBAL GUARD
-//     },
-//     {
-//     provide: APP_GUARD,
-//     useClass: PermissionGuard,// permission guard
-// },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard, // <-- GLOBAL GUARD
+    },
+    {
+    provide: APP_GUARD,
+    useClass: PermissionGuard,// permission guard
+},
   ],
 })
 export class AppModule {}
