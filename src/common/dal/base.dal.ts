@@ -86,7 +86,14 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       if (options?.where) {
         const where = options.where as Record<string, any>;
         for (const [key, value] of Object.entries(where)) {
-          qb.andWhere(`${alias}.${key} = :${key}`, { [key]: value });
+          if (value && typeof value === 'object' && value._type === 'between') {
+            qb.andWhere(`${alias}.${key} >= :${key}_start AND ${alias}.${key} <= :${key}_end`, {
+              [`${key}_start`]: value._value[0],
+              [`${key}_end`]: value._value[1],
+            });
+          } else {
+            qb.andWhere(`${alias}.${key} = :${key}`, { [key]: value });
+          }
         }
       }
 
@@ -149,7 +156,7 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
     queryRunner?: QueryRunner,
   ): Promise<T | null> {
     try {
-      const defaultWhere = { is_deleted: false } as unknown as FindOptionsWhere<T>;
+      const defaultWhere = { deleted_at: null } as unknown as FindOptionsWhere<T>;
 
       const finalOptions: FindOneOptions<T> = {
         ...options,
@@ -283,6 +290,21 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       throw err;
     } finally {
       await queryRunner.release();
+    }
+  }
+
+  async count(options?: FindManyOptions<T>, queryRunner?: QueryRunner): Promise<number> {
+    try {
+      const repository = queryRunner
+        ? queryRunner.manager.getRepository(this.repo.target)
+        : this.repo;
+
+      const where = { ...(options?.where as any), deleted_at: null } as FindOptionsWhere<T>;
+      return await repository.count({ where });
+    } catch (error) {
+      throw new Error(
+        `DAL.count failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 }

@@ -1,4 +1,4 @@
-import { IsString, IsUUID, IsNumber, IsArray, ArrayNotEmpty, IsOptional } from 'class-validator';
+import { IsString, IsUUID, IsNumber, IsArray, ArrayNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateEventDto {
   @IsString()
@@ -19,6 +19,7 @@ export class CreateEventDto {
   @IsString()
   venue: string;
 
+  @IsOptional()
   @IsArray()
   @ArrayNotEmpty()
   @IsUUID('4', { each: true })
@@ -28,4 +29,8 @@ export class CreateEventDto {
   @ArrayNotEmpty()
   @IsString({ each: true })
   event_dates: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  is_day_based: boolean;
 }
