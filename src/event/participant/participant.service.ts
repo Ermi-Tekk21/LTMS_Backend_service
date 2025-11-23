@@ -7,7 +7,6 @@ import { FindManyOptions, DataSource} from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 import { community_type,gender } from 'src/common/enums/status_enums';
-// import { Zone } from '../adress/entities/zone.entity';
 import { ZoneService } from '../adress/zone.service';
 @Injectable()
 export class ParticipantService {
@@ -131,8 +130,6 @@ async generateTemplate(): Promise<Buffer> {
 
   return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
 }
-
-
 
  async importFromExcel(
   file: Express.Multer.File,
@@ -324,6 +321,7 @@ async generateTemplate(): Promise<Buffer> {
       page: result.meta.page,
       limit: result.meta.limit,
     };
+
   } catch (error) {
     throw new Error(
       `ParticipantService.findAll failed: ${

@@ -240,6 +240,7 @@ export class EventService {
         term: query.searchTerm,
         fields: query.searchFields,
       };
+
     }
     if (query?.status) options.where = { event_status: query.status }
     if (query?.locationId) options.where = { location_id: query.locationId }
@@ -248,6 +249,7 @@ export class EventService {
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
     return this.eventDAL.findAll(options);
+    
   }
 
   async participantSessionMap(eventId: string) {
