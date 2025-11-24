@@ -7,7 +7,7 @@ import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from 'src/document/document.service';
-import { attendance, doc_type, event_status } from 'src/common/enums/status_enums';
+import { doc_type, event_status } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
@@ -23,6 +23,8 @@ import { SessionParticipantMap } from './participant/entities/sessionParticipant
 import { CapitalizeInterceptor } from 'src/common/database/capitalize-response.interceptor';
 import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
+import { UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
+import { promises } from 'dns';
 
 @Injectable()
 export class EventService {
@@ -266,17 +268,20 @@ export class EventService {
     }
     const participants: Participant[] = event?.participants
     const sessions: EventSession[] = event?.event_dates.flatMap(date => date?.event_sessions)
-
     for (const session of sessions) {
       for (const participant of participants) {
-        // if participant and session id doesnot combinetion exists
-        const sessionParticipantExist = await this.sessionParticipantMapRepo.find({
+        const sessionParticipantExist = await this.sessionParticipantMapRepo.findOne({
           where: {
-            participant: participant,
-            event_session: session
-          }
+            participant: {
+              id: participant.id
+            },
+            event_session: {
+              id: session.id
+            }
+          }, relations: ['participant', 'event_session']
         })
-        if (sessionParticipantExist.length == 0) {
+
+        if (!sessionParticipantExist || session == null) {
           const sessionPaticipantMapObj = this.sessionParticipantMapRepo.create({
             participant: participant,
             event_session: session,
@@ -445,7 +450,6 @@ export class EventService {
     };
   }
 
-
   async removeTrainersFromEvent(eventId: string, trainerIds: string[]) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -600,7 +604,6 @@ export class EventService {
     };
   }
 
-
   async updateEventStatusIfReady(eventId: string) {
     const eventRepo = this.dataSource.getRepository(Event);
 
@@ -628,7 +631,7 @@ export class EventService {
   async findOne(id: string) {
     return await this.eventDAL.findOne({
       where: { id: id },
-      relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates']
+      relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates.event_sessions', 'event_dates.event_sessions.session_participant_maps', 'event_dates.event_sessions.session_participant_maps.participant']
     })
   }
 
@@ -683,20 +686,98 @@ export class EventService {
     return `data:image/${ext};base64,${base64}`;
   }
 
+  async getAccessToken(): Promise<string> {
+    const url = process.env.AUTH_URL || 'http://164.160.187.141:3344/api/v1/auth/login'
+    const email = process.env.AUTH_EMAIL || 'admin@lersha.com'
+    const password = process.env.AUTH_PASSWORD || 'Admin@123'
+
+    // Validate required environment variables to narrow types to string
+    if (!url) {
+      throw new InternalServerErrorException('AUTH_URL is not configured');
+    }
+    if (!email || !password) {
+      throw new InternalServerErrorException('AUTH_EMAIL and AUTH_PASSWORD must be configured');
+    }
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (process.env.AUTHORIZATION_HEADER) {
+        headers['Authorization'] = process.env.AUTHORIZATION_HEADER;
+      }
+
+      const resp = await axios.post(url, { email, password }, { headers });
+
+      // common token shapes: access_token, token, data.access_token
+      const token =
+        resp?.data?.access_token ||
+        resp?.data?.token ||
+        resp?.data?.data?.access_token ||
+        resp?.data?.data?.token;
+
+      if (!token) {
+        throw new InternalServerErrorException('Authentication response did not contain an access token');
+      }
+
+      return token;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new InternalServerErrorException(`Failed to get access token: ${msg}`);
+    }
+  }
+
+  async getProjectName(token: string, projectId: UUID) {
+    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://164.160.187.141:3344/api/v1/dynamic-form';
+    const url = `${baseUrl}/project/${projectId}`;
+    try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+
+      const resp = await axios.get(url, { headers });
+      const names = resp.data.data.name;
+      const projectName =
+        names.find(item => item.locale === 'EN')?.key ||
+        names.find(item => item.locale === 'AM')?.key ||
+        names[0]?.key;
+
+      return String(projectName);
+    } catch (err) {
+      console.error(err)
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new InternalServerErrorException(`Failed to get project name: ${msg}`);
+    }
+  }
+
   async generateAttendancePdf(eventId: string): Promise<Buffer> {
     const event = await this.eventDAL.findOne({
       where: { id: eventId },
       relations: ['participants', 'event_dates'],
     });
 
+    // const token = await this.getAccessToken();
+    // console.log(token);
+
     if (!event) throw new Error('Event not found');
 
+    const projectName = await this.getProjectName("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ZDBkNTE1OS1iZDEyLTQwMWEtOTA5ZC00ZGViYWY4ZTVjNzciLCJzZXNzaW9uSWQiOiIxNmI4MjZmZC03MDcxLTQ1N2EtYWNkYi0yNTQwNDgwYjNmMDciLCJpYXQiOjE3NjM5OTI0NjAsImV4cCI6MTc2NDA3ODg2MH0.MFuz8GTLhhGnWtI3zFguQJmuwfcJKUfx02PHS22R91k", event.project_id as UUID);
+
     // Capitalize participant data for consistent display in PDF
-    event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
-    event.participants = event.participants.sort((a, b) =>
-      a.first_name.localeCompare(b.first_name, undefined, { sensitivity: 'base' })
-    );
-    event.name = event.name.split(" ").map(word => capitalizeFirstLetter(word)).join(" ")
+    if (Array.isArray(event.participants)) {
+      event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
+      event.participants = event.participants.sort((a, b) =>
+        a.first_name.localeCompare(b.first_name, undefined, { sensitivity: 'base' })
+      );
+    } else {
+      event.participants = [];
+    }
+
+    if (typeof event.name === 'string') {
+      event.name = event.name.split(' ').map(word => capitalizeFirstLetter(word)).join(' ');
+    } else {
+      event.name = '';
+    }
+
     const logoBase64 = await this.getImageBase64(
       'https://lersha.com/wp-content/uploads/2023/09/lerlogo-1024x313.png'
     );
@@ -715,13 +796,16 @@ export class EventService {
     const participantsPerPage = 20;
     const datesPerPage = 3;
 
-    const participants = event.participants;
-    const eventDates = event.event_dates.map(d => d.date);
+    const participants = event.participants || [];
+    const eventDates = (event.event_dates || []).map(d => {
+      // normalize date to readable string
+      if (!d) return '';
+      if (d.date instanceof Date) return d.date.toLocaleDateString();
+      return String(d.date);
+    });
 
     let content: any[] = [];
-    // rowNumber is reset per date group
 
-    // Split dates into chunks of 3
     function chunkDates<T>(list: T[], size: number): T[][] {
       const out: T[][] = [];
       for (let i = 0; i < list.length; i += size) {
@@ -731,55 +815,43 @@ export class EventService {
     }
 
     const dateGroups = chunkDates(eventDates, datesPerPage);
-    const isDayBased = event.is_day_based;
+    const isDayBased = !!event.is_day_based;
 
-    // Track page numbers per date group
-    let overallPageNumber = 1;
-
-    // Create table for each group of 3 dates
+    // Create table for each group of dates
     for (let dgIndex = 0; dgIndex < dateGroups.length; dgIndex++) {
       const dateSet = dateGroups[dgIndex];
 
-      // Reset row number and page counter to 1 for each date group
       let rowNumber = 1;
       let groupPageNumber = 1;
 
-      // Add header (logo and company name) for this group
+      // Header
       content.push(
         {
-          columns: [
-            { image: logoBase64, width: 100 },
-          ],
+          columns: [{ image: logoBase64, width: 100 }],
           columnGap: 10,
           margin: [0, 0, 0, 10],
         },
         {
           text: 'Green Agro-Solution PLC (Lersha)',
-          style: {
-            fontSize: 20, bold: true
-          },
+          style: { fontSize: 20, bold: true },
           margin: [0, 0, 0, 10],
           alignment: 'center',
         },
         {
-          text: 'Project Name: -',
-          style: {
-            fontSize: 17
-          },
+          text: `Project Name: ${projectName} `,
+          style: { fontSize: 17 },
           margin: [0, 0, 0, 10],
           alignment: 'center',
         }
       );
 
-      // Build header row 1 (date titles)
+      // Build headers
       let headerRow1: any[];
       let headerRow2: any[] | undefined;
       let tableHeader: any[][];
-
       let headerRowsCount: number;
 
       if (isDayBased) {
-        // Row 1: Signature spanning all dates
         headerRow1 = [
           { text: '#', bold: true, alignment: 'center' },
           { text: 'Full Name', bold: true, alignment: 'center' },
@@ -787,12 +859,8 @@ export class EventService {
           { text: 'Phone No', bold: true, alignment: 'center' },
           { text: 'Signature', alignment: 'center', bold: true, colSpan: dateSet.length },
         ];
-        // Fillers for the colSpan
-        for (let i = 1; i < dateSet.length; i++) {
-          headerRow1.push({});
-        }
+        for (let i = 1; i < dateSet.length; i++) headerRow1.push({});
 
-        // Row 2: Dates
         headerRow2 = [
           {},
           {},
@@ -803,8 +871,7 @@ export class EventService {
         tableHeader = [headerRow1, headerRow2];
         headerRowsCount = 2;
       } else {
-        // Row 1: Signature spanning all date sub-columns
-        const totalSpan = dateSet.length * 2; // 2 per date (morning/afternoon)
+        const totalSpan = dateSet.length * 2;
         headerRow1 = [
           { text: '#', rowSpan: 3, bold: true, alignment: 'center' },
           { text: 'Full Name', rowSpan: 3, bold: true, alignment: 'center' },
@@ -812,12 +879,8 @@ export class EventService {
           { text: 'Phone No', rowSpan: 3, bold: true, alignment: 'center' },
           { text: 'Signature', alignment: 'center', bold: true, colSpan: totalSpan },
         ];
-        // Fillers for the colSpan
-        for (let i = 1; i < totalSpan; i++) {
-          headerRow1.push({});
-        }
+        for (let i = 1; i < totalSpan; i++) headerRow1.push({});
 
-        // Row 2: Dates
         headerRow2 = [
           {},
           {},
@@ -825,11 +888,10 @@ export class EventService {
           {},
           ...dateSet.flatMap(date => ([
             { text: date, alignment: 'center', bold: true, colSpan: 2 },
-            {} // filler cell for the colSpan
+            {}
           ]))
         ];
 
-        // Row 3: Morning / Afternoon
         const headerRow3 = [
           {},
           {},
@@ -840,27 +902,27 @@ export class EventService {
             { text: 'Afternoon', alignment: 'center' }
           ]))
         ];
+
         tableHeader = [headerRow1, headerRow2, headerRow3];
         headerRowsCount = 3;
       }
 
-      // Create participant pages
+      // Participant pages for this date group
       for (let i = 0; i < participants.length; i += participantsPerPage) {
         const pageParticipants = participants.slice(i, i + participantsPerPage);
         const tableBody: any[] = [...tableHeader];
-        // Fill participant rows
+
         for (let j = 0; j < pageParticipants.length; j++) {
           const p = pageParticipants[j];
           tableBody.push([
             String(rowNumber++),
-            `${p.first_name} ${p.father_name}`,
+            `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim(),
             p.gender ?? '',
             p.phone ?? '',
-            ...dateSet.flatMap(() => isDayBased ? [''] : ['', '']) // Day: single, else Morning/Afternoon blanks
+            ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
           ]);
         }
 
-        // Fill empty rows for remaining space
         const remainingRows = participantsPerPage - pageParticipants.length;
         for (let k = 0; k < remainingRows; k++) {
           tableBody.push([
@@ -872,7 +934,7 @@ export class EventService {
           ]);
         }
 
-        // two additional page
+        // additional blank block (keeps space for signatures)
         for (let extra = 0; extra < participantsPerPage; extra++) {
           tableBody.push([
             String(rowNumber++),
@@ -895,16 +957,16 @@ export class EventService {
             table: {
               headerRows: headerRowsCount,
               widths: [
-                15, // #
-                '*', // Full Name (takes remaining space)
-                48, // Gender
-                68, // Phone (9 digits)
-                ...dateSet.flatMap(() => isDayBased ? [50] : [50, 50]) // Signature cells (narrow)
+                15,
+                '*',
+                48,
+                68,
+                ...dateSet.flatMap(() => isDayBased ? [50] : [50, 50])
               ],
               body: tableBody
             },
             layout: {
-              fillColor: function (rowIndex: number) { return rowIndex < headerRowsCount ? '#F5F5F5' : null; },
+              fillColor: (rowIndex: number) => (rowIndex < headerRowsCount ? '#F5F5F5' : null),
               hLineWidth: () => 0.5,
               vLineWidth: () => 0.5
             }
@@ -917,10 +979,8 @@ export class EventService {
         );
         groupPageNumber++;
 
-        // Add page break if needed
         const isLastDateGroup = dgIndex === dateGroups.length - 1;
         const isLastParticipantPage = i + participantsPerPage >= participants.length;
-
         if (!(isLastDateGroup && isLastParticipantPage)) {
           content.push({ text: '', pageBreak: 'after' });
         }
@@ -930,9 +990,8 @@ export class EventService {
     const docDefinition: any = {
       pageOrientation: 'landscape',
       pageSize: 'A4',
-      content: content, // table content with headers
-      footer: (currentPage, pageCount) =>
-        ({ text: `${currentPage} of ${pageCount}`, alignment: 'center' }),
+      content,
+      footer: (currentPage: number, pageCount: number) => ({ text: `${currentPage} of ${pageCount}`, alignment: 'center' }),
       styles: {
         header: { fontSize: 18, bold: true, alignment: 'center' },
         subheader: { fontSize: 14, bold: true }
@@ -942,12 +1001,79 @@ export class EventService {
 
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
     const chunks: Uint8Array[] = [];
-    await this.participantSessionMap(eventId)
+
+    // ensure session maps exist before generating (if required)
+    await this.participantSessionMap(eventId);
+
     return new Promise<Buffer>((resolve, reject) => {
       pdfDoc.on('data', (chunk) => chunks.push(chunk));
       pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
       pdfDoc.on('error', reject);
       pdfDoc.end();
     });
+  }
+
+  async manualAttCheck(eventId: UUID, sessionParticipanrMaps: UpdateSessionParticipantStatusDto[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+
+      // Verify the event exists
+      const event = await this.eventDAL.findOne({
+        where: { id: eventId },
+        relations: ['event_dates', 'event_dates.event_sessions', 'event_dates.event_sessions.session_participant_maps']
+      });
+      console.log(event);
+      console.log(sessionParticipanrMaps);
+
+      if (!event) {
+        throw new NotFoundException(`Event with ID ${eventId} not found`);
+      }
+
+      // Assuming sessionParticipanrMaps contains { sessionParticipantMapId, status }
+      for (const item of sessionParticipanrMaps) {
+        const map = await queryRunner.manager.findOne(SessionParticipantMap, {
+          where: { id: item.sessionParticipantMapId },
+          relations: ['event_session', 'event_session.event_date']
+        });
+
+        console.log("map: ", map);
+
+        if (!map) {
+          throw new NotFoundException(`Session participant map with ID ${item.sessionParticipantMapId} not found`);
+        }
+
+        // Check if the map belongs to the event
+        const belongsToEvent = event.event_dates.some(eventDate =>
+          eventDate.event_sessions.some(sess =>
+            sess.id === map.event_session.id
+          )
+        );
+
+        if (!belongsToEvent) {
+          throw new BadRequestException(`Session participant map ${item.sessionParticipantMapId} does not belong to event ${eventId}`);
+        }
+
+        // Update attendance
+        map.attendance = { ...map.attendance, status: item.status };
+        await queryRunner.manager.save(map);
+      }
+
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: 'Attendance updated successfully',
+        updated_count: sessionParticipanrMaps.length
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }

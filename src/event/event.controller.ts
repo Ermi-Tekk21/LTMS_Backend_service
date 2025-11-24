@@ -9,6 +9,8 @@ import { doc_type, event_status } from 'src/common/enums/status_enums';
 import type { UUID } from 'crypto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Permission } from 'src/common/decorators/permission.decorator';
+import { UpdateEventSessionDto } from './event_session/dto/update-event_session.dto';
+import { UpdateSessionParticipantMapDto } from './event_session/dto/update-manual-att.dto';
 @Controller('event')
 
 export class EventController {
@@ -185,6 +187,12 @@ export class EventController {
       }
     }
   }
+
+  @Patch('attendance/:eventId/manual-att-fill')
+  manualAttFill(
+    @Param('eventId') eventId: UUID,
+    @Body() updateSessionParticipantMapDto: UpdateSessionParticipantMapDto
+  ) {
+    return this.eventService.manualAttCheck(eventId, updateSessionParticipantMapDto.sessionParticipantMaps || []);
+  }
 }
-
-
