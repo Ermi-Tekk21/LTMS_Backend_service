@@ -822,7 +822,6 @@ export class EventService {
       const dateSet = dateGroups[dgIndex];
 
       let rowNumber = 1;
-      let groupPageNumber = 1;
 
       // Header
       content.push(
@@ -945,8 +944,6 @@ export class EventService {
           ]);
         }
 
-        const totalPagesInGroup = Math.ceil(participants.length / participantsPerPage);
-
         content.push(
           {
             text: `${event.name} Attendance Sheet`,
@@ -970,14 +967,8 @@ export class EventService {
               hLineWidth: () => 0.5,
               vLineWidth: () => 0.5
             }
-          },
-          {
-            text: `Page ${groupPageNumber} of ${totalPagesInGroup}`,
-            alignment: 'center',
-            margin: [0, 10, 0, 0]
           }
         );
-        groupPageNumber++;
 
         const isLastDateGroup = dgIndex === dateGroups.length - 1;
         const isLastParticipantPage = i + participantsPerPage >= participants.length;
@@ -991,7 +982,6 @@ export class EventService {
       pageOrientation: 'landscape',
       pageSize: 'A4',
       content,
-      footer: (currentPage: number, pageCount: number) => ({ text: `${currentPage} of ${pageCount}`, alignment: 'center' }),
       styles: {
         header: { fontSize: 18, bold: true, alignment: 'center' },
         subheader: { fontSize: 14, bold: true }
@@ -1055,13 +1045,10 @@ export class EventService {
         if (!belongsToEvent) {
           throw new BadRequestException(`Session participant map ${item.sessionParticipantMapId} does not belong to event ${eventId}`);
         }
-
         // Update attendance
         map.attendance = { ...map.attendance, status: item.status };
         await queryRunner.manager.save(map);
       }
-
-
       await queryRunner.commitTransaction();
 
       return {
