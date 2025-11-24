@@ -10,13 +10,12 @@ import { EventService } from 'src/event/event.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Document, Event]),
+    TypeOrmModule.forFeature([Document]),  // ONLY Document here
     forwardRef(() => AwsS3Module),
-    forwardRef(() => EventModule),
-
+    forwardRef(() => EventModule),        // Import EventModule
   ],
   controllers: [DocumentController],
   providers: [DocumentService, DocumentDAL],
   exports: [DocumentService],
 })
-export class DocumentModule { }
+export class DocumentModule {}

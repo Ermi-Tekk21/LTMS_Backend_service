@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFiles ,Query} from '@nestjs/common';
 import { DocumentService } from './document.service';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
@@ -22,10 +22,11 @@ export class DocumentController {
     return this.documentService.createAndUploadMultipleFile(files, eventId, docType, bucketName);
   }
 
-  @Get('/view')
-  viewDoc(@Body() body: { key: string }) {
-    return this.documentService.viewDoc(body.key);
-  }
+@Get('/view')
+viewDoc(@Query('key') key: string) {
+  return this.documentService.viewDoc(key);
+}
+
 
   @Get()
   findAll() {

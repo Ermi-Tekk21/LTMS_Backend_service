@@ -30,47 +30,86 @@ export class DocumentService {
     }
   }
 
-  async createAndUploadMultipleFile(files: Express.Multer.File[], eventID: string, docType: doc_type, bucketName: string) {
-    try {
-      const doctype = docType.toLocaleLowerCase()
-      const uploadedFiles = await this.awsS3Service.uploadMultipleFiles(files, bucketName, doctype);
+  async createAndUploadMultipleFile(
+  files: Express.Multer.File[],
+  eventID: string,
+  docType: doc_type,
+  bucketName: string,
+) {
+  try {
+    const doctype = docType.toLowerCase();
 
-      const event = await this.eventService.findOne(eventID)
-      if (!event) {
-        throw new NotFoundException('not found')
-      }
-      if (doctype == doc_type.REPORT) {
-        event.event_status = event_status.COMPLATED
-        await this.eventRepo.save(event)
-        console.log(
-          `[${new Date().toISOString()}] Event ${eventID} (${event?.name ?? 'untitled'}) marked as ${event.event_status} after uploading ${uploadedFiles.length} ${uploadedFiles.length === 1 ? 'file' : 'files'} to bucket "${bucketName}" (docType=${doctype})`
-        );
-      }
+    // 1. Upload files to S3
+    const uploadedFiles = await this.awsS3Service.uploadMultipleFiles(
+      files,
+      bucketName,
+      doctype,
+    );
 
-      for (let i = 0; i < uploadedFiles.length; i++) {
-        const uploaded = uploadedFiles[i];
-        const original = files[i];
-        await this.create({
-          event,
-          path: uploaded.key,
-          file_type: original?.mimetype?.split('/')[1] ?? '',
-          doc_type: doctype as doc_type,
-        })
-      }
-
-    } catch (err) {
-      console.error(err)
+    // 2. Fetch event
+    const event = await this.eventService.findOne(eventID);
+    if (!event) {
+      throw new NotFoundException('Event not found');
     }
+
+    // 3. Update event status when docType is report
+    if (doctype === doc_type.REPORT) {
+      event.event_status = event_status.COMPLATED;
+      await this.eventRepo.save(event);
+
+      console.log(
+        `[${new Date().toISOString()}] Event ${eventID} (${event?.name ?? 'untitled'}) marked as ${event.event_status} after uploading ${uploadedFiles.length} file(s) to bucket "${bucketName}" (docType=${doctype})`,
+      );
+    }
+
+    // 4. Save each document record
+    for (let i = 0; i < uploadedFiles.length; i++) {
+      const uploaded = uploadedFiles[i];
+      const original = files[i];
+
+      await this.create({
+        event,
+        path: uploaded.key,
+        file_type: original?.mimetype?.split('/')[1] ?? '',
+        doc_type: doctype as doc_type,
+      });
+    }
+
+    // 5. 🔥 RETURN RESPONSE (the main fix)
+    return {
+      success: true,
+      message: 'Documents uploaded successfully',
+      eventId: eventID,
+      filesUploaded: uploadedFiles.length,
+      docType: doctype,
+      documents: uploadedFiles,
+    };
+
+  } catch (err) {
+    console.error('Upload error:', err);
+
+    throw err instanceof Error
+      ? err
+      : new Error('Unknown upload error.');
   }
+}
 
   findAll() {
     return `This action returns all document`;
   }
 
-  viewDoc(key: string) {
-    const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-    return this.awsS3Service.getPresignedUrl(bucketName, key)
-  }
+  async viewDoc(key: string) {
+  const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+
+  // Just generate presigned URL, do not check existence
+  const url = await this.awsS3Service.getPresignedUrl(bucketName, key);
+
+  return {
+    key,
+    url,
+  };
+}
+
 
   findOne(id: number) {
     return `This action returns a #${id} document`;

@@ -34,6 +34,6 @@ import { ZoneModule } from './adress/zone.module';
   ],
   controllers: [EventController],
   providers: [EventService, EventDAL],
-  exports: [EventService],
+  exports: [EventService,TypeOrmModule],
 })
 export class EventModule { }

@@ -15,7 +15,6 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
 import { DashboardReportModule } from './dashboard_report/dashboard_report.module';
-// import { ZoneModule } from './event/adress/zone.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
