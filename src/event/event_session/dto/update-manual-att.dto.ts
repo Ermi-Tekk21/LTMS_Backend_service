@@ -9,7 +9,24 @@ export class UpdateSessionParticipantStatusDto {
   status: string;
 }
 
+export class UpdateDateParticipantStatusDto {
+  @IsUUID()
+  eventDateId : string;
+
+  @IsUUID()
+  participantId : string;
+
+  @IsEnum(attendance)
+  status: string;
+}
+
 export class UpdateSessionParticipantMapDto {
   @IsOptional()
   sessionParticipantMaps?: UpdateSessionParticipantStatusDto[];
 }
+
+export class UpdateDateParticipantMapDto {
+  @IsOptional()
+  dateParticipantMaps?: UpdateDateParticipantStatusDto[];
+}
+

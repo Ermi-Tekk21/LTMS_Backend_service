@@ -23,7 +23,7 @@ import { SessionParticipantMap } from './participant/entities/sessionParticipant
 import { CapitalizeInterceptor } from 'src/common/database/capitalize-response.interceptor';
 import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
-import { UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
+import { UpdateDateParticipantMapDto, UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
 import { promises } from 'dns';
 
 @Injectable()
@@ -1003,7 +1003,7 @@ export class EventService {
     });
   }
 
-  async manualAttCheck(eventId: UUID, sessionParticipanrMaps: UpdateSessionParticipantStatusDto[]) {
+  async sessionBasedManualAttFill(eventId: UUID, sessionParticipanrMaps: UpdateSessionParticipantStatusDto[]) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1055,6 +1055,72 @@ export class EventService {
         success: true,
         message: 'Attendance updated successfully',
         updated_count: sessionParticipanrMaps.length
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async dayBasedManualAttFill(eventId: UUID, dateParticipantMaps: UpdateDateParticipantStatusDto[]) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Ensure session participant maps exist
+      await this.participantSessionMap(eventId);
+
+      // Verify the event exists with relations
+      const event = await queryRunner.manager.findOne(Event, {
+        where: { id: eventId },
+        relations: ['event_dates', 'event_dates.event_sessions']
+      });
+
+      if (!event) {
+        throw new NotFoundException(`Event with ID ${eventId} not found`);
+      }
+
+      const eventDateIds = event.event_dates.map(ed => ed.id);
+
+      let updatedCount = 0;
+
+      for (const item of dateParticipantMaps) {
+        // Check if the eventDateId belongs to the event
+        if (!eventDateIds.includes(item.eventDateId)) {
+          throw new BadRequestException(`Event date ${item.eventDateId} does not belong to event ${eventId}`);
+        }
+
+        // Find the event date and its sessions
+        const eventDate = event.event_dates.find(ed => ed.id === item.eventDateId);
+        const sessions = eventDate?.event_sessions || [];
+
+        // For each session (should be 2), update the participant's attendance
+        for (const session of sessions) {
+          const map = await queryRunner.manager.findOne(SessionParticipantMap, {
+            where: {
+              participant: { id: item.participantId },
+              event_session: { id: session.id }
+            }
+          });
+
+          if (map) {
+            map.attendance = { ...map.attendance, status: item.status };
+            await queryRunner.manager.save(map);
+            updatedCount++;
+          }
+          // Note: Not throwing error if map not found, assuming participantSessionMap ensures they exist
+        }
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: 'Day-based attendance updated successfully',
+        updated_count: updatedCount
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
