@@ -39,20 +39,17 @@ export class DocumentService {
   try {
     const doctype = docType.toLowerCase();
 
-    // 1. Upload files to S3
     const uploadedFiles = await this.awsS3Service.uploadMultipleFiles(
       files,
       bucketName,
       doctype,
     );
 
-    // 2. Fetch event
     const event = await this.eventService.findOne(eventID);
     if (!event) {
       throw new NotFoundException('Event not found');
     }
 
-    // 3. Update event status when docType is report
     if (doctype === doc_type.REPORT) {
       event.event_status = event_status.COMPLATED;
       await this.eventRepo.save(event);
@@ -62,7 +59,6 @@ export class DocumentService {
       );
     }
 
-    // 4. Save each document record
     for (let i = 0; i < uploadedFiles.length; i++) {
       const uploaded = uploadedFiles[i];
       const original = files[i];
@@ -75,7 +71,6 @@ export class DocumentService {
       });
     }
 
-    // 5. 🔥 RETURN RESPONSE (the main fix)
     return {
       success: true,
       message: 'Documents uploaded successfully',
