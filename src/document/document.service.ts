@@ -1,7 +1,6 @@
-import { forwardRef, Inject, Injectable, NotFoundException, UploadedFiles } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateDocumentDto } from './dto/update-document.dto';
-import { DeepPartial, Repository } from 'typeorm';
-import { QueryRunner } from 'typeorm';
+import { DeepPartial, Repository ,QueryRunner} from 'typeorm';
 import { DocumentDAL } from './dal/document.dal';
 import { Document } from './entities/document.entity';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
@@ -19,7 +18,7 @@ export class DocumentService {
     private readonly awsS3Service: AwsS3Service,
 
     @Inject(forwardRef(() => EventService))
-    private eventService: EventService,
+    private readonly eventService: EventService,
   ) { }
 
   async create(data: DeepPartial<Document>, queryRunner?: QueryRunner) {
@@ -133,7 +132,7 @@ export class DocumentService {
           console.warn(`Failed to delete S3 object ${document.path}:`, s3Err);
         }
       }
-
+      
       await this.documentDal.delete(document, queryRunner);
       return true;
     } catch (error) {

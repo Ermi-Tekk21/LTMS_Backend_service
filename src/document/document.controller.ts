@@ -4,6 +4,7 @@ import { UpdateDocumentDto } from './dto/update-document.dto';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { doc_type } from 'src/common/enums/status_enums';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 
 @Controller('document')
 export class DocumentController {
@@ -14,6 +15,7 @@ export class DocumentController {
   @Post('upload/:eventId')
   @UseInterceptors(FilesInterceptor('docs', 10, multerOptions(true, ['pdf', 'image', 'vid'], 30)))
   create(
+    @CurrentUser() user: any,
     @Body('doc-type') docType: doc_type,
     @Param('eventId') eventId: string,
     @UploadedFiles() files: Express.Multer.File[],

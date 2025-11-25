@@ -48,8 +48,6 @@ export class EventService {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
-
-
     try {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
       const folder = 'tor';
@@ -61,7 +59,8 @@ export class EventService {
         location_id: dto.location_id,
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
-        is_day_based: dto.is_day_based
+        is_day_based: dto.is_day_based,
+        created_by, 
       }, queryRunner);
 
       const uploadedFile = await this.awsS3Service.uploadFile(
@@ -72,6 +71,7 @@ export class EventService {
       );
 
       await this.documentService.create({
+
         event,
         path: uploadedFile.key,
         file_type: file.mimetype.split('/')[1],
@@ -127,7 +127,6 @@ export class EventService {
         data: {
           event,
           torDocument: uploadedFile,
-          created_by,
         },
       };
     } catch (error) {
@@ -138,7 +137,7 @@ export class EventService {
     }
   }
 
-  async replaceTOR(id: UUID, file: Express.Multer.File) {
+  async replaceTOR(id: UUID, file: Express.Multer.File,updated_by:string) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -166,6 +165,7 @@ export class EventService {
       );
 
       await this.documentService.create({
+        updated_by,
         event,
         path: uploadedFile.key,
         file_type: file.mimetype.split('/')[1],
@@ -195,7 +195,7 @@ export class EventService {
     }
   }
 
-  async update(id: string, updateEventDto: UpdateEventDto) {
+  async update(id: string, updateEventDto: UpdateEventDto,updated_by:string) {
     const event = await this.findOne(id)
     if (!event) {
       throw new NotFoundException('event to be updated not found...')
@@ -205,7 +205,7 @@ export class EventService {
 
     // Update scalar properties
     if (Object.keys(eventData).length > 0) {
-      await this.eventDAL.update(id, eventData);
+      await this.eventDAL.update(id, { ...eventData, updated_by });
     }
 
     // Update event_dates relation
@@ -218,6 +218,7 @@ export class EventService {
           { date, event }
         );
         await this.eventSessionService.create({
+        updated_by,
           event_date: eventDate,
           venue: event.venue,
         });
@@ -658,7 +659,7 @@ export class EventService {
     return presignedUrls;
   }
 
-  async remove(id: string) {
+  async remove(id: string,deleted_by:string) {
     try {
       const event = await this.findOne(id)
       if (!event) {
@@ -667,7 +668,7 @@ export class EventService {
       if (event.event_status != event_status.INITATED) {
         throw new BadRequestException('only event with status initiated can be deleted...')
       }
-      const result = await this.eventDAL.delete(id);
+      const result = await this.eventDAL.softDelete(id,{ deleted_by});
       return {
         success: true,
         message: 'Event removed successfully',

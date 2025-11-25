@@ -233,20 +233,27 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
   }
 
   async softDelete(
-    id: any,
-    softField: keyof T = 'deleted_at' as keyof T,
-    queryRunner?: QueryRunner,
-  ): Promise<void> {
-    try {
-      const repository = queryRunner
-        ? queryRunner.manager.getRepository(this.repo.target)
-        : this.repo;
+  id: any,
+  extraFields: Partial<T> = {},
+  softField: keyof T = 'deleted_at' as keyof T,
+  queryRunner?: QueryRunner,
+): Promise<void> {
+  try {
+    const repository = queryRunner
+      ? queryRunner.manager.getRepository(this.repo.target)
+      : this.repo;
 
-      await repository.update(id, { [softField]: new Date() } as any);
-    } catch (error) {
-      throw new Error(`DAL.softDelete failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    await repository.update(id, {
+      [softField]: new Date(),
+      ...extraFields,
+    } as any);
+  } catch (error) {
+    throw new Error(
+      `DAL.softDelete failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
+}
+
 
   async restore(
     id: any,
