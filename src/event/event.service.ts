@@ -155,8 +155,11 @@ export class EventService {
           `Cannot replace TOR for event ${event.id}: event must be in '${event_status.INITATED}' status (current: '${event.event_status}').`
         );
       }
-      await this.documentService.remove(event.documents.filter(docs => docs.doc_type == doc_type.TOR)[0].id)
+      const torDoc = event.documents.find(d => d.doc_type === doc_type.TOR);
 
+      if (torDoc) {
+        await this.documentService.remove(torDoc.id, updated_by);
+      }
       const uploadedFile = await this.awsS3Service.uploadFile(
         file,
         bucketName,

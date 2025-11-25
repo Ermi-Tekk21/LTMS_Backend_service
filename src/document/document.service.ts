@@ -34,6 +34,7 @@ export class DocumentService {
   eventID: string,
   docType: doc_type,
   bucketName: string,
+  created_by:string,
 ) {
   try {
     const doctype = docType.toLowerCase();
@@ -67,6 +68,7 @@ export class DocumentService {
         path: uploaded.key,
         file_type: original?.mimetype?.split('/')[1] ?? '',
         doc_type: doctype as doc_type,
+        created_by,
       });
     }
 
@@ -94,8 +96,6 @@ export class DocumentService {
 
   async viewDoc(key: string) {
   const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-
-  // Just generate presigned URL, do not check existence
   const url = await this.awsS3Service.getPresignedUrl(bucketName, key);
 
   return {
@@ -113,30 +113,35 @@ export class DocumentService {
     return `This action updates a #${id} document`;
   }
 
-  async remove(id: string, queryRunner?: QueryRunner) {
-    try {
-      const document = await this.documentDal.findOne({
-        where: {
-          id: id
-        }
-      });
-      if (!document) {
-        throw new NotFoundException('Document not found');
-      }
+  async remove(
+  id: string,
+  deleted_by: string,
+  queryRunner?: QueryRunner
+): Promise<boolean> {
+  const dal = this.documentDal;
 
-      const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-      if (document.path) {
-        try {
-          await this.awsS3Service.deleteFile(bucketName, document.path);
-        } catch (s3Err) {
-          console.warn(`Failed to delete S3 object ${document.path}:`, s3Err);
-        }
-      }
-      
-      await this.documentDal.delete(document, queryRunner);
-      return true;
-    } catch (error) {
-      throw new Error(`DocumentService.remove failed: ${error instanceof Error ? error.message : String(error)}`);
+  const document = await dal.findOne({ where: { id } });
+  if (!document) {
+    throw new NotFoundException('Document not found');
+  }
+
+  if (document.path) {
+    const bucket = process.env.AWS_S3_BUCKET_NAME!;
+    try {
+      await this.awsS3Service.deleteFile(bucket, document.path);
+    } catch (err) {
+      console.warn(`S3 delete failed for ${document.path}:`, err);
     }
   }
+
+  await dal.softDelete(
+    document.id,                   
+    { deleted_by },                  
+    'deleted_at',                   
+    queryRunner
+  );
+
+  return true;
+}
+
 }

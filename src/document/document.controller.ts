@@ -21,7 +21,7 @@ export class DocumentController {
     @UploadedFiles() files: Express.Multer.File[],
   ) {
     const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-    return this.documentService.createAndUploadMultipleFile(files, eventId, docType, bucketName);
+    return this.documentService.createAndUploadMultipleFile(files, eventId, docType, bucketName,user.userId);
   }
 
 @Get('/view')
@@ -41,12 +41,12 @@ viewDoc(@Query('key') key: string) {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDocumentDto: UpdateDocumentDto) {
-    return this.documentService.update(+id, updateDocumentDto);
+  update(@Param('id') id: string, @Body() updateDocumentDto: UpdateDocumentDto, @CurrentUser() user: any,) {
+    return this.documentService.update(+id, updateDocumentDto,);//user.userId
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.documentService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: any,) {
+    return this.documentService.remove(id,user.userId);
   }
 }
