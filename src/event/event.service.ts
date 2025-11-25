@@ -959,9 +959,9 @@ export class EventService {
               widths: [
                 15,
                 '*',
-                48,
-                68,
-                ...dateSet.flatMap(() => isDayBased ? [50] : [50, 50])
+                50,
+                70,
+                ...dateSet.flatMap(() => isDayBased ? [58] : [58, 58])
               ],
               body: tableBody
             },
