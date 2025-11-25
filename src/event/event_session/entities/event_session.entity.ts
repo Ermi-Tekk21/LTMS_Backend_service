@@ -22,10 +22,10 @@ export class EventSession {
     @Column({ type: "text", nullable: true })
     agenda: string;
 
-    @Column({ type: "date", nullable: true })
+    @Column({ type: "timestamp", nullable: true })
     starts_at: Date;
 
-    @Column({ type: "date", nullable: true })
+    @Column({ type: "timestamp", nullable: true })
     ends_at: Date;
 
     @Column({ type: 'text', nullable: true })

@@ -9,6 +9,8 @@ import { doc_type, event_status } from 'src/common/enums/status_enums';
 import type { UUID } from 'crypto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Permission } from 'src/common/decorators/permission.decorator';
+import { UpdateEventSessionDto } from './event_session/dto/update-event_session.dto';
+import { UpdateDateParticipantMapDto, UpdateSessionParticipantMapDto } from './event_session/dto/update-manual-att.dto';
 @Controller('event')
 
 export class EventController {
@@ -185,6 +187,20 @@ export class EventController {
       }
     }
   }
+
+  @Patch('session-based/attendance/:eventId/manual-att-fill')
+  sessionBasedManualAttFill(
+    @Param('eventId') eventId: UUID,
+    @Body() updateSessionParticipantMapDto: UpdateSessionParticipantMapDto
+  ) {
+    return this.eventService.sessionBasedManualAttFill(eventId, updateSessionParticipantMapDto.sessionParticipantMaps || []);
+  }
+
+  @Patch('date-based/attendance/:eventId/manual-att-fill')
+  dayBasedManualAttFill(
+    @Param('eventId') eventId: UUID,
+    @Body() updateDateParticipantMapDto: UpdateDateParticipantMapDto
+  ) {
+    return this.eventService.dayBasedManualAttFill(eventId, updateDateParticipantMapDto.dateParticipantMaps || []);
+  }
 }
-
-
