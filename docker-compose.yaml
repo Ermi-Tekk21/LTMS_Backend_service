@@ -17,4 +17,5 @@ networks:
   LTMS_network_prod:
     driver: bridge
 volumes:
- LTMS_uploads_volume_prod:/app/uploads: {}
+  LTMS_uploads_volume_prod:
+    driver: local
