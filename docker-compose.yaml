@@ -1,6 +1,6 @@
 version: "3"
 services:
-  Lersha_Training_Management_System:
+  lersha_training_management_system:
     build:
       context: "."
       dockerfile: "./Dockerfile"
