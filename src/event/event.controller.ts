@@ -163,7 +163,7 @@ export class EventController {
     return this.eventService.remove(id,user.userId);
   }
 
-  // @Permission('read', 'event')
+   @Permission('read', 'event')
   @Get('attendance/:eventId/pdf')
   async downloadAttendancePdf(
     @Param('eventId') eventId: string,
