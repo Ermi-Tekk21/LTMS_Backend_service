@@ -170,7 +170,18 @@ export class EventController {
     @Res() res: Response,
   ) {
     try {
-      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId);
+      // Extract Authorization header from the underlying request object
+      const reqAny = (res as any).req;
+      const authHeader: string | undefined =
+        reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
+
+      // Normalize and strip Bearer prefix if present
+      const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+
+      // token is now available for use (e.g., pass to service, logging, etc.)
+      console.log('extracted token:', token);
+
+      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, token as string);
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="attendance-${eventId}.pdf"`,
@@ -181,9 +192,9 @@ export class EventController {
     } catch (error) {
       console.error('Error generating PDF:', error);
       if (error instanceof NotFoundException) {
-        throw error
+        throw error;
       } else {
-        throw new InternalServerErrorException("unable to generate pdf")
+        throw new InternalServerErrorException('unable to generate pdf');
       }
     }
   }

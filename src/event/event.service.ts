@@ -686,45 +686,6 @@ export class EventService {
     return `data:image/${ext};base64,${base64}`;
   }
 
-  async getAccessToken(): Promise<string> {
-    const url = process.env.AUTH_URL || 'http://164.160.187.141:3344/api/v1/auth/login'
-    const email = process.env.AUTH_EMAIL || 'admin@lersha.com'
-    const password = process.env.AUTH_PASSWORD || 'Admin@123'
-
-    // Validate required environment variables to narrow types to string
-    if (!url) {
-      throw new InternalServerErrorException('AUTH_URL is not configured');
-    }
-    if (!email || !password) {
-      throw new InternalServerErrorException('AUTH_EMAIL and AUTH_PASSWORD must be configured');
-    }
-
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (process.env.AUTHORIZATION_HEADER) {
-        headers['Authorization'] = process.env.AUTHORIZATION_HEADER;
-      }
-
-      const resp = await axios.post(url, { email, password }, { headers });
-
-      // common token shapes: access_token, token, data.access_token
-      const token =
-        resp?.data?.access_token ||
-        resp?.data?.token ||
-        resp?.data?.data?.access_token ||
-        resp?.data?.data?.token;
-
-      if (!token) {
-        throw new InternalServerErrorException('Authentication response did not contain an access token');
-      }
-
-      return token;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new InternalServerErrorException(`Failed to get access token: ${msg}`);
-    }
-  }
-
   async getProjectName(token: string, projectId: UUID) {
     const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://164.160.187.141:3344/api/v1/dynamic-form';
     const url = `${baseUrl}/project/${projectId}`;
@@ -749,18 +710,15 @@ export class EventService {
     }
   }
 
-  async generateAttendancePdf(eventId: string): Promise<Buffer> {
+  async generateAttendancePdf(eventId: string, token: string): Promise<Buffer> {
     const event = await this.eventDAL.findOne({
       where: { id: eventId },
       relations: ['participants', 'event_dates'],
     });
 
-    // const token = await this.getAccessToken();
-    // console.log(token);
-
     if (!event) throw new Error('Event not found');
 
-    const projectName = await this.getProjectName("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ZDBkNTE1OS1iZDEyLTQwMWEtOTA5ZC00ZGViYWY4ZTVjNzciLCJzZXNzaW9uSWQiOiIxNmI4MjZmZC03MDcxLTQ1N2EtYWNkYi0yNTQwNDgwYjNmMDciLCJpYXQiOjE3NjM5OTI0NjAsImV4cCI6MTc2NDA3ODg2MH0.MFuz8GTLhhGnWtI3zFguQJmuwfcJKUfx02PHS22R91k", event.project_id as UUID);
+    const projectName = await this.getProjectName(token, event.project_id as UUID);
 
     // Capitalize participant data for consistent display in PDF
     if (Array.isArray(event.participants)) {
