@@ -44,6 +44,7 @@ export class DocumentService {
     eventID: string,
     docType: doc_type,
     bucketName: string,
+    userId: string
   ) {
     const doctype = docType.toLowerCase();
 
@@ -77,6 +78,7 @@ export class DocumentService {
           path: uploaded.key,
           file_type: original?.mimetype?.split('/')[1] ?? '',
           doc_type: doctype as doc_type,
+          created_by: userId
         });
       }
 
@@ -105,7 +107,7 @@ export class DocumentService {
     }
   }
 
-  async remove(id: string, queryRunner?: QueryRunner) {
+  async remove(id: string, queryRunner?: QueryRunner, userId?: string) {
     try {
       const document = await this.documentDal.findOne({ where: { id } });
 
