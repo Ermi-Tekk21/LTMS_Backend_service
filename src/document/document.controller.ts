@@ -24,25 +24,9 @@ export class DocumentController {
     return this.documentService.createAndUploadMultipleFile(files, eventId, docType, bucketName,user.userId);
   }
 
-@Get('/view')
-viewDoc(@Query('key') key: string) {
-  return this.documentService.viewDoc(key);
-}
-
-
-  @Get()
-  findAll() {
-    return this.documentService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.documentService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDocumentDto: UpdateDocumentDto, @CurrentUser() user: any,) {
-    return this.documentService.update(+id, updateDocumentDto,);//user.userId
+  @Get('/view')
+  viewDoc(@Body() body: { key: string }) {
+    return this.documentService.viewDoc(body.key);
   }
 
   @Delete(':id')

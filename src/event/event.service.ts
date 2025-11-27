@@ -523,6 +523,34 @@ export class EventService {
     }
   }
 
+  async alterStatus(id: UUID, status: event_status) {
+    try {
+      const event = await this.eventDAL.findOne({
+        where: {
+          id: id
+        }
+      })
+      if (!event) {
+        throw new NotFoundException("couldn't alter the event status: event not found")
+      }
+      event.event_status = status as event_status
+      await this.eventRepo.save(event)
+
+      return {
+        success: true,
+        message: `Event status updated successfully. Event ${event.id} is now '${event.event_status}'.`,
+        event,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error
+      }
+      throw new InternalServerErrorException(
+        `Failed to alter event status: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+
   // REMOVE PARTICIPANTS FROM EVENT
   async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
     const queryRunner = this.dataSource.createQueryRunner();

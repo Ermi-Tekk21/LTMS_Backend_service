@@ -101,6 +101,15 @@ export class EventController {
   ) {
     return this.eventService.removeTrainersFromEvent(eventId, trainerIds);
   }
+
+  @Patch('alter-status/:id')
+  async alterStatus(
+    @Param('id') id: UUID,
+    @Query('status') status: event_status,
+  ) {
+    return await this.eventService.alterStatus(id, status)
+  }
+
   @Permission('manage', 'trainer')
   @Patch(':id/trainers')
   async updateTrainers(
