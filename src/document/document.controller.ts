@@ -27,21 +27,6 @@ export class DocumentController {
     return this.documentService.viewDoc(body.key);
   }
 
-  @Get()
-  findAll() {
-    return this.documentService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.documentService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDocumentDto: UpdateDocumentDto) {
-    return this.documentService.update(+id, updateDocumentDto);
-  }
-
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.documentService.remove(id);
