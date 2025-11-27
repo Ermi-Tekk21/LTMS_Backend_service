@@ -6,17 +6,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
 import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
 import { EventModule } from 'src/event/event.module';
-import { EventService } from 'src/event/event.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Document, Event]),
+    TypeOrmModule.forFeature([Document]),  
     forwardRef(() => AwsS3Module),
-    forwardRef(() => EventModule),
-
+    forwardRef(() => EventModule),        
   ],
   controllers: [DocumentController],
   providers: [DocumentService, DocumentDAL],
   exports: [DocumentService],
 })
-export class DocumentModule { }
+export class DocumentModule {}

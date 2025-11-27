@@ -134,8 +134,9 @@ export class TrainerService {
     if (!trainer || trainer.deleted_at) {
       throw new NotFoundException(`Trainer with id ${id} not found`);
     }
-    await this.trainerDAL.softDelete(id, 'deleted_at');
+    await this.trainerDAL.softDelete(id);
     await this.trainerDAL.update(id, { deleted_by, deleted_at: new Date() });
     return { message: 'Trainer soft-deleted successfully', softDeleted: true };
   }
 }
+  

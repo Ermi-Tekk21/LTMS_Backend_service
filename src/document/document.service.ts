@@ -26,7 +26,7 @@ export class DocumentService {
     private readonly awsS3Service: AwsS3Service,
 
     @Inject(forwardRef(() => EventService))
-    private eventService: EventService,
+    private readonly eventService: EventService,
   ) { }
 
   async create(data: DeepPartial<Document>, queryRunner?: QueryRunner) {

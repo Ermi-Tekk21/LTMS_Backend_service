@@ -1,12 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete,UseGuards,Query,Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete,Query,Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { ParticipantService } from './participant.service';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
-// import { PermissionGuard } from 'src/common/guards/permission.guard';
+
 import { Permission } from 'src/common/decorators/permission.decorator';
 
 @Controller('participant')

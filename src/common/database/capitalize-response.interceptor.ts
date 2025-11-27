@@ -19,6 +19,7 @@
     }
 
     private capitalizeResponse(data: any): any {
+        if (data instanceof Date) return data; 
         if (Array.isArray(data)) {
         return data.map(item => this.capitalizeObject(item));
         } else if (data && typeof data === 'object') {
@@ -32,7 +33,6 @@
 
         for (const key of Object.keys(obj)) {
         const value = obj[key];
-
         if (typeof value === 'string') {
             if (this.exceptions.includes(key)) {
             result[key] = value; // skip
@@ -53,6 +53,7 @@
 
   static capitalizeData(data: any): any {
     const exceptions = ['email'];
+     if (data instanceof Date) return data;
     if (Array.isArray(data)) {
       return data.map(item => this.capitalizeObjectStatic(item, exceptions));
     } else if (data && typeof data === 'object') {
