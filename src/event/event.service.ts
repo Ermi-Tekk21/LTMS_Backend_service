@@ -23,8 +23,7 @@ import { SessionParticipantMap } from './participant/entities/sessionParticipant
 import { CapitalizeInterceptor } from 'src/common/database/capitalize-response.interceptor';
 import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
-import { UpdateDateParticipantMapDto, UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
-import { promises } from 'dns';
+import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
 
 @Injectable()
 export class EventService {
@@ -60,7 +59,7 @@ export class EventService {
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
         is_day_based: dto.is_day_based,
-        created_by, 
+        created_by,
       }, queryRunner);
 
       const uploadedFile = await this.awsS3Service.uploadFile(
@@ -137,7 +136,7 @@ export class EventService {
     }
   }
 
-  async replaceTOR(id: UUID, file: Express.Multer.File,updated_by:string) {
+  async replaceTOR(id: UUID, file: Express.Multer.File, updated_by: string) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -158,7 +157,7 @@ export class EventService {
       const torDoc = event.documents.find(d => d.doc_type === doc_type.TOR);
 
       if (torDoc) {
-        await this.documentService.remove(torDoc.id, updated_by);
+        await this.documentService.remove(torDoc.id);
       }
       const uploadedFile = await this.awsS3Service.uploadFile(
         file,
@@ -198,7 +197,7 @@ export class EventService {
     }
   }
 
-  async update(id: string, updateEventDto: UpdateEventDto,updated_by:string) {
+  async update(id: string, updateEventDto: UpdateEventDto, updated_by: string) {
     const event = await this.findOne(id)
     if (!event) {
       throw new NotFoundException('event to be updated not found...')
@@ -221,7 +220,7 @@ export class EventService {
           { date, event }
         );
         await this.eventSessionService.create({
-        updated_by,
+          updated_by,
           event_date: eventDate,
           venue: event.venue,
         });
@@ -259,7 +258,7 @@ export class EventService {
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
     return this.eventDAL.findAll(options);
-    
+
   }
 
   async participantSessionMap(eventId: string) {
@@ -690,7 +689,7 @@ export class EventService {
     return presignedUrls;
   }
 
-  async remove(id: string,deleted_by:string) {
+  async remove(id: string, deleted_by: string) {
     try {
       const event = await this.findOne(id)
       if (!event) {
@@ -699,7 +698,7 @@ export class EventService {
       if (event.event_status != event_status.INITATED) {
         throw new BadRequestException('only event with status initiated can be deleted...')
       }
-      const result = await this.eventDAL.softDelete(id,{ deleted_by});
+      const result = await this.eventDAL.softDelete(id, { deleted_by });
       return {
         success: true,
         message: 'Event removed successfully',
