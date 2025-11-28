@@ -55,6 +55,6 @@ export class RegionZoneWoredaController {
 
   @Get('regions-zones-woredas')
   async getALlRegionsWithZonesAndWoredas() {
-    return this.zoneService.getRegionsWithZonesAndWoredas();
+    return this.zoneService.getALlRegionsWithZonesAndWoredas();
   }
 }
