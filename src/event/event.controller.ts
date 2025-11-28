@@ -26,6 +26,7 @@ export class EventController {
     const parsedData: CreateEventDto = JSON.parse(data)
     return this.eventService.create(parsedData, file, user.userId,);
   }
+
   @Permission('read', 'event')
   @Get()
   findAll(
@@ -57,6 +58,7 @@ export class EventController {
       order: parsedOrder,
     });
   }
+  
   @Permission('read', 'event')
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -70,21 +72,20 @@ export class EventController {
   ) {
     return this.eventService.eventDocsPath(id, docType);
   }
+
   @Permission('update', 'event')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto, @CurrentUser() user: any,) {
-    return this.eventService.update(id, updateEventDto,user.userId);
-  }
-  @Permission('update', 'event')
-  @Patch(':id/replace-tor')
   @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
-  replaceTOR(
+  update(
+    @Param('id') id: string,
     @CurrentUser() user: any,
-    @Param('id') id: UUID,
-    @UploadedFile() file: Express.Multer.File,
+    @Body("data") data: string,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.eventService.replaceTOR(id, file,user.userId);
+    const parsedData: UpdateEventDto = JSON.parse(data)
+    return this.eventService.update(id, parsedData, user.userId, file);
   }
+
   @Permission('manage', 'trainer')
   @Post(':id/trainers')
   async assignTrainers(
@@ -152,6 +153,7 @@ export class EventController {
   ) {
     return this.eventService.updateParticipantsForEvent(eventId, participantIds);
   }
+
   @Permission('manage', 'participant')
   @Get(':id/participants')
   async getEventParticipants(
