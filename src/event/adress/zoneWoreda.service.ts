@@ -9,13 +9,13 @@ import { Region } from './entities/region.entity';
 export class ZoneService {
   constructor(
     @InjectRepository(Zone)
-    private zoneRepository: Repository<Zone>,
+    private readonly zoneRepository: Repository<Zone>,
 
     @InjectRepository(Woreda)
-    private woredaRepository: Repository<Woreda>,
+    private readonly woredaRepository: Repository<Woreda>,
 
     @InjectRepository(Region)
-    private regionRepository: Repository<Region>,
+    private readonly regionRepository: Repository<Region>,
   ) {}
 
   async createZone(regionId: string, name: string) {

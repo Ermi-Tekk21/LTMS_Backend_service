@@ -26,6 +26,7 @@ export class RegionZoneWoredaController {
 
   @Get('region/:regionId/zones')
   async getZonesByRegion(@Param('regionId') regionId: string) {
+    
     return this.zoneService.getZonesByRegion(regionId);
   }
 

@@ -7,7 +7,7 @@ import { Region } from './entities/region.entity';
 export class RegionService {
   constructor(
     @InjectRepository(Region)
-    private regionRepository: Repository<Region>,
+    private readonly regionRepository: Repository<Region>,
   ) {}
 
   async createRegion(name: string) {
