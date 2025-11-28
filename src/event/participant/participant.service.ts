@@ -7,7 +7,7 @@ import { FindManyOptions, DataSource} from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 import { community_type,gender } from 'src/common/enums/status_enums';
-import { ZoneService } from '../adress/zone.service';
+import { ZoneService } from '../adress/zoneWoreda.service';
 @Injectable()
 export class ParticipantService {
   constructor(private readonly participantDAL: ParticipantDAL,
@@ -103,30 +103,45 @@ async generateTemplate(): Promise<Buffer> {
     };
   }
 
-  const zones = await this.zoneService.getZonesWithWoredas(); 
-  const zoneNames = zones.map(z => z.name);
-  const allWoredas = zones.flatMap(z => z.woredas);
+const data = await this.zoneService.getRegionsWithZonesAndWoredas();
+const regionNames = data.map(r => r.region);
+const zoneNames = data
+  .flatMap(r => r.zones.map(z => z.zone))
+  .sort((a, b) => a.localeCompare(b));
+const woredaNames = data
+  .flatMap(r => r.zones.flatMap(z => z.woredas))
+  .sort((a, b) => a.localeCompare(b)); // alphabetical sort
 
-  for (let row = 2; row <= 100; row++) {
-  
-    sheet.getCell(`H${row}`).dataValidation = {
-      type: 'list',
-      allowBlank: true,
-      formulae: [`"${zoneNames.join(',')}"`],
-      showErrorMessage: true,
-      errorTitle: 'Invalid Zone',
-      error: 'Please select a valid Zone.',
-    };
+for (let row = 2; row <= 100; row++) {
+  // Region dropdown
+  sheet.getCell(`G${row}`).dataValidation = {
+    type: 'list',
+    allowBlank: true,
+    formulae: [`"${regionNames.join(',')}"`],
+    showErrorMessage: true,
+    errorTitle: 'Invalid Region',
+    error: 'Please select a valid Region.',
+  };
 
-    sheet.getCell(`I${row}`).dataValidation = {
-      type: 'list',
-      allowBlank: true,
-      formulae: [`"${allWoredas.join(',')}"`],
-      showErrorMessage: true,
-      errorTitle: 'Invalid Woreda',
-      error: 'Please select a Woreda.',
-    };
-  }
+  // Zone dropdown
+  sheet.getCell(`H${row}`).dataValidation = {
+    type: 'list',
+    allowBlank: true,
+    formulae: [`"${zoneNames.join(',')}"`],
+    showErrorMessage: true,
+    errorTitle: 'Invalid Zone',
+    error: 'Please select a valid Zone.',
+  };
+
+  sheet.getCell(`I${row}`).dataValidation = {
+    type: 'list',
+    allowBlank: true,
+    formulae: [`"${woredaNames.join(',')}"`],
+    showErrorMessage: true,
+    errorTitle: 'Invalid Woreda',
+    error: 'Please select a valid Woreda.',
+  };
+}
 
   return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
 }
