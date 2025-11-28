@@ -24,7 +24,7 @@ export class Trainer {
   @Column({ type: 'text' })
   phone: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text',nullable: true  })
   email: string;
 
   @Column({ type: 'text' })

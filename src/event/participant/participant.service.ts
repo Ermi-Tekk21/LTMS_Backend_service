@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable ,NotFoundException} from '@nestjs/common';
+import { BadRequestException, Injectable ,InternalServerErrorException,NotFoundException} from '@nestjs/common';
 import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
@@ -144,7 +144,7 @@ async generateTemplate(): Promise<Buffer> {
 
   const participants: CreateParticipantDto[] = [];
   const invalidRows: { row: number; missingFields: string[] }[] = [];
-  const conflicts: any[] = []; // <-- report mismatched names
+  const conflicts: any[] = []; 
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // skip header
 
@@ -321,12 +321,12 @@ async generateTemplate(): Promise<Buffer> {
       page: result.meta.page,
       limit: result.meta.limit,
     };
-
   } catch (error) {
-    throw new Error(
-      `ParticipantService.findAll failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new InternalServerErrorException(
+      `ParticipantService.findAll failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
