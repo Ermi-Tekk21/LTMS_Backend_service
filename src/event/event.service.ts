@@ -792,10 +792,12 @@ export class EventService {
   }
 
   async eventDocsPath(id: string, doc_type?: doc_type) {
+
     const event = await this.eventDAL.findOne({
       where: { id },
       relations: ['documents'],
     });
+    console.log("event id: ", event);
 
     if (!event) throw new Error('Event not found');
 
@@ -809,7 +811,11 @@ export class EventService {
     const presignedUrls = await Promise.all(
       paths.map(path => this.documentService.viewDoc(path))
     );
-    return presignedUrls
+    return {
+      success: true,
+      message: 'Document URLs generated successfully',
+      data: presignedUrls
+    };
   }
 
   async remove(id: string, deleted_by: string) {
