@@ -48,6 +48,7 @@ export class ParticipantService {
       return participant;
     } catch (error) {
       await queryRunner.rollbackTransaction();
+      console.log(error);
       if (error instanceof BadRequestException) {
         throw error
       }
