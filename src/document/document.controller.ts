@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFiles ,Query} from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFiles, Query } from '@nestjs/common';
 import { DocumentService } from './document.service';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
@@ -21,32 +21,16 @@ export class DocumentController {
     @UploadedFiles() files: Express.Multer.File[],
   ) {
     const bucketName = process.env.AWS_S3_BUCKET_NAME!;
-    return this.documentService.createAndUploadMultipleFile(files, eventId, docType, bucketName,user.userId);
+    return this.documentService.createAndUploadMultipleFile(files, eventId, docType, bucketName, user.userId);
   }
 
-@Get('/view')
-viewDoc(@Query('key') key: string) {
-  return this.documentService.viewDoc(key);
-}
-
-
-  @Get()
-  findAll() {
-    return this.documentService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.documentService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDocumentDto: UpdateDocumentDto, @CurrentUser() user: any,) {
-    return this.documentService.update(+id, updateDocumentDto,);//user.userId
+  @Get('/view')
+  viewDoc(@Body() body: { key: string }) {
+    return this.documentService.viewDoc(body.key);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: any,) {
-    return this.documentService.remove(id,user.userId);
+    return this.documentService.remove(id, user.userId);
   }
 }
