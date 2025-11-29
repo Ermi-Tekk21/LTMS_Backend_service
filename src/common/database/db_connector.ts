@@ -12,6 +12,7 @@ import { EventDate } from 'src/event/event_date/entities/event_date.entity';
 import { LowercaseSubscriber } from './lowercase.subscriber';
 import { Zone } from 'src/event/adress/entities/zone.entity';
 import { Woreda } from 'src/event/adress/entities/woreda.entity';
+import { Region } from 'src/event/adress/entities/region.entity';
 
 ConfigModule.forRoot({ isGlobal: true });
 
@@ -34,6 +35,7 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
     StatusAuditLog,
     Zone,
     Woreda,
+    Region,
   ],
   synchronize: true,
   subscribers: [LowercaseSubscriber],

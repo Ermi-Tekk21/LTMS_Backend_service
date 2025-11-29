@@ -31,17 +31,17 @@ export enum doc_type {
 }
 
 export enum community_type {
- IDPs = 'idps',
-  Refugees = 'refugees',
-  HostResident = 'hostresident',
-  Returning = 'returning',
+    IDPs = 'idps',
+    Refugees = 'refugees',
+    HostResident = 'hostresident',
+    Returning = 'returning',
 }
 
 export enum attendance {
     PRESENT = 'present',
     ABSENT = 'absent'
 }
-export enum gender{
-    MALE='male',
-    FEMAL='femal'
+export enum gender {
+    MALE = 'male',
+    FEMALE = 'female'
 }

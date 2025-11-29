@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Region } from './region.entity';
 import { Woreda } from './woreda.entity';
 
 @Entity()
@@ -9,8 +10,9 @@ export class Zone {
   @Column()
   name: string;
 
-  @OneToMany(() => Woreda, (woreda) => woreda.zone, {
-    cascade: true,
-  })
+  @ManyToOne(() => Region, region => region.zones, { onDelete: 'CASCADE' })
+  region: Region;
+
+  @OneToMany(() => Woreda, woreda => woreda.zone)
   woredas: Woreda[];
 }

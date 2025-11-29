@@ -1,14 +1,21 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { Region } from './entities/region.entity';
 import { Zone } from './entities/zone.entity';
 import { Woreda } from './entities/woreda.entity';
-import { ZoneService } from './zone.service';
-import { ZoneController } from './zone.controller';
+
+import { RegionZoneWoredaController } from './location.controller';
+
+import { RegionService } from './region.service';
+import { ZoneService } from './zoneWoreda.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Zone, Woreda])],
-  controllers: [ZoneController],
-  providers: [ZoneService],
-  exports: [ZoneService],
+  imports: [
+    TypeOrmModule.forFeature([Region, Zone, Woreda]),
+  ],
+  controllers: [RegionZoneWoredaController],
+  providers: [RegionService, ZoneService],
+  exports: [RegionService, ZoneService],
 })
-export class ZoneModule {}
+export class LocationModule {}

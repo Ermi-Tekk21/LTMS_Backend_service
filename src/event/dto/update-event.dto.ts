@@ -1,6 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateEventDto } from './create-event.dto';
-import { IsOptional, IsUUID, IsString, IsNumber, IsArray } from 'class-validator';
+import { IsOptional, IsUUID, IsString, IsNumber, IsArray, IsEnum, ArrayNotEmpty } from 'class-validator';
+import { event_status } from 'src/common/enums/status_enums';
 
 export class UpdateEventDto extends PartialType(CreateEventDto) {
   @IsOptional()
@@ -16,8 +17,18 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
   project_id?: string;
 
   @IsOptional()
+  @IsEnum(event_status)
+  event_status?: event_status;
+
+  @IsOptional()
   @IsNumber()
   expected_participant_number?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUID('4', { each: true })
+  trainers: string[];
 
   @IsOptional()
   @IsString()

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { DataSource, In, Repository } from 'typeorm';
@@ -23,8 +23,7 @@ import { SessionParticipantMap } from './participant/entities/sessionParticipant
 import { CapitalizeInterceptor } from 'src/common/database/capitalize-response.interceptor';
 import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
-import { UpdateDateParticipantMapDto, UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
-import { promises } from 'dns';
+import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
 
 @Injectable()
 export class EventService {
@@ -60,7 +59,7 @@ export class EventService {
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
         is_day_based: dto.is_day_based,
-        created_by, 
+        created_by,
       }, queryRunner);
 
       const uploadedFile = await this.awsS3Service.uploadFile(
@@ -103,6 +102,7 @@ export class EventService {
           starts_at: morningStart,
           ends_at: morningEnd
         }, queryRunner);
+
         //afternoon session
         await this.eventSessionService.create({
           event_date: eventDate,
@@ -131,16 +131,29 @@ export class EventService {
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw error;
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to create event: ${error instanceof Error ? error.message : String(error)}`
+      );
+
     } finally {
       await queryRunner.release();
     }
   }
 
-  async replaceTOR(id: UUID, file: Express.Multer.File,updated_by:string) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  async replaceTOR(id: UUID, file: Express.Multer.File, updated_by: string, queryRunner?: QueryRunner) {
+    let ownTransaction = false;
+    if (!queryRunner) {
+      queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      ownTransaction = true;
+    }
 
     try {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
@@ -158,7 +171,7 @@ export class EventService {
       const torDoc = event.documents.find(d => d.doc_type === doc_type.TOR);
 
       if (torDoc) {
-        await this.documentService.remove(torDoc.id, updated_by);
+        await this.documentService.remove(torDoc.id);
       }
       const uploadedFile = await this.awsS3Service.uploadFile(
         file,
@@ -177,59 +190,119 @@ export class EventService {
 
       // No dto here - replaceTOR only replaces the TOR document.
       await queryRunner.manager.save(event);
-      await queryRunner.commitTransaction();
 
-      return {
-        success: true,
-        message: 'TOR replaced successfully',
-        data: {
-          event,
-          torDocument: uploadedFile,
-        },
-      };
+      if (ownTransaction) {
+        await queryRunner.commitTransaction();
+      }
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (ownTransaction) {
+        await queryRunner.rollbackTransaction();
+      }
       if (error instanceof NotFoundException || error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException(
         `Failed to replace TOR for event: ${error instanceof Error ? error.message : String(error)}`
       )
     } finally {
-      await queryRunner.release();
+      if (ownTransaction) {
+        await queryRunner.release();
+      }
     }
   }
 
-  async update(id: string, updateEventDto: UpdateEventDto,updated_by:string) {
-    const event = await this.findOne(id)
-    if (!event) {
-      throw new NotFoundException('event to be updated not found...')
-    }
+  async update(id: string, updateEventDto: UpdateEventDto, updated_by: string, file?: Express.Multer.File) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const { trainers, event_dates, ...eventData } = updateEventDto;
-
-    // Update scalar properties
-    if (Object.keys(eventData).length > 0) {
-      await this.eventDAL.update(id, { ...eventData, updated_by });
-    }
-
-    // Update event_dates relation
-    if (event_dates) {
-      for (const event_date of event.event_dates) {
-        await this.eventDateService.remove(event_date.id)
+    try {
+      const event = await this.findOne(id)
+      if (!event) {
+        throw new NotFoundException('event to be updated not found...')
       }
-      for (const date of event_dates) {
-        const eventDate = await this.eventDateService.create(
-          { date, event }
-        );
-        await this.eventSessionService.create({
-        updated_by,
-          event_date: eventDate,
-          venue: event.venue,
-        });
-      }
-    }
 
-    // Return the updated event with relations
-    return this.findOne(id);
+      const { trainers, event_dates, ...eventData } = updateEventDto;
+
+      // Update scalar properties - map DTO fields to entity properties
+      if (Object.keys(eventData).length > 0) {
+        const updateData: any = { ...eventData };
+        if (updateData.status !== undefined) {
+          updateData.event_status = updateData.status;
+          delete updateData.status;
+        }
+        await this.eventDAL.update(id, { ...updateData, updated_by }, queryRunner);
+      }
+
+      // Update event_dates relation
+      if (event_dates) {
+        for (const event_date of event.event_dates) {
+          await this.eventDateService.remove(event_date.id)
+        }
+        for (const date of event_dates) {
+          const eventDate = await this.eventDateService.create(
+            { date, event },
+            queryRunner,
+          );
+          const morningStart = new Date(date);
+          morningStart.setHours(9, 0, 0, 0);
+
+          const morningEnd = new Date(date);
+          morningEnd.setHours(12, 0, 0, 0);
+
+          const afternoonStart = new Date(date);
+          afternoonStart.setHours(13, 0, 0, 0);
+
+          const afternoonEnd = new Date(date);
+          afternoonEnd.setHours(17, 0, 0, 0);
+
+          // morning session
+          await this.eventSessionService.create({
+            event_date: eventDate,
+            venue: event.venue,
+            starts_at: morningStart,
+            ends_at: morningEnd
+          }, queryRunner);
+
+          //afternoon session
+          await this.eventSessionService.create({
+            event_date: eventDate,
+            venue: event.venue,
+            starts_at: afternoonStart,
+            ends_at: afternoonEnd
+          }, queryRunner);
+        }
+      }
+
+      if (file) {
+        await this.replaceTOR(id as UUID, file, updated_by, queryRunner)
+      }
+
+      // Update trainers if provided
+      if (trainers && trainers.length > 0) {
+        await this.updateTrainersForEvent(event.id, trainers);
+      }
+
+      await queryRunner.commitTransaction();
+
+      // Return the updated event with relations
+      const updatedEvent = await this.findOne(id);
+      return {
+        success: true,
+        message: `Event ${updatedEvent?.id ?? id} updated successfully`,
+        data: updatedEvent,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to update the event: ${error instanceof Error ? error.message : String(error)}`
+      );
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async findAll(query?: {
@@ -259,45 +332,55 @@ export class EventService {
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
     return this.eventDAL.findAll(options);
-    
   }
 
   async participantSessionMap(eventId: string) {
-    const event = await this.eventRepo.findOne({
-      where: {
-        id: eventId
-      },
-      relations: ['participants', 'event_dates', 'event_dates.event_sessions']
-    })
-    if (!event) {
-      throw new NotFoundException('event with specified id not found.')
-    }
-    const participants: Participant[] = event?.participants
-    const sessions: EventSession[] = event?.event_dates.flatMap(date => date?.event_sessions)
-    for (const session of sessions) {
-      for (const participant of participants) {
-        const sessionParticipantExist = await this.sessionParticipantMapRepo.findOne({
-          where: {
-            participant: {
-              id: participant.id
-            },
-            event_session: {
-              id: session.id
-            }
-          }, relations: ['participant', 'event_session']
-        })
-
-        if (!sessionParticipantExist || session == null) {
-          const sessionPaticipantMapObj = this.sessionParticipantMapRepo.create({
-            participant: participant,
-            event_session: session,
-            attendance: {
-              status: null
-            }
+    try {
+      const event = await this.eventRepo.findOne({
+        where: {
+          id: eventId
+        },
+        relations: ['participants', 'event_dates', 'event_dates.event_sessions']
+      })
+      if (!event) {
+        throw new NotFoundException('event with specified id not found.')
+      }
+      const participants: Participant[] = event?.participants
+      const sessions: EventSession[] = event?.event_dates.flatMap(date => date?.event_sessions)
+      for (const session of sessions) {
+        for (const participant of participants) {
+          const sessionParticipantExist = await this.sessionParticipantMapRepo.findOne({
+            where: {
+              participant: {
+                id: participant.id
+              },
+              event_session: {
+                id: session.id
+              }
+            }, relations: ['participant', 'event_session']
           })
-          await this.sessionParticipantMapRepo.save(sessionPaticipantMapObj)
+
+          if (!sessionParticipantExist || session == null) {
+            const sessionPaticipantMapObj = this.sessionParticipantMapRepo.create({
+              participant: participant,
+              event_session: session,
+              attendance: {
+                status: null
+              }
+            })
+            await this.sessionParticipantMapRepo.save(sessionPaticipantMapObj)
+          }
         }
       }
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to map participants to session: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -353,12 +436,18 @@ export class EventService {
         where: { id: eventId },
         relations: ['trainers'],
       });
-    } catch (err) {
+    } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw err;
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to assign trainers: ${error instanceof Error ? error.message : String(error)}`
+      );
     } finally {
       await queryRunner.release();
-
     }
   }
 
@@ -421,9 +510,16 @@ export class EventService {
       await queryRunner.commitTransaction();
       return updatedEvent;
 
-    } catch (err) {
+    } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw err;
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to update trainers: ${error instanceof Error ? error.message : String(error)}`
+      );
     } finally {
       await queryRunner.release();
     }
@@ -475,9 +571,16 @@ export class EventService {
 
       await queryRunner.commitTransaction();
       return updatedEvent;
-    } catch (err) {
+    } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw err;
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to remove trainers from event: ${error instanceof Error ? error.message : String(error)}`
+      );
     } finally {
       await queryRunner.release();
     }
@@ -523,6 +626,34 @@ export class EventService {
     }
   }
 
+  async alterStatus(id: UUID, status: event_status) {
+    try {
+      const event = await this.eventDAL.findOne({
+        where: {
+          id: id
+        }
+      })
+      if (!event) {
+        throw new NotFoundException("couldn't alter the event status: event not found")
+      }
+      event.event_status = status as event_status
+      await this.eventRepo.save(event)
+
+      return {
+        success: true,
+        message: `Event status updated successfully. Event ${event.id} is now '${event.event_status}'.`,
+        event,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error
+      }
+      throw new InternalServerErrorException(
+        `Failed to alter event status: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+
   // REMOVE PARTICIPANTS FROM EVENT
   async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -544,9 +675,14 @@ export class EventService {
 
       await queryRunner.commitTransaction();
       return updatedEvent;
-    } catch (err) {
+    } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw err;
+      if (error instanceof NotFoundException) {
+        throw error
+      }
+      throw new InternalServerErrorException(
+        `Failed to remove participants: ${error instanceof Error ? error.message : String(error)}`
+      )
     } finally {
       await queryRunner.release();
     }
@@ -573,9 +709,14 @@ export class EventService {
 
       await queryRunner.commitTransaction();
       return updatedEvent;
-    } catch (err) {
+    } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw err;
+      if (error instanceof NotFoundException) {
+        throw error
+      }
+      throw new InternalServerErrorException(
+        `Failed to update participants: ${error instanceof Error ? error.message : String(error)}`
+      )
     } finally {
       await queryRunner.release();
     }
@@ -611,26 +752,35 @@ export class EventService {
   }
 
   async updateEventStatusIfReady(eventId: string) {
-    const eventRepo = this.dataSource.getRepository(Event);
+    try {
+      const eventRepo = this.dataSource.getRepository(Event);
 
-    const event = await eventRepo.findOne({
-      where: { id: eventId },
-      relations: ['participants'],
-    });
+      const event = await eventRepo.findOne({
+        where: { id: eventId },
+        relations: ['participants'],
+      });
 
-    if (!event) return;
+      if (!event) return;
 
-    const hasParticipants = event.participants?.length > 0;
+      const hasParticipants = event.participants?.length > 0;
 
-    if (hasParticipants && event.event_status !== event_status.ONGOING) {
-      event.event_status = event_status.ONGOING;
-      await eventRepo.save(event);
-      console.log(`Event ${event.id} marked as ONGOING`);
-    }
-    else if (!hasParticipants && event.event_status === event_status.ONGOING) {
-      event.event_status = event_status.INITATED;
-      await eventRepo.save(event);
-      console.log(`Event ${event.id} reverted back to INITIATED`);
+      if (hasParticipants && event.event_status !== event_status.ONGOING) {
+        event.event_status = event_status.ONGOING;
+        await eventRepo.save(event);
+        console.log(`Event ${event.id} marked as ONGOING`);
+      }
+      else if (!hasParticipants && event.event_status === event_status.ONGOING) {
+        event.event_status = event_status.INITATED;
+        await eventRepo.save(event);
+        console.log(`Event ${event.id} reverted back to INITIATED`);
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error
+      }
+      throw new InternalServerErrorException(
+        `Failed to update event status: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -642,10 +792,12 @@ export class EventService {
   }
 
   async eventDocsPath(id: string, doc_type?: doc_type) {
+
     const event = await this.eventDAL.findOne({
       where: { id },
       relations: ['documents'],
     });
+    console.log("event id: ", event);
 
     if (!event) throw new Error('Event not found');
 
@@ -654,15 +806,19 @@ export class EventService {
       : event.documents;
 
     const paths = filteredDocs.map(doc => doc.path);
+    console.log("paths: ", paths);
 
     const presignedUrls = await Promise.all(
       paths.map(path => this.documentService.viewDoc(path))
     );
-
-    return presignedUrls;
+    return {
+      success: true,
+      message: 'Document URLs generated successfully',
+      data: presignedUrls
+    };
   }
 
-  async remove(id: string,deleted_by:string) {
+  async remove(id: string, deleted_by: string) {
     try {
       const event = await this.findOne(id)
       if (!event) {
@@ -671,16 +827,21 @@ export class EventService {
       if (event.event_status != event_status.INITATED) {
         throw new BadRequestException('only event with status initiated can be deleted...')
       }
-      const result = await this.eventDAL.softDelete(id,{ deleted_by});
+      const result = await this.eventDAL.softDelete(id, { deleted_by });
       return {
         success: true,
         message: 'Event removed successfully',
         id,
         result,
       };
-    } catch (err) {
-      throw new Error(
-        `Failed to remove event ${id}: ${err instanceof Error ? err.message : String(err)}`,
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to remove: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -690,45 +851,6 @@ export class EventService {
     const base64 = Buffer.from(response.data, 'binary').toString('base64');
     const ext = url.split('.').pop();
     return `data:image/${ext};base64,${base64}`;
-  }
-
-  async getAccessToken(): Promise<string> {
-    const url = process.env.AUTH_URL || 'http://164.160.187.141:3344/api/v1/auth/login'
-    const email = process.env.AUTH_EMAIL || 'admin@lersha.com'
-    const password = process.env.AUTH_PASSWORD || 'Admin@123'
-
-    // Validate required environment variables to narrow types to string
-    if (!url) {
-      throw new InternalServerErrorException('AUTH_URL is not configured');
-    }
-    if (!email || !password) {
-      throw new InternalServerErrorException('AUTH_EMAIL and AUTH_PASSWORD must be configured');
-    }
-
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (process.env.AUTHORIZATION_HEADER) {
-        headers['Authorization'] = process.env.AUTHORIZATION_HEADER;
-      }
-
-      const resp = await axios.post(url, { email, password }, { headers });
-
-      // common token shapes: access_token, token, data.access_token
-      const token =
-        resp?.data?.access_token ||
-        resp?.data?.token ||
-        resp?.data?.data?.access_token ||
-        resp?.data?.data?.token;
-
-      if (!token) {
-        throw new InternalServerErrorException('Authentication response did not contain an access token');
-      }
-
-      return token;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new InternalServerErrorException(`Failed to get access token: ${msg}`);
-    }
   }
 
   async getProjectName(token: string, projectId: UUID) {
@@ -755,258 +877,266 @@ export class EventService {
     }
   }
 
-  async generateAttendancePdf(eventId: string): Promise<Buffer> {
-    const event = await this.eventDAL.findOne({
-      where: { id: eventId },
-      relations: ['participants', 'event_dates'],
-    });
+  async generateAttendancePdf(eventId: string, token: string): Promise<Buffer> {
+    try {
+      const event = await this.eventDAL.findOne({
+        where: { id: eventId },
+        relations: ['participants', 'event_dates'],
+      });
 
-    // const token = await this.getAccessToken();
-    // console.log(token);
+      if (!event) throw new Error('Event not found');
 
-    if (!event) throw new Error('Event not found');
+      const projectName = await this.getProjectName(token, event.project_id as UUID);
 
-    const projectName = await this.getProjectName("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ZDBkNTE1OS1iZDEyLTQwMWEtOTA5ZC00ZGViYWY4ZTVjNzciLCJzZXNzaW9uSWQiOiIxNmI4MjZmZC03MDcxLTQ1N2EtYWNkYi0yNTQwNDgwYjNmMDciLCJpYXQiOjE3NjM5OTI0NjAsImV4cCI6MTc2NDA3ODg2MH0.MFuz8GTLhhGnWtI3zFguQJmuwfcJKUfx02PHS22R91k", event.project_id as UUID);
-
-    // Capitalize participant data for consistent display in PDF
-    if (Array.isArray(event.participants)) {
-      event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
-      event.participants = event.participants.sort((a, b) =>
-        a.first_name.localeCompare(b.first_name, undefined, { sensitivity: 'base' })
-      );
-    } else {
-      event.participants = [];
-    }
-
-    if (typeof event.name === 'string') {
-      event.name = event.name.split(' ').map(word => capitalizeFirstLetter(word)).join(' ');
-    } else {
-      event.name = '';
-    }
-
-    const logoBase64 = await this.getImageBase64(
-      'https://lersha.com/wp-content/uploads/2023/09/lerlogo-1024x313.png'
-    );
-
-    const fonts = {
-      Roboto: {
-        normal: path.join(__dirname, '..', 'fonts', 'Roboto-Regular.ttf'),
-        bold: path.join(__dirname, '..', 'fonts', 'Roboto-Medium.ttf'),
-        italics: path.join(__dirname, '..', 'fonts', 'Roboto-Italic.ttf'),
-        bolditalics: path.join(__dirname, '..', 'fonts', 'Roboto-MediumItalic.ttf'),
-      },
-    };
-
-    const printer = new PdfPrinter(fonts);
-
-    const participantsPerPage = 20;
-    const datesPerPage = 3;
-
-    const participants = event.participants || [];
-    const eventDates = (event.event_dates || []).map(d => {
-      // normalize date to readable string
-      if (!d) return '';
-      if (d.date instanceof Date) return d.date.toLocaleDateString();
-      return String(d.date);
-    });
-
-    let content: any[] = [];
-
-    function chunkDates<T>(list: T[], size: number): T[][] {
-      const out: T[][] = [];
-      for (let i = 0; i < list.length; i += size) {
-        out.push(list.slice(i, i + size));
-      }
-      return out;
-    }
-
-    const dateGroups = chunkDates(eventDates, datesPerPage);
-    const isDayBased = !!event.is_day_based;
-
-    // Create table for each group of dates
-    for (let dgIndex = 0; dgIndex < dateGroups.length; dgIndex++) {
-      const dateSet = dateGroups[dgIndex];
-
-      let rowNumber = 1;
-
-      // Header
-      content.push(
-        {
-          columns: [{ image: logoBase64, width: 100 }],
-          columnGap: 10,
-          margin: [0, 0, 0, 10],
-        },
-        {
-          text: 'Green Agro-Solution PLC (Lersha)',
-          style: { fontSize: 20, bold: true },
-          margin: [0, 0, 0, 10],
-          alignment: 'center',
-        },
-        {
-          text: `Project Name: ${projectName} `,
-          style: { fontSize: 17 },
-          margin: [0, 0, 0, 10],
-          alignment: 'center',
-        }
-      );
-
-      // Build headers
-      let headerRow1: any[];
-      let headerRow2: any[] | undefined;
-      let tableHeader: any[][];
-      let headerRowsCount: number;
-
-      if (isDayBased) {
-        headerRow1 = [
-          { text: '#', bold: true, alignment: 'center' },
-          { text: 'Full Name', bold: true, alignment: 'center' },
-          { text: 'Gender', bold: true, alignment: 'center' },
-          { text: 'Phone No', bold: true, alignment: 'center' },
-          { text: 'Signature', alignment: 'center', bold: true, colSpan: dateSet.length },
-        ];
-        for (let i = 1; i < dateSet.length; i++) headerRow1.push({});
-
-        headerRow2 = [
-          {},
-          {},
-          {},
-          {},
-          ...dateSet.flatMap(date => ({ text: date, alignment: 'center', bold: true }))
-        ];
-        tableHeader = [headerRow1, headerRow2];
-        headerRowsCount = 2;
+      // Capitalize participant data for consistent display in PDF
+      if (Array.isArray(event.participants)) {
+        event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
+        event.participants = event.participants.sort((a, b) =>
+          a.first_name.localeCompare(b.first_name, undefined, { sensitivity: 'base' })
+        );
       } else {
-        const totalSpan = dateSet.length * 2;
-        headerRow1 = [
-          { text: '#', rowSpan: 3, bold: true, alignment: 'center' },
-          { text: 'Full Name', rowSpan: 3, bold: true, alignment: 'center' },
-          { text: 'Gender', rowSpan: 3, bold: true, alignment: 'center' },
-          { text: 'Phone No', rowSpan: 3, bold: true, alignment: 'center' },
-          { text: 'Signature', alignment: 'center', bold: true, colSpan: totalSpan },
-        ];
-        for (let i = 1; i < totalSpan; i++) headerRow1.push({});
-
-        headerRow2 = [
-          {},
-          {},
-          {},
-          {},
-          ...dateSet.flatMap(date => ([
-            { text: date, alignment: 'center', bold: true, colSpan: 2 },
-            {}
-          ]))
-        ];
-
-        const headerRow3 = [
-          {},
-          {},
-          {},
-          {},
-          ...dateSet.flatMap(() => ([
-            { text: 'Morning', alignment: 'center' },
-            { text: 'Afternoon', alignment: 'center' }
-          ]))
-        ];
-
-        tableHeader = [headerRow1, headerRow2, headerRow3];
-        headerRowsCount = 3;
+        event.participants = [];
       }
 
-      // Participant pages for this date group
-      for (let i = 0; i < participants.length; i += participantsPerPage) {
-        const pageParticipants = participants.slice(i, i + participantsPerPage);
-        const tableBody: any[] = [...tableHeader];
+      if (typeof event.name === 'string') {
+        event.name = event.name.split(' ').map(word => capitalizeFirstLetter(word)).join(' ');
+      } else {
+        event.name = '';
+      }
 
-        for (let j = 0; j < pageParticipants.length; j++) {
-          const p = pageParticipants[j];
-          tableBody.push([
-            String(rowNumber++),
-            `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim(),
-            p.gender ?? '',
-            p.phone ?? '',
-            ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
-          ]);
+      const logoBase64 = await this.getImageBase64(
+        'https://lersha.com/wp-content/uploads/2023/09/lerlogo-1024x313.png'
+      );
+
+      const fonts = {
+        Roboto: {
+          normal: path.join(__dirname, '..', 'fonts', 'Roboto-Regular.ttf'),
+          bold: path.join(__dirname, '..', 'fonts', 'Roboto-Medium.ttf'),
+          italics: path.join(__dirname, '..', 'fonts', 'Roboto-Italic.ttf'),
+          bolditalics: path.join(__dirname, '..', 'fonts', 'Roboto-MediumItalic.ttf'),
+        },
+      };
+
+      const printer = new PdfPrinter(fonts);
+
+      const participantsPerPage = 20;
+      const datesPerPage = 3;
+
+      const participants = event.participants || [];
+      const eventDates = (event.event_dates || []).map(d => {
+        // normalize date to readable string
+        if (!d) return '';
+        if (d.date instanceof Date) return d.date.toLocaleDateString();
+        return String(d.date);
+      });
+
+      let content: any[] = [];
+
+      function chunkDates<T>(list: T[], size: number): T[][] {
+        const out: T[][] = [];
+        for (let i = 0; i < list.length; i += size) {
+          out.push(list.slice(i, i + size));
         }
+        return out;
+      }
 
-        const remainingRows = participantsPerPage - pageParticipants.length;
-        for (let k = 0; k < remainingRows; k++) {
-          tableBody.push([
-            String(rowNumber++),
-            '',
-            '',
-            '',
-            ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
-          ]);
-        }
+      const dateGroups = chunkDates(eventDates, datesPerPage);
+      const isDayBased = !!event.is_day_based;
 
-        // additional blank block (keeps space for signatures)
-        for (let extra = 0; extra < participantsPerPage; extra++) {
-          tableBody.push([
-            String(rowNumber++),
-            '',
-            '',
-            '',
-            ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
-          ]);
-        }
+      // Create table for each group of dates
+      for (let dgIndex = 0; dgIndex < dateGroups.length; dgIndex++) {
+        const dateSet = dateGroups[dgIndex];
 
+        let rowNumber = 1;
+
+        // Header
         content.push(
           {
-            text: `${event.name} Attendance Sheet`,
-            style: 'header',
-            margin: [0, 5, 0, 15],
+            columns: [{ image: logoBase64, width: 100 }],
+            columnGap: 10,
+            margin: [0, 0, 0, 10],
           },
           {
-            table: {
-              headerRows: headerRowsCount,
-              widths: [
-                15,
-                '*',
-                50,
-                70,
-                ...dateSet.flatMap(() => isDayBased ? [58] : [58, 58])
-              ],
-              body: tableBody
-            },
-            layout: {
-              fillColor: (rowIndex: number) => (rowIndex < headerRowsCount ? '#F5F5F5' : null),
-              hLineWidth: () => 0.5,
-              vLineWidth: () => 0.5
-            }
+            text: 'Green Agro-Solution PLC (Lersha)',
+            style: { fontSize: 20, bold: true },
+            margin: [0, 0, 0, 10],
+            alignment: 'center',
+          },
+          {
+            text: `Project Name: ${projectName} `,
+            style: { fontSize: 17 },
+            margin: [0, 0, 0, 10],
+            alignment: 'center',
           }
         );
 
-        const isLastDateGroup = dgIndex === dateGroups.length - 1;
-        const isLastParticipantPage = i + participantsPerPage >= participants.length;
-        if (!(isLastDateGroup && isLastParticipantPage)) {
-          content.push({ text: '', pageBreak: 'after' });
+        // Build headers
+        let headerRow1: any[];
+        let headerRow2: any[] | undefined;
+        let tableHeader: any[][];
+        let headerRowsCount: number;
+
+        if (isDayBased) {
+          headerRow1 = [
+            { text: '#', bold: true, alignment: 'center' },
+            { text: 'Full Name', bold: true, alignment: 'center' },
+            { text: 'Gender', bold: true, alignment: 'center' },
+            { text: 'Phone No', bold: true, alignment: 'center' },
+            { text: 'Signature', alignment: 'center', bold: true, colSpan: dateSet.length },
+          ];
+          for (let i = 1; i < dateSet.length; i++) headerRow1.push({});
+
+          headerRow2 = [
+            {},
+            {},
+            {},
+            {},
+            ...dateSet.flatMap(date => ({ text: date, alignment: 'center', bold: true }))
+          ];
+          tableHeader = [headerRow1, headerRow2];
+          headerRowsCount = 2;
+        } else {
+          const totalSpan = dateSet.length * 2;
+          headerRow1 = [
+            { text: '#', rowSpan: 3, bold: true, alignment: 'center' },
+            { text: 'Full Name', rowSpan: 3, bold: true, alignment: 'center' },
+            { text: 'Gender', rowSpan: 3, bold: true, alignment: 'center' },
+            { text: 'Phone No', rowSpan: 3, bold: true, alignment: 'center' },
+            { text: 'Signature', alignment: 'center', bold: true, colSpan: totalSpan },
+          ];
+          for (let i = 1; i < totalSpan; i++) headerRow1.push({});
+
+          headerRow2 = [
+            {},
+            {},
+            {},
+            {},
+            ...dateSet.flatMap(date => ([
+              { text: date, alignment: 'center', bold: true, colSpan: 2 },
+              {}
+            ]))
+          ];
+
+          const headerRow3 = [
+            {},
+            {},
+            {},
+            {},
+            ...dateSet.flatMap(() => ([
+              { text: 'Morning', alignment: 'center' },
+              { text: 'Afternoon', alignment: 'center' }
+            ]))
+          ];
+
+          tableHeader = [headerRow1, headerRow2, headerRow3];
+          headerRowsCount = 3;
+        }
+
+        // Participant pages for this date group
+        for (let i = 0; i < participants.length; i += participantsPerPage) {
+          const pageParticipants = participants.slice(i, i + participantsPerPage);
+          const tableBody: any[] = [...tableHeader];
+
+          for (let j = 0; j < pageParticipants.length; j++) {
+            const p = pageParticipants[j];
+            tableBody.push([
+              String(rowNumber++),
+              `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim(),
+              p.gender ?? '',
+              p.phone ?? '',
+              ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
+            ]);
+          }
+
+          const remainingRows = participantsPerPage - pageParticipants.length;
+          for (let k = 0; k < remainingRows; k++) {
+            tableBody.push([
+              String(rowNumber++),
+              '',
+              '',
+              '',
+              ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
+            ]);
+          }
+
+          // additional blank block (keeps space for signatures)
+          for (let extra = 0; extra < participantsPerPage; extra++) {
+            tableBody.push([
+              String(rowNumber++),
+              '',
+              '',
+              '',
+              ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
+            ]);
+          }
+
+          content.push(
+            {
+              text: `${event.name} Attendance Sheet`,
+              style: 'header',
+              margin: [0, 5, 0, 15],
+            },
+            {
+              table: {
+                headerRows: headerRowsCount,
+                widths: [
+                  15,
+                  '*',
+                  50,
+                  70,
+                  ...dateSet.flatMap(() => isDayBased ? [58] : [58, 58])
+                ],
+                body: tableBody
+              },
+              layout: {
+                fillColor: (rowIndex: number) => (rowIndex < headerRowsCount ? '#F5F5F5' : null),
+                hLineWidth: () => 0.5,
+                vLineWidth: () => 0.5
+              }
+            }
+          );
+
+          const isLastDateGroup = dgIndex === dateGroups.length - 1;
+          const isLastParticipantPage = i + participantsPerPage >= participants.length;
+          if (!(isLastDateGroup && isLastParticipantPage)) {
+            content.push({ text: '', pageBreak: 'after' });
+          }
         }
       }
+
+      const docDefinition: any = {
+        pageOrientation: 'landscape',
+        pageSize: 'A4',
+        content,
+        styles: {
+          header: { fontSize: 18, bold: true, alignment: 'center' },
+          subheader: { fontSize: 14, bold: true }
+        },
+        defaultStyle: { font: 'Roboto', fontSize: 11 }
+      };
+
+      const pdfDoc = printer.createPdfKitDocument(docDefinition);
+      const chunks: Uint8Array[] = [];
+
+      // ensure session maps exist before generating (if required)
+      await this.participantSessionMap(eventId);
+
+      return new Promise<Buffer>((resolve, reject) => {
+        pdfDoc.on('data', (chunk) => chunks.push(chunk));
+        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on('error', reject);
+        pdfDoc.end();
+      });
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to remove trainers from event: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
-
-    const docDefinition: any = {
-      pageOrientation: 'landscape',
-      pageSize: 'A4',
-      content,
-      styles: {
-        header: { fontSize: 18, bold: true, alignment: 'center' },
-        subheader: { fontSize: 14, bold: true }
-      },
-      defaultStyle: { font: 'Roboto', fontSize: 11 }
-    };
-
-    const pdfDoc = printer.createPdfKitDocument(docDefinition);
-    const chunks: Uint8Array[] = [];
-
-    // ensure session maps exist before generating (if required)
-    await this.participantSessionMap(eventId);
-
-    return new Promise<Buffer>((resolve, reject) => {
-      pdfDoc.on('data', (chunk) => chunks.push(chunk));
-      pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-      pdfDoc.on('error', reject);
-      pdfDoc.end();
-    });
   }
 
   async sessionBasedManualAttFill(eventId: UUID, sessionParticipanrMaps: UpdateSessionParticipantStatusDto[]) {
@@ -1015,7 +1145,6 @@ export class EventService {
     await queryRunner.startTransaction();
 
     try {
-
       // Verify the event exists
       const event = await this.eventDAL.findOne({
         where: { id: eventId },
@@ -1064,7 +1193,14 @@ export class EventService {
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw error;
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to update the event: ${error instanceof Error ? error.message : String(error)}`
+      );
     } finally {
       await queryRunner.release();
     }
@@ -1130,7 +1266,14 @@ export class EventService {
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw error;
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to update the event: ${error instanceof Error ? error.message : String(error)}`
+      );
     } finally {
       await queryRunner.release();
     }
