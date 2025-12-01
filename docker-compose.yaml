@@ -1,13 +1,13 @@
 version: "3"
 services:
-  Lersha_Training_Management_System:
+  lersha_training_management_system:
     build:
       context: "."
       dockerfile: "./Dockerfile"
     environment:
       - NODE_OPTIONS="--max-old-space-size=10240"
     ports:
-      - "4499:4499"
+      - "4499:3399"
     networks:
       - LTMS_network_prod
     volumes:

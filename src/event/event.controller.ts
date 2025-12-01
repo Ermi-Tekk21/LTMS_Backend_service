@@ -26,6 +26,7 @@ export class EventController {
     const parsedData: CreateEventDto = JSON.parse(data)
     return this.eventService.create(parsedData, file, user.userId,);
   }
+
   @Permission('read', 'event')
   @Get()
   findAll(
@@ -55,6 +56,7 @@ export class EventController {
       order: parsedOrder,
     });
   }
+  
   @Permission('read', 'event')
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -68,21 +70,20 @@ export class EventController {
   ) {
     return this.eventService.eventDocsPath(id, docType);
   }
+
   @Permission('update', 'event')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto, @CurrentUser() user: any,) {
-    return this.eventService.update(id, updateEventDto,user.userId);
-  }
-  @Permission('update', 'event')
-  @Patch(':id/replace-tor')
   @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
-  replaceTOR(
+  update(
+    @Param('id') id: string,
     @CurrentUser() user: any,
-    @Param('id') id: UUID,
-    @UploadedFile() file: Express.Multer.File,
+    @Body("data") data: string,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.eventService.replaceTOR(id, file,user.userId);
+    const parsedData: UpdateEventDto = JSON.parse(data)
+    return this.eventService.update(id, parsedData, user.userId, file);
   }
+
   @Permission('manage', 'trainer')
   @Post(':id/trainers')
   async assignTrainers(
@@ -99,6 +100,15 @@ export class EventController {
   ) {
     return this.eventService.removeTrainersFromEvent(eventId, trainerIds);
   }
+
+  @Patch('alter-status/:id')
+  async alterStatus(
+    @Param('id') id: UUID,
+    @Query('status') status: event_status,
+  ) {
+    return await this.eventService.alterStatus(id, status)
+  }
+
   @Permission('manage', 'trainer')
   @Patch(':id/trainers')
   async updateTrainers(
@@ -141,6 +151,7 @@ export class EventController {
   ) {
     return this.eventService.updateParticipantsForEvent(eventId, participantIds);
   }
+
   @Permission('manage', 'participant')
   @Get(':id/participants')
   async getEventParticipants(
@@ -168,7 +179,18 @@ export class EventController {
     @Res() res: Response,
   ) {
     try {
-      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId);
+      // Extract Authorization header from the underlying request object
+      const reqAny = (res as any).req;
+      const authHeader: string | undefined =
+        reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
+
+      // Normalize and strip Bearer prefix if present
+      const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+
+      // token is now available for use (e.g., pass to service, logging, etc.)
+      console.log('extracted token:', token);
+
+      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, token as string);
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="attendance-${eventId}.pdf"`,
@@ -179,9 +201,9 @@ export class EventController {
     } catch (error) {
       console.error('Error generating PDF:', error);
       if (error instanceof NotFoundException) {
-        throw error
+        throw error;
       } else {
-        throw new InternalServerErrorException("unable to generate pdf")
+        throw new InternalServerErrorException('unable to generate pdf');
       }
     }
   }
