@@ -35,7 +35,7 @@ export class RegionZoneWoredaController {
   //   return this.zoneService.getAllZones();
   // }
 
-  @Post('zone/:zoneId/woredas')
+  @Post('locations/zone/:zoneId/woredas')
   async createMultipleWoredas(
     @Param('zoneId') zoneId: string,
     @Body('woredas') woredas: string[],
