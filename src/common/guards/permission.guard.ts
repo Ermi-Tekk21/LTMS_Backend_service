@@ -7,13 +7,21 @@ import { PERMISSION_KEY } from '../decorators/permission.decorator';
 export class PermissionGuard implements CanActivate {
   private readonly graphqlClient: GraphQLClient;
 
-  constructor(private readonly reflector: Reflector) {
-    this.graphqlClient = new GraphQLClient(process.env.GRAPHQL_URL as string, {
-      headers: { 
-        'x-internal-api-key': process.env.INTERNAL_API_KEY as string,
-      },
-    });
-  }
+ constructor(private readonly reflector: Reflector) {
+  const url =
+    process.env.GRAPHQL_URL ||
+    'http://164.160.187.141:3344/graphql';
+
+  const apiKey =
+    process.env.INTERNAL_API_KEY ||
+    'dB+2Bo9VBHrMZQQsmS3pP+TPo0OjWEYo2guAPm9s';
+
+  this.graphqlClient = new GraphQLClient(url, {
+    headers: {
+      'x-internal-api-key': apiKey,
+    },
+  });
+}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Get permission metadata from decorator
