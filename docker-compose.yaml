@@ -1,5 +1,5 @@
 services:
-  Lersha_Training_Management_System:
+  lersha_training_management_system:
     build:
       context: "."
       dockerfile: "./Dockerfile"
@@ -16,4 +16,5 @@ networks:
   LTMS_network_prod:
     driver: bridge
 volumes:
-  customer_base_uploads_volume: {}
+  LTMS_uploads_volume_prod:
+    driver: local

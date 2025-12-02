@@ -10,6 +10,7 @@ export class CreateTrainerDto {
   @IsString()
   phone: string;
 
+  @IsOptional()
   @IsEmail()
   email: string;
 

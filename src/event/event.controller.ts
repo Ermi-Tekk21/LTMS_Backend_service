@@ -39,10 +39,8 @@ export class EventController {
     @Query('limit') limit?: number,
     @Query('order') order?: string,
   ) {
-    // Convert comma-separated fields (e.g., "name,description") into an array
     const parsedFields = searchFields ? searchFields.split(',') : [];
 
-    // Convert order string (e.g., "createdAt:desc,name:asc") into an object
     const parsedOrder = order
       ? Object.fromEntries(order.split(',').map((o) => o.split(':')))
       : undefined;

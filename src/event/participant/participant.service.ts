@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable ,InternalServerErrorException,NotFoundException} from '@nestjs/common';
 import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
@@ -159,11 +159,11 @@ for (let row = 2; row <= 100; row++) {
     const sheet = workbook.getWorksheet('Participants');
     if (!sheet) throw new NotFoundException('Worksheet "Participants" not found.');
 
-    const participants: CreateParticipantDto[] = [];
-    const invalidRows: { row: number; missingFields: string[] }[] = [];
-    const conflicts: any[] = []; // <-- report mismatched names
-    sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // skip header
+  const participants: CreateParticipantDto[] = [];
+  const invalidRows: { row: number; missingFields: string[] }[] = [];
+  const conflicts: any[] = []; 
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // skip header
 
       const values = Array.isArray(row.values) ? row.values : [];
       const [
@@ -324,27 +324,28 @@ for (let row = 2; row <= 100; row++) {
         limit,
       };
 
-      if (search && search.trim() !== '') {
-        options.search = {
-          term: search,
-          fields: ['first_name', 'father_name', 'region', 'woreda', 'kebele'],
-        };
-      }
-      const result = await this.participantDAL.findAll(options);
-      return {
-        data: result.data,
-        total: result.meta.total,
-        page: result.meta.page,
-        limit: result.meta.limit,
+    if (search && search.trim() !== '') {
+      options.search = {
+        term: search,
+        fields: ['first_name', 'father_name', 'region','woreda','kebele'], 
       };
-
-    } catch (error) {
-      throw new Error(
-        `ParticipantService.findAll failed: ${error instanceof Error ? error.message : String(error)
-        }`,
-      );
     }
+    const result = await this.participantDAL.findAll(options);
+    return {
+      data: result.data,
+      total: result.meta.total,
+      page: result.meta.page,
+      limit: result.meta.limit,
+    };
+  } catch (error) {
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new InternalServerErrorException(
+      `ParticipantService.findAll failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
+}
   findOne(id: string) {
     return this.participantDAL.findById(id);
   }
