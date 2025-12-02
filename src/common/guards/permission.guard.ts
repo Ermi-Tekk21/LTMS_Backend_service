@@ -8,9 +8,10 @@ export class PermissionGuard implements CanActivate {
   private readonly graphqlClient: GraphQLClient;
 
  constructor(private readonly reflector: Reflector) {
+  
   const url =
     process.env.GRAPHQL_URL ||
-    'http://164.160.187.141:3344/graphql';
+    'http://13.50.253.205:3344/graphql';
 
   const apiKey =
     process.env.INTERNAL_API_KEY ||
