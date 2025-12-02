@@ -271,18 +271,6 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
         }
       }
 
-      // Log built SQL and parameters to help diagnose intermittent failures
-      try {
-        // getSql() and getParameters() are useful to capture the exact SQL produced
-        // Only log at debug level to avoid noise in production by default
-        // eslint-disable-next-line no-console
-        console.debug('[DAL.findOne] built SQL:', qb.getSql());
-        // eslint-disable-next-line no-console
-        console.debug('[DAL.findOne] sql params:', qb.getParameters());
-      } catch (e) {
-        // ignore logging errors
-      }
-
       const entity = await qb.getOne();
       return entity;
     } catch (error) {
