@@ -72,9 +72,6 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       const alias = 'entity';
       const qb = repository.createQueryBuilder(alias);
 
-      // Soft delete filter
-      qb.where(`${alias}.deleted_at IS NULL`);
-
       // Relations - support nested relations with '.' separation, arbitrary depth
       if (options?.relations) {
         const joinedAliases = new Set<string>();
@@ -104,11 +101,11 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       if (options?.where) {
         const where = options.where as Record<string, any>;
         for (const [key, value] of Object.entries(where)) {
-              if (value && typeof value === 'object' && (value as any)._type === 'between') {
-                qb.andWhere(`${alias}.${key} >= :${key}_start AND ${alias}.${key} <= :${key}_end`, {
-                  [`${key}_start`]: (value as any)._value[0],
-                  [`${key}_end`]: (value as any)._value[1],
-                });
+          if (value && typeof value === 'object' && (value as any)._type === 'between') {
+            qb.andWhere(`${alias}.${key} >= :${key}_start AND ${alias}.${key} <= :${key}_end`, {
+              [`${key}_start`]: (value as any)._value[0],
+              [`${key}_end`]: (value as any)._value[1],
+            });
           } else if (typeof value === 'object' && value !== null && !('_type' in value)) {
             // Handle nested relation filtering if the relation is loaded
             if (options.relations && Array.isArray(options.relations) && options.relations.includes(key)) {
@@ -183,24 +180,93 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
     queryRunner?: QueryRunner,
   ): Promise<T | null> {
     try {
-      const defaultWhere = { deleted_at: null } as unknown as FindOptionsWhere<T>;
-
-      const finalOptions: FindOneOptions<T> = {
-        ...options,
-        where: { ...defaultWhere, ...(options?.where) },
-      };
-
       const repository = queryRunner
         ? queryRunner.manager.getRepository(this.repo.target)
         : this.repo;
 
-      const entity = await repository.findOne(finalOptions);
+      if (!options?.where) {
+        const finalOptions: FindOneOptions<T> = { ...options };
+        return await repository.findOne(finalOptions);
+      }
 
+      const whereObj: any = options.where as any;
+
+      // Detect nested/complex where that targets relations (object values)
+      const hasNested = Object.values(whereObj).some(v => typeof v === 'object' && v !== null);
+
+      if (!options?.relations && !hasNested) {
+        const finalOptions: FindOneOptions<T> = {
+          ...options,
+          where: { ...(options?.where) },
+        };
+        return await repository.findOne(finalOptions);
+      }
+
+      // For relation-heavy or nested-where queries, build queryBuilder explicitly
+      const alias = 'entity';
+      const qb = repository.createQueryBuilder(alias);
+
+      // Relations - support nested relations with '.' separation, arbitrary depth
+      const joinedAliases = new Set<string>();
+      if (options?.relations) {
+        (options.relations as string[]).forEach(relation => {
+          if (relation.includes('.')) {
+            const parts = relation.split('.');
+            let currentAlias = alias;
+            for (let i = 0; i < parts.length; i++) {
+              const nextAlias = i === parts.length - 1 ? parts[i] : `${currentAlias}_${parts[i]}`;
+              const joinPath = i === 0 ? `${alias}.${parts[i]}` : `${currentAlias}.${parts[i]}`;
+              if (!joinedAliases.has(nextAlias)) {
+                qb.leftJoinAndSelect(joinPath, nextAlias);
+                joinedAliases.add(nextAlias);
+              }
+              currentAlias = nextAlias;
+            }
+          } else {
+            if (!joinedAliases.has(relation)) {
+              qb.leftJoinAndSelect(`${alias}.${relation}`, relation);
+              joinedAliases.add(relation);
+            }
+          }
+        });
+      }
+
+      // Apply where clauses (best-effort mapping for nested relation objects)
+      for (const [key, value] of Object.entries(whereObj)) {
+        if (value && typeof value === 'object' && (value as any)._type === 'between') {
+          qb.andWhere(`${alias}.${key} >= :${key}_start AND ${alias}.${key} <= :${key}_end`, {
+            [`${key}_start`]: (value as any)._value[0],
+            [`${key}_end`]: (value as any)._value[1],
+          });
+        } else if (typeof value === 'object' && value !== null && !('_type' in value)) {
+          // relation object filtering
+          if ('id' in value && Object.keys(value).length === 1) {
+            if (!joinedAliases.has(key)) {
+              qb.leftJoin(`${alias}.${key}`, key);
+              joinedAliases.add(key);
+            }
+            qb.andWhere(`${key}.id = :${key}_id`, { [`${key}_id`]: value.id });
+          } else {
+            // nested object with multiple fields — join and apply subfield filters
+            if (!joinedAliases.has(key)) {
+              qb.leftJoin(`${alias}.${key}`, key);
+              joinedAliases.add(key);
+            }
+            for (const subKey in value) {
+              qb.andWhere(`${key}.${subKey} = :${key}_${subKey}`, { [`${key}_${subKey}`]: value[subKey] });
+            }
+          }
+        } else {
+          qb.andWhere(`${alias}.${key} = :${key}`, { [key]: value });
+        }
+      }
+
+      const entity = await qb.getOne();
       return entity;
     } catch (error) {
-      throw new Error(
-        `DAL.findOne failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      // Include some debug context for intermittent issues
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`DAL.findOne failed: ${msg}`);
     }
   }
 

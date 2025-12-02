@@ -6,7 +6,7 @@ export class Woreda {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ unique: true })
   name: string;
 
   @ManyToOne(() => Zone, (zone) => zone.woredas, {
