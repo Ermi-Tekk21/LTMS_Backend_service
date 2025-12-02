@@ -6,7 +6,7 @@ export class Region {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ unique: true })
   name: string;
 
   @OneToMany(() => Zone, zone => zone.region)
