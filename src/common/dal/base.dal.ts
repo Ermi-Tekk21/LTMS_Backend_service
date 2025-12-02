@@ -72,9 +72,6 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       const alias = 'entity';
       const qb = repository.createQueryBuilder(alias);
 
-      // Soft delete filter
-      qb.where(`${alias}.deleted_at IS NULL`);
-
       // Relations - support nested relations with '.' separation, arbitrary depth
       if (options?.relations) {
         const joinedAliases = new Set<string>();
@@ -104,11 +101,11 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       if (options?.where) {
         const where = options.where as Record<string, any>;
         for (const [key, value] of Object.entries(where)) {
-              if (value && typeof value === 'object' && (value as any)._type === 'between') {
-                qb.andWhere(`${alias}.${key} >= :${key}_start AND ${alias}.${key} <= :${key}_end`, {
-                  [`${key}_start`]: (value as any)._value[0],
-                  [`${key}_end`]: (value as any)._value[1],
-                });
+          if (value && typeof value === 'object' && (value as any)._type === 'between') {
+            qb.andWhere(`${alias}.${key} >= :${key}_start AND ${alias}.${key} <= :${key}_end`, {
+              [`${key}_start`]: (value as any)._value[0],
+              [`${key}_end`]: (value as any)._value[1],
+            });
           } else if (typeof value === 'object' && value !== null && !('_type' in value)) {
             // Handle nested relation filtering if the relation is loaded
             if (options.relations && Array.isArray(options.relations) && options.relations.includes(key)) {
@@ -187,7 +184,6 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
         ? queryRunner.manager.getRepository(this.repo.target)
         : this.repo;
 
-      // If no where provided, simple case — apply deleted_at filter and return
       if (!options?.where) {
         const finalOptions: FindOneOptions<T> = { ...options };
         return await repository.findOne(finalOptions);
@@ -198,7 +194,6 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       // Detect nested/complex where that targets relations (object values)
       const hasNested = Object.values(whereObj).some(v => typeof v === 'object' && v !== null);
 
-      // If there are no relations requested and where is simple, merge deleted_at safely
       if (!options?.relations && !hasNested) {
         const finalOptions: FindOneOptions<T> = {
           ...options,
@@ -235,9 +230,6 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
           }
         });
       }
-
-      // Ensure we only filter deleted_at on the root entity alias
-      qb.where(`${alias}.deleted_at IS NULL`);
 
       // Apply where clauses (best-effort mapping for nested relation objects)
       for (const [key, value] of Object.entries(whereObj)) {
