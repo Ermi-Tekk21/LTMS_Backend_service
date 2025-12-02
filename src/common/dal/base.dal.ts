@@ -183,15 +183,13 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
     queryRunner?: QueryRunner,
   ): Promise<T | null> {
     try {
-      const defaultWhere = { deleted_at: null } as unknown as FindOptionsWhere<T>;
-
       const repository = queryRunner
         ? queryRunner.manager.getRepository(this.repo.target)
         : this.repo;
 
       // If no where provided, simple case — apply deleted_at filter and return
       if (!options?.where) {
-        const finalOptions: FindOneOptions<T> = { ...options, where: defaultWhere };
+        const finalOptions: FindOneOptions<T> = { ...options };
         return await repository.findOne(finalOptions);
       }
 
@@ -204,7 +202,7 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       if (!options?.relations && !hasNested) {
         const finalOptions: FindOneOptions<T> = {
           ...options,
-          where: { ...defaultWhere, ...(options?.where) },
+          where: { ...(options?.where) },
         };
         return await repository.findOne(finalOptions);
       }
