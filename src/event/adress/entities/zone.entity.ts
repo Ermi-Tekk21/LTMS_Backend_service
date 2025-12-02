@@ -7,7 +7,7 @@ export class Zone {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ unique: true })
   name: string;
 
   @ManyToOne(() => Region, region => region.zones, { onDelete: 'CASCADE' })
