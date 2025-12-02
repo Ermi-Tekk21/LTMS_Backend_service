@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { UUID } from 'crypto';
-import { community_type, event_status } from 'src/common/enums/status_enums';
+import { attendance, community_type, event_status } from 'src/common/enums/status_enums';
 import { EventDAL } from 'src/event/dal/event.dal';
+import { EventDateDal } from 'src/event/event_date/dal/event_date.dal';
 import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
+import { ParticipantSessionMapDal } from 'src/event/participant/dal/participant_session_map.dal';
 import { Participant } from 'src/event/participant/entities/participant.entity';
 import { Between, FindOptionsWhere } from 'typeorm';
 
@@ -10,7 +12,9 @@ import { Between, FindOptionsWhere } from 'typeorm';
 export class DashboardReportService {
     constructor(
         private readonly participantDAL: ParticipantDAL,
-        private readonly eventDal: EventDAL
+        private readonly ParticipantSessionMapDal: ParticipantSessionMapDal,
+        private readonly eventDal: EventDAL,
+        private readonly eventDateDal: EventDateDal
     ) { }
 
     private getDateRange(period?: 'week' | 'month' | 'year') {
@@ -34,6 +38,55 @@ export class DashboardReportService {
         return { startDate, endDate: now };
     }
 
+    //helper function for checking weather a participant participate 2/3 of atleast one event
+    async isValidParticipant(participant: Participant): Promise<boolean> {
+        try {
+
+            const { data: sessionsMap } = await this.ParticipantSessionMapDal.findAll({
+                where: {
+                    participant: {
+                        id: participant.id
+                    }
+                }, relations: ['participant', 'event_session', 'event_session.event_date', 'event_session.event_date.event']
+            })
+
+            const events = Array.from(
+                new Map(
+                    sessionsMap.flatMap(s => s.event_session.event_date.event)
+                        .map(event => [event.id, event])
+                ).values()
+            );
+
+            for (const event of events) {
+                const numberOfDatesOfEvent = await this.eventDateDal.count({
+                    where: {
+                        event: {
+                            id: event.id
+                        }
+                    }
+                })
+                const minDate = Math.ceil(0.667 * numberOfDatesOfEvent);
+                const presenceDateOfParticipant = Math.ceil(
+                    await this.ParticipantSessionMapDal.count({
+                        where: {
+                            participant: { id: participant.id },
+                            event_session: { event_date: { event: { id: event.id } } },
+                            attendance: { status: attendance.PRESENT }
+                        }
+                    }) / 2
+                );
+
+                if (presenceDateOfParticipant >= minDate && presenceDateOfParticipant !== 0) {
+                    return true;
+                }
+            }
+            return false
+        } catch (error) {
+            console.error(error);
+        }
+        return true
+    }
+
     async loadParticipantStats(eventId?: UUID, period?: 'week' | 'month' | 'year') {
         let where: FindOptionsWhere<Participant> = {};
         if (eventId) {
@@ -46,6 +99,19 @@ export class DashboardReportService {
         }
 
         const totalParticipants = await this.participantDAL.count({ where });
+        const totparticipants = (await this.participantDAL.findAll()).data
+        const participantWhoParticipateMoreThanTwoThirds: Participant[] = []
+        let maleValid = 0;
+        let femaleValid = 0;
+
+        for (const participant of totparticipants) {
+            const isValid = await this.isValidParticipant(participant);
+            if (isValid) {
+                participantWhoParticipateMoreThanTwoThirds.push(participant);
+                if (participant.gender === 'male') maleValid++;
+                else if (participant.gender === 'female') femaleValid++;
+            }
+        }
 
         const ageGroups = [
             { label: 'under_18', min: 0, max: 17 },
@@ -156,7 +222,10 @@ export class DashboardReportService {
                 male,
                 female,
                 // occupationStats,
-                regionStats
+                regionStats,
+                "participantsWithAtLeastTwoThirdsEventParticipation": participantWhoParticipateMoreThanTwoThirds.length,
+                maleParticipantsWithAtLeastTwoThirds: maleValid,
+                femaleParticipantsWithAtLeastTwoThirds: femaleValid
             }
         };
     }
