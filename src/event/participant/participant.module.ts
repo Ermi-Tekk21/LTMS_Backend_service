@@ -5,7 +5,7 @@ import { Participant } from './entities/participant.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventModule } from '../event.module';
 import { ParticipantDAL } from './dal/participant.dal';
-import { LocationModule } from '../adress/zone.module';
+import { LocationModule } from '../adress/location.module';
 import { ParticipantSessionMapDal } from './dal/participant_session_map.dal';
 
 @Module({
