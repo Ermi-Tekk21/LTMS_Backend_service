@@ -30,7 +30,6 @@ export class ParticipantService {
     await queryRunner.startTransaction();
 
     try {
-      // Create participant
       const participant = await this.participantDAL.create(
         { ...dto, created_by },
         queryRunner,
