@@ -56,7 +56,7 @@ export class EventController {
       order: parsedOrder,
     });
   }
-  
+
   @Permission('read', 'event')
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -168,11 +168,11 @@ export class EventController {
 
   @Permission('delete', 'event')
   @Delete(':id')
-  remove(@Param('id') id: string,@CurrentUser() user: any,) {
-    return this.eventService.remove(id,user.userId);
+  remove(@Param('id') id: string, @CurrentUser() user: any,) {
+    return this.eventService.remove(id, user.userId);
   }
 
-   @Permission('read', 'event')
+  @Permission('read', 'event')
   @Get('attendance/:eventId/pdf')
   async downloadAttendancePdf(
     @Param('eventId') eventId: string,
@@ -180,19 +180,19 @@ export class EventController {
     @Query('report') report: boolean,
   ) {
     try {
-      // Extract Authorization header from the underlying request object
       const reqAny = (res as any).req;
       const authHeader: string | undefined =
         reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
 
-      // Normalize and strip Bearer prefix if present
       const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+      const reportQuery = (reqAny as any)?.query?.report;
+      const normalizedReport =
+        typeof reportQuery === 'string'
+          ? reportQuery.toLowerCase() === 'true'
+          : Boolean(reportQuery);
+      report = normalizedReport;
 
-      // token is now available for use (e.g., pass to service, logging, etc.)
-      console.log('extracted token:', token);
-
-      report = !report ? false : true
-      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, token as string, report )
+      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, token as string, report)
 
       res.set({
         'Content-Type': 'application/pdf',

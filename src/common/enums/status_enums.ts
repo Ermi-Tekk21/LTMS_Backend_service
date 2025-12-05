@@ -38,10 +38,15 @@ export enum community_type {
 }
 
 export enum attendance {
-    PRESENT = 'present',
-    ABSENT = 'absent'
+    PRESENT = 'Present',
+    ABSENT = 'Absent'
 }
 export enum gender {
     MALE = 'male',
     FEMALE = 'female'
+}
+
+export enum reportType {
+    EMPTY_ATT = '',
+    ATT_REP = 'Report'
 }

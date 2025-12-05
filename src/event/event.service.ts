@@ -7,7 +7,7 @@ import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from 'src/document/document.service';
-import { doc_type, event_status } from 'src/common/enums/status_enums';
+import { attendance, doc_type, event_status, reportType } from 'src/common/enums/status_enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
@@ -348,6 +348,7 @@ export class EventService {
       }
       const participants: Participant[] = event?.participants
       const sessions: EventSession[] = event?.event_dates.flatMap(date => date?.event_sessions)
+
       for (const session of sessions) {
         for (const participant of participants) {
           const sessionParticipantExist = await this.sessionParticipantMapRepo.findOne({
@@ -871,7 +872,15 @@ export class EventService {
         names.find(item => item.locale === 'AM')?.key ||
         names[0]?.key;
 
-      return String(projectName);
+      // Capitalize each word in the project name
+      const capitalizeWords = (s: string) =>
+        s
+          .trim()
+          .split(/\s+/)
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(' ');
+
+      return capitalizeWords(String(projectName));
     } catch (err) {
       console.error(err)
       const msg = err instanceof Error ? err.message : String(err);
@@ -880,21 +889,23 @@ export class EventService {
   }
 
   async generateAttendancePdf(eventId: string, token: string, report: boolean): Promise<Buffer> {
+    const logMessage = report ? 'generating atteandance report ...' : 'generating attendance ...';
+    console.log(logMessage);
     try {
-const event = await this.eventDAL.findOne({
-  where: { id: eventId },
-  relations: [
-    'participants',
-    'participants.session_participant_maps',
-    'participants.session_participant_maps.event_session',
-'participants.session_participant_maps.participant',
-'event_dates.event_sessions.session_participant_maps.participant',
-    'event_dates',
-    'event_dates.event_sessions',
-    'event_dates.event_sessions.session_participant_maps',
-    'event_dates.event_sessions.session_participant_maps.event_session',
-  ],
-});
+      const event = await this.eventDAL.findOne({
+        where: { id: eventId },
+        relations: [
+          'participants',
+          'participants.session_participant_maps',
+          'participants.session_participant_maps.event_session',
+          'participants.session_participant_maps.participant',
+          'event_dates.event_sessions.session_participant_maps.participant',
+          'event_dates',
+          'event_dates.event_sessions',
+          'event_dates.event_sessions.session_participant_maps',
+          'event_dates.event_sessions.session_participant_maps.event_session',
+        ],
+      });
 
 
       if (!event) throw new Error('Event not found');
@@ -1049,59 +1060,73 @@ const event = await this.eventDAL.findOne({
           headerRowsCount = 3;
         }
 
+        function getMark(status: attendance | null, report: boolean) {
+          if (!report) return '';        // When not generating report, leave blank
+          if (status === attendance.PRESENT) return 'P';
+          if (status === attendance.ABSENT) return 'A';
+          if (status === null) return 'N/A';
+        }
+
         // Participant pages for this date group
         for (let i = 0; i < participants.length; i += participantsPerPage) {
           const pageParticipants = participants.slice(i, i + participantsPerPage);
           const tableBody: any[] = [...tableHeader];
 
           for (let j = 0; j < pageParticipants.length; j++) {
-            const p = pageParticipants[j];
+            function normalizeStatus(status: attendance | null): 'present' | 'absent' | null {
+              if (status === attendance.PRESENT) return 'present';
+              if (status === attendance.ABSENT) return 'absent';
+              return null;
+            }
 
-            const attendanceColumns = dateSet.flatMap(date => {
-              if (report) {
-                const eventDate = event.event_dates.find(ed => new Date(ed.date).toLocaleDateString() === new Date(date).toLocaleDateString());
+            function displayCell(val: 'present' | 'absent' | null, report: boolean) {
+              if (report && val === null) return { text: 'N/B' };
+              if (report && val === 'present') return { text: 'P' };
+              if (report && val === 'absent') return { text: 'A' };
+              return { text: '' };
+            }
 
-                if (!eventDate) return isDayBased ? [''] : ['', ''];
+            for (let j = 0; j < pageParticipants.length; j++) {
+              const p = pageParticipants[j];
+
+              const attendanceColumns = dateSet.flatMap(date => {
+                const eventDate = event.event_dates.find(
+                  ed => new Date(ed.date).toLocaleDateString() === new Date(date).toLocaleDateString()
+                );
+
+                if (!eventDate) return isDayBased ? [displayCell(null, report)] : [displayCell(null, report), displayCell(null, report)];
 
                 if (isDayBased) {
-
-                  const session = (eventDate.event_sessions || [])[0]; // Assuming one session for day-based
-                  if (!session) return [''];
-
-                  const map = (p.session_participant_maps || []).find(m => m.event_session.id === session.id);
-                  const status = map?.attendance?.status;
-                  return [status === 'Present' ? '✔' : status === 'Absent' ? 'x' : ''];
+                  const session = (eventDate.event_sessions || [])[0];
+                  const map = session ? (p.session_participant_maps || []).find(m => m.event_session.id === session.id) : undefined;
+                  const status = normalizeStatus(map?.attendance?.status ?? null);
+                  return [displayCell(status, report)];
                 } else {
-
                   const morningSession = (eventDate.event_sessions || []).find(s => new Date(s.starts_at).getHours() < 12);
                   const afternoonSession = (eventDate.event_sessions || []).find(s => new Date(s.starts_at).getHours() >= 12);
 
+                  const morningMap = morningSession?.session_participant_maps[0]
+                  const afternoonMap = afternoonSession?.session_participant_maps[0]
 
-                  const morningMap = morningSession ? (p.session_participant_maps || []).find(m => m.event_session.id === morningSession.id) : undefined;
-                  const afternoonMap = afternoonSession ? (p.session_participant_maps || []).find(m => m.event_session.id === afternoonSession.id) : undefined;
+                  const morningStatus = normalizeStatus(morningMap?.attendance?.status ?? null);
+                  const afternoonStatus = normalizeStatus(afternoonMap?.attendance?.status ?? null);
 
-                  const morningStatus = morningMap?.attendance?.status;
-
-                  const afternoonStatus = afternoonMap?.attendance?.status;
-
-
-                  return [
-                    morningStatus === 'Present' ? '✔' : morningStatus === 'Absent' ? 'x' : '',
-                    afternoonStatus === 'Present' ? '✔' : afternoonStatus === 'Absent' ? 'x' : ''
-                  ];
+                  return [displayCell(morningStatus, report), displayCell(afternoonStatus, report)];
                 }
-              } else {
-                return isDayBased ? [''] : ['', ''];
-              }
-            });
+              });
 
-            tableBody.push([
-              String(rowNumber++),
-              `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim(),
-              p.gender ?? '',
-              p.phone ?? '',
-              ...attendanceColumns,
-            ]);
+              // Build row safely (no undefined allowed!)
+              const row = [
+                { text: String(rowNumber++) },
+                { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
+                { text: p.gender ?? '-' },
+                { text: p.phone ?? '-' },
+                ...attendanceColumns
+              ];
+
+              tableBody.push(row);
+            }
+
           }
 
           const remainingRows = participantsPerPage - pageParticipants.length;
@@ -1126,9 +1151,10 @@ const event = await this.eventDAL.findOne({
             ]);
           }
 
+          const reportTypeIndicator: reportType = report ? reportType.ATT_REP : reportType.EMPTY_ATT
           content.push(
             {
-              text: `${event.name} Attendance Sheet`,
+              text: `${event.name} Attendance Sheet ${reportTypeIndicator}`,
               style: 'header',
               margin: [0, 5, 0, 15],
             },
@@ -1176,7 +1202,7 @@ const event = await this.eventDAL.findOne({
 
       // ensure session maps exist before generating (if required)
       await this.participantSessionMap(eventId);
-
+      console.log("generated.");
       return new Promise<Buffer>((resolve, reject) => {
         pdfDoc.on('data', (chunk) => chunks.push(chunk));
         pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
