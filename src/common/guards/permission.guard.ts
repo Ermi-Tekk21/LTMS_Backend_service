@@ -9,14 +9,14 @@ export class PermissionGuard implements CanActivate {
 
  constructor(private readonly reflector: Reflector) {
   
-  const url =
-    process.env.GRAPHQL_URL ||
-    'http://13.50.253.205:3344/graphql';
+  const url = process.env.GRAPHQL_URL;
+
+  if (!url) {
+    throw new Error('GRAPHQL_URL environment variable is not defined');
+  }
 
   const apiKey =
-    process.env.INTERNAL_API_KEY ||
-    'dB+2Bo9VBHrMZQQsmS3pP+TPo0OjWEYo2guAPm9s';
-
+    process.env.INTERNAL_API_KEY;
   this.graphqlClient = new GraphQLClient(url, {
     headers: {
       'x-internal-api-key': apiKey,
