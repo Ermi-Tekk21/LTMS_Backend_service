@@ -177,6 +177,7 @@ export class EventController {
   async downloadAttendancePdf(
     @Param('eventId') eventId: string,
     @Res() res: Response,
+    @Query('report') report: boolean,
   ) {
     try {
       // Extract Authorization header from the underlying request object
@@ -190,7 +191,9 @@ export class EventController {
       // token is now available for use (e.g., pass to service, logging, etc.)
       console.log('extracted token:', token);
 
-      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, token as string);
+      report = !report ? false : true
+      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, token as string, report )
+
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="attendance-${eventId}.pdf"`,

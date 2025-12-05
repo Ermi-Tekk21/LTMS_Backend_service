@@ -24,6 +24,7 @@ import { CapitalizeInterceptor } from 'src/common/database/capitalize-response.i
 import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
 import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
+import { report } from 'process';
 
 @Injectable()
 export class EventService {
@@ -579,7 +580,7 @@ export class EventService {
       ) throw error;
 
       throw new InternalServerErrorException(
-        `Failed to remove trainers from event: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to generate attendance PDF: ${error instanceof Error ? error.message : String(error)}`
       );
     } finally {
       await queryRunner.release();
@@ -785,10 +786,11 @@ export class EventService {
   }
 
   async findOne(id: string) {
-    return await this.eventDAL.findOne({
+    const res = await this.eventDAL.findOne({
       where: { id: id },
       relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates.event_sessions', 'event_dates.event_sessions.session_participant_maps', 'event_dates.event_sessions.session_participant_maps.participant']
     })
+    return res;
   }
 
   async eventDocsPath(id: string, doc_type?: doc_type) {
@@ -877,15 +879,30 @@ export class EventService {
     }
   }
 
-  async generateAttendancePdf(eventId: string, token: string): Promise<Buffer> {
+  async generateAttendancePdf(eventId: string, token: string, report: boolean): Promise<Buffer> {
     try {
-      const event = await this.eventDAL.findOne({
-        where: { id: eventId },
-        relations: ['participants', 'event_dates'],
-      });
+const event = await this.eventDAL.findOne({
+  where: { id: eventId },
+  relations: [
+    'participants',
+    'participants.session_participant_maps',
+    'participants.session_participant_maps.event_session',
+'participants.session_participant_maps.participant',
+'event_dates.event_sessions.session_participant_maps.participant',
+    'event_dates',
+    'event_dates.event_sessions',
+    'event_dates.event_sessions.session_participant_maps',
+    'event_dates.event_sessions.session_participant_maps.event_session',
+  ],
+});
+
 
       if (!event) throw new Error('Event not found');
-
+      if (event.event_status == event_status.INITATED && report) {
+        throw new BadRequestException(
+          `Attendance report can not be generated for a initiated event.`
+        )
+      }
       const projectName = await this.getProjectName(token, event.project_id as UUID);
 
       // Capitalize participant data for consistent display in PDF
@@ -1039,12 +1056,51 @@ export class EventService {
 
           for (let j = 0; j < pageParticipants.length; j++) {
             const p = pageParticipants[j];
+
+            const attendanceColumns = dateSet.flatMap(date => {
+              if (report) {
+                const eventDate = event.event_dates.find(ed => new Date(ed.date).toLocaleDateString() === new Date(date).toLocaleDateString());
+
+                if (!eventDate) return isDayBased ? [''] : ['', ''];
+
+                if (isDayBased) {
+
+                  const session = (eventDate.event_sessions || [])[0]; // Assuming one session for day-based
+                  if (!session) return [''];
+
+                  const map = (p.session_participant_maps || []).find(m => m.event_session.id === session.id);
+                  const status = map?.attendance?.status;
+                  return [status === 'Present' ? '✔' : status === 'Absent' ? 'x' : ''];
+                } else {
+
+                  const morningSession = (eventDate.event_sessions || []).find(s => new Date(s.starts_at).getHours() < 12);
+                  const afternoonSession = (eventDate.event_sessions || []).find(s => new Date(s.starts_at).getHours() >= 12);
+
+
+                  const morningMap = morningSession ? (p.session_participant_maps || []).find(m => m.event_session.id === morningSession.id) : undefined;
+                  const afternoonMap = afternoonSession ? (p.session_participant_maps || []).find(m => m.event_session.id === afternoonSession.id) : undefined;
+
+                  const morningStatus = morningMap?.attendance?.status;
+
+                  const afternoonStatus = afternoonMap?.attendance?.status;
+
+
+                  return [
+                    morningStatus === 'Present' ? '✔' : morningStatus === 'Absent' ? 'x' : '',
+                    afternoonStatus === 'Present' ? '✔' : afternoonStatus === 'Absent' ? 'x' : ''
+                  ];
+                }
+              } else {
+                return isDayBased ? [''] : ['', ''];
+              }
+            });
+
             tableBody.push([
               String(rowNumber++),
               `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim(),
               p.gender ?? '',
               p.phone ?? '',
-              ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
+              ...attendanceColumns,
             ]);
           }
 
@@ -1134,7 +1190,7 @@ export class EventService {
       ) throw error;
 
       throw new InternalServerErrorException(
-        `Failed to remove trainers from event: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to generate attendance: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -1150,8 +1206,6 @@ export class EventService {
         where: { id: eventId },
         relations: ['event_dates', 'event_dates.event_sessions', 'event_dates.event_sessions.session_participant_maps']
       });
-      console.log(event);
-      console.log(sessionParticipanrMaps);
 
       if (!event) {
         throw new NotFoundException(`Event with ID ${eventId} not found`);
