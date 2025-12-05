@@ -3,19 +3,26 @@ import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { GraphQLClient, gql } from 'graphql-request';
 import { PERMISSION_KEY } from '../decorators/permission.decorator';
-
 @Injectable()
 export class PermissionGuard implements CanActivate {
   private readonly graphqlClient: GraphQLClient;
 
-  constructor(private readonly reflector: Reflector) {
-    // Initialize GraphQL client for the permission microservice
-    this.graphqlClient = new GraphQLClient('http://164.160.187.141:3344/graphql', {
-      headers: { 
-        'x-internal-api-key': 'dB+2Bo9VBHrMZQQsmS3pP+TPo0OjWEYo2guAPm9s'
-      },
-    });
-  }
+ constructor(private readonly reflector: Reflector) {
+  
+  const url =
+    process.env.GRAPHQL_URL ||
+    'http://13.50.253.205:3344/graphql';
+
+  const apiKey =
+    process.env.INTERNAL_API_KEY ||
+    'dB+2Bo9VBHrMZQQsmS3pP+TPo0OjWEYo2guAPm9s';
+
+  this.graphqlClient = new GraphQLClient(url, {
+    headers: {
+      'x-internal-api-key': apiKey,
+    },
+  });
+}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Get permission metadata from decorator
@@ -43,11 +50,9 @@ export class PermissionGuard implements CanActivate {
     `;
 
     const variables = { userId: user.userId, perm };
-console.log('PermissionGuard variables:', variables);
     // Call permission service
     const response = await this.graphqlClient.request(query, variables);
     const allowed = response.userHasPermission;
-
     console.log('Permission check for user:', user.userId, perm, '=>', allowed);
 
     if (!allowed) throw new ForbiddenException('Permission denied');
