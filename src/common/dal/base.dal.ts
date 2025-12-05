@@ -80,7 +80,7 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
             const parts = relation.split('.');
             let currentAlias = alias;
             for (let i = 0; i < parts.length; i++) {
-              const nextAlias = i === parts.length - 1 ? parts[i] : `${currentAlias}_${parts[i]}`;
+              const nextAlias = parts.slice(0, i + 1).join('_');
               const joinPath = i === 0 ? `${alias}.${parts[i]}` : `${currentAlias}.${parts[i]}`;
               if (!joinedAliases.has(nextAlias)) {
                 qb.leftJoinAndSelect(joinPath, nextAlias);
@@ -214,7 +214,7 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
             const parts = relation.split('.');
             let currentAlias = alias;
             for (let i = 0; i < parts.length; i++) {
-              const nextAlias = i === parts.length - 1 ? parts[i] : `${currentAlias}_${parts[i]}`;
+              const nextAlias = parts.slice(0, i + 1).join('_');
               const joinPath = i === 0 ? `${alias}.${parts[i]}` : `${currentAlias}.${parts[i]}`;
               if (!joinedAliases.has(nextAlias)) {
                 qb.leftJoinAndSelect(joinPath, nextAlias);
