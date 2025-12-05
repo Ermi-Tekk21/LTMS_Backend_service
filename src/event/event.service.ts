@@ -1098,7 +1098,8 @@ export class EventService {
 
                 if (isDayBased) {
                   const session = (eventDate.event_sessions || [])[0];
-                  const map = session ? (p.session_participant_maps || []).find(m => m.event_session.id === session.id) : undefined;
+                  // const map = session ? (p.session_participant_maps || []).find(m => m.event_session.id === session.id) : undefined;
+                  const map = session.session_participant_maps[0]
                   const status = normalizeStatus(map?.attendance?.status ?? null);
                   return [displayCell(status, report)];
                 } else {
