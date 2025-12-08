@@ -7,7 +7,7 @@ import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from 'src/document/document.service';
-import { attendance, doc_type, event_status, reportType, session_type } from 'src/common/enums/status_enums';
+import { attendance, doc_type, event_status, reportType, session_type } from 'src/common/constants/enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';

@@ -1,5 +1,5 @@
 import { IsEnum, IsOptional, IsUUID, IsString } from 'class-validator';
-import { doc_type } from 'src/common/enums/status_enums';
+import { doc_type } from 'src/common/constants/enums';
 
 export class CreateDocumentDto {
   @IsString()

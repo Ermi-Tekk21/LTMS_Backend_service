@@ -5,7 +5,7 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
-import { doc_type, event_status } from 'src/common/enums/status_enums';
+import { doc_type, event_status } from 'src/common/constants/enums';
 import type { UUID } from 'crypto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Permission } from 'src/common/decorators/permission.decorator';

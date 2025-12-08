@@ -1,5 +1,5 @@
 import {  IsString, IsUUID,IsEnum } from 'class-validator';
-import { community_type } from 'src/common/enums/status_enums';
+import { community_type } from 'src/common/constants/enums';
 
 export class CreateParticipantDto {
   @IsString()

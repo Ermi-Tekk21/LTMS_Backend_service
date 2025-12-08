@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { Event } from 'src/event/entities/event.entity';
 import { SessionParticipantMap } from './sessionParticipantMap.entity';
-import { community_type } from 'src/common/enums/status_enums';
+import { community_type } from 'src/common/constants/enums';
 @Entity('participant')
 export class Participant {
     @PrimaryGeneratedColumn('uuid')

@@ -13,7 +13,7 @@ import {
 import { EventDate } from "src/event/event_date/entities/event_date.entity";
 import { SessionParticipantMap } from "src/event/participant/entities/sessionParticipantMap.entity";
 import { Trainer } from "src/event/trainer/entities/trainer.entity";
-import { session_type } from "src/common/enums/status_enums";
+import { session_type } from "src/common/constants/enums";
 
 @Entity('event-session')
 export class EventSession {
