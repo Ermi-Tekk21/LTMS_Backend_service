@@ -9,42 +9,42 @@ import { map } from 'rxjs/operators';
 
 @Injectable()
 export class CapitalizeInterceptor implements NestInterceptor {
-  // List of fields to skip
-  private readonly exceptions = ['email',];
+  private readonly exceptions = ['email'];
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    return next.handle().pipe(
-      map((data) => this.capitalizeResponse(data))
-    );
+    return next.handle().pipe(map((data) => this.capitalizeResponse(data)));
   }
 
-  private capitalizeResponse(data: any): any {
+  private capitalizeResponse(data: any, seen = new WeakSet()): any {
     if (data instanceof Date) return data;
     if (Array.isArray(data)) {
-      return data.map(item => this.capitalizeObject(item));
+      return data.map(item => this.capitalizeObject(item, seen));
     } else if (data && typeof data === 'object') {
-      return this.capitalizeObject(data);
+      return this.capitalizeObject(data, seen);
     }
     return data;
   }
 
-  private capitalizeObject(obj: Record<string, any>): Record<string, any> {
+  private capitalizeObject(obj: Record<string, any>, seen: WeakSet<any>): Record<string, any> {
     if (typeof obj === 'string') return obj;
+    if (seen.has(obj)) return obj; // prevent circular reference
+    seen.add(obj);
 
     const result: Record<string, any> = {};
 
     for (const key of Object.keys(obj)) {
       const value = obj[key];
+
       if (typeof value === 'string') {
         if (this.exceptions.includes(key)) {
-          result[key] = value; // skip
+          result[key] = value;
         } else if (value.length > 0) {
           result[key] = value.charAt(0).toUpperCase() + value.slice(1);
         } else {
           result[key] = value;
         }
       } else if (typeof value === 'object' && value !== null) {
-        result[key] = this.capitalizeResponse(value); // recursive
+        result[key] = this.capitalizeResponse(value, seen); // recursive
       } else {
         result[key] = value;
       }
@@ -53,19 +53,25 @@ export class CapitalizeInterceptor implements NestInterceptor {
     return result;
   }
 
-  static capitalizeData(data: any): any {
-    const exceptions = ['email'];
+  // ---------------- STATIC UTILITY ----------------
+  static capitalizeData(data: any, exceptions: string[] = ['email'], seen = new WeakSet()): any {
     if (data instanceof Date) return data;
     if (Array.isArray(data)) {
-      return data.map(item => this.capitalizeObjectStatic(item, exceptions));
+      return data.map(item => this.capitalizeObjectStatic(item, exceptions, seen));
     } else if (data && typeof data === 'object') {
-      return this.capitalizeObjectStatic(data, exceptions);
+      return this.capitalizeObjectStatic(data, exceptions, seen);
     }
     return data;
   }
 
-  static capitalizeObjectStatic(obj: Record<string, any>, exceptions: string[]): Record<string, any> {
+  private static capitalizeObjectStatic(
+    obj: Record<string, any>,
+    exceptions: string[],
+    seen: WeakSet<any>
+  ): Record<string, any> {
     if (typeof obj === 'string') return obj;
+    if (seen.has(obj)) return obj; // prevent circular reference
+    seen.add(obj);
 
     const result: Record<string, any> = {};
 
@@ -74,14 +80,14 @@ export class CapitalizeInterceptor implements NestInterceptor {
 
       if (typeof value === 'string') {
         if (exceptions.includes(key)) {
-          result[key] = value; // skip
+          result[key] = value;
         } else if (value.length > 0) {
           result[key] = value.charAt(0).toUpperCase() + value.slice(1);
         } else {
           result[key] = value;
         }
       } else if (typeof value === 'object' && value !== null) {
-        result[key] = this.capitalizeData(value); // recursive
+        result[key] = this.capitalizeData(value, exceptions, seen);
       } else {
         result[key] = value;
       }

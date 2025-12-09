@@ -15,6 +15,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
 import { DashboardReportModule } from './dashboard_report/dashboard_report.module';
+import { LocationModule } from './location/location.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -28,7 +29,8 @@ import { DashboardReportModule } from './dashboard_report/dashboard_report.modul
     EventModule,
     EventDateModule,
     EventSessionModule,
-    DashboardReportModule
+    DashboardReportModule,
+    LocationModule
   ],
   controllers: [AppController],
   providers: [
@@ -37,10 +39,10 @@ import { DashboardReportModule } from './dashboard_report/dashboard_report.modul
       provide: APP_GUARD,
       useClass: JwtAuthGuard, // <-- GLOBAL GUARD
     },
-    {
-    provide: APP_GUARD,
-    useClass: PermissionGuard,// permission guard
-},
+//     {
+//     provide: APP_GUARD,
+//     useClass: PermissionGuard,// permission guard
+// },
   ],
 })
 export class AppModule {}

@@ -45,6 +45,11 @@ community_type: community_type;
 
   @IsString()
   woreda: string;
+ @IsString()
+  location_code?:string
+
+  // @IsString()
+  // location_id?:string
 
   @IsString()
   kebele: string;
