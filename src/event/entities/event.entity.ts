@@ -1,4 +1,4 @@
-import { event_status } from 'src/common/constants/enums';
+import { event_status, participant_type } from 'src/common/constants/enums';
 import {
     Column,
     Entity,
@@ -29,6 +29,14 @@ export class Event {
 
     @Column({ type: 'text' })
     name: string;
+
+     @Column({
+            type: 'enum',
+            enum: participant_type,
+            nullable: true,
+        })
+        participant_type:participant_type | null;
+    
 
     @Column({ type: 'text', nullable: true })
     location_id: string;

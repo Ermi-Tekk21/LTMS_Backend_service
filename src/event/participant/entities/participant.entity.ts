@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { Event } from 'src/event/entities/event.entity';
 import { SessionParticipantMap } from './sessionParticipantMap.entity';
-import { community_type } from 'src/common/constants/enums';
+import { community_type, gender, participant_type } from 'src/common/constants/enums';
 @Entity('participant')
 export class Participant {
     @PrimaryGeneratedColumn('uuid')
@@ -28,8 +28,9 @@ export class Participant {
     @Column({ type: 'text' })
     age: string;
 
-    @Column({ type: 'text' })
-    gender: string;
+    @Column({ type: 'enum',
+        enum: gender, })
+    gender: gender;
 
     @Column({ type: 'text', nullable: true })
     disability: string;
@@ -50,12 +51,16 @@ export class Participant {
     })
     community_type: community_type | null;
 
+    @Column({
+        type: 'enum',
+        enum: participant_type,
+        nullable: true,
+    })
+    participant_type:participant_type | null;
+
     @Column({ type: 'text', nullable: true })
     letracy_level: string | null;
 
-    
-    // ADD THESE NEW LOCATION FIELDS
-    // -----------------------------
 
     @Column({ type: 'int', nullable: true })
     location_id: number | null;
@@ -63,7 +68,7 @@ export class Participant {
     @Column({ type: 'text', nullable: true })
     location_code: string | null;
 
-    // ---------------------------------
+    
 
     @Column({ type: 'text' })
     region: string;
@@ -76,6 +81,7 @@ export class Participant {
 
     @Column({ type: 'text' })
     kebele: string;
+
 
     @Column({ type: 'uuid', nullable: true })
     created_by: string;

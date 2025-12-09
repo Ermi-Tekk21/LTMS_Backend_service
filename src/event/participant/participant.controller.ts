@@ -104,7 +104,7 @@ async uploadExcel(
     throw new BadRequestException('Event ID is required.');
   }
 
-  // ✅ Extract token safely from headers
+  //  Extract token safely from headers
   const authHeader = req.headers['authorization'] as string | undefined;
   if (!authHeader) {
     throw new BadRequestException('Authorization token is missing');
@@ -135,16 +135,11 @@ async uploadExcel(
   }
 }
 
-
- 
-
   @Permission('read', 'participant')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.participantService.findOne(id);
   }
-
-  
 
   @Permission('update', 'participant')
   @Patch(':id')
@@ -156,7 +151,6 @@ async uploadExcel(
     return this.participantService.update(id, updateParticipantDto, userId);
   }
 
-  // ---------------- DELETE (SOFT) ----------------
 
   @Permission('delete', 'participant')
   @Delete(':id')

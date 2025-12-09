@@ -60,6 +60,7 @@ export class EventService {
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
         is_day_based: dto.is_day_based,
+        participant_type: dto.participant_type,
         created_by,
       }, queryRunner);
 
