@@ -3,7 +3,7 @@ import { DocumentService } from './document.service';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { doc_type } from 'src/common/enums/status_enums';
+import { doc_type } from 'src/common/constants/enums';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 
 @Controller('document')

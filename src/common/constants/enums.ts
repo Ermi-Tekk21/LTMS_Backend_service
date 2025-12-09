@@ -38,8 +38,12 @@ export enum community_type {
 }
 
 export enum attendance {
-    PRESENT = 'Present',
-    ABSENT = 'Absent'
+    PRESENT = 'present',
+    ABSENT = 'absent'
+}
+export enum session_type {
+    MORNING = 'morning',
+    AFTERNOON = 'afternoon'
 }
 export enum gender {
     MALE = 'male',

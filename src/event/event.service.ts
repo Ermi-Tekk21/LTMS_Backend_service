@@ -7,7 +7,7 @@ import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from 'src/document/document.service';
-import { attendance, doc_type, event_status, reportType } from 'src/common/enums/status_enums';
+import { attendance, doc_type, event_status, reportType, session_type } from 'src/common/constants/enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
@@ -97,19 +97,21 @@ export class EventService {
         afternoonEnd.setHours(17, 0, 0, 0);
 
         // morning session
-        await this.eventSessionService.create({
+        const morningSession = await this.eventSessionService.create({
           event_date: eventDate,
           venue: event.venue,
           starts_at: morningStart,
-          ends_at: morningEnd
+          ends_at: morningEnd,
+          session_type: session_type.MORNING
         }, queryRunner);
 
         //afternoon session
-        await this.eventSessionService.create({
+        const afternoonSession = await this.eventSessionService.create({
           event_date: eventDate,
           venue: event.venue,
           starts_at: afternoonStart,
-          ends_at: afternoonEnd
+          ends_at: afternoonEnd,
+          session_type: session_type.AFTERNOON
         }, queryRunner);
 
       }
@@ -800,7 +802,6 @@ export class EventService {
       where: { id },
       relations: ['documents'],
     });
-    console.log("event id: ", event);
 
     if (!event) throw new Error('Event not found');
 
@@ -809,7 +810,6 @@ export class EventService {
       : event.documents;
 
     const paths = filteredDocs.map(doc => doc.path);
-    console.log("paths: ", paths);
 
     const presignedUrls = await Promise.all(
       paths.map(path => this.documentService.viewDoc(path))
@@ -907,16 +907,15 @@ export class EventService {
         ],
       });
 
-
       if (!event) throw new Error('Event not found');
       if (event.event_status == event_status.INITATED && report) {
         throw new BadRequestException(
           `Attendance report can not be generated for a initiated event.`
         )
       }
+
       const projectName = await this.getProjectName(token, event.project_id as UUID);
 
-      // Capitalize participant data for consistent display in PDF
       if (Array.isArray(event.participants)) {
         event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
         event.participants = event.participants.sort((a, b) =>
@@ -952,7 +951,6 @@ export class EventService {
 
       const participants = event.participants || [];
       const eventDates = (event.event_dates || []).map(d => {
-        // normalize date to readable string
         if (!d) return '';
         if (d.date instanceof Date) return d.date.toLocaleDateString();
         return String(d.date);
@@ -971,13 +969,11 @@ export class EventService {
       const dateGroups = chunkDates(eventDates, datesPerPage);
       const isDayBased = !!event.is_day_based;
 
-      // Create table for each group of dates
       for (let dgIndex = 0; dgIndex < dateGroups.length; dgIndex++) {
         const dateSet = dateGroups[dgIndex];
 
         let rowNumber = 1;
 
-        // Header
         content.push(
           {
             columns: [{ image: logoBase64, width: 100 }],
@@ -998,7 +994,6 @@ export class EventService {
           }
         );
 
-        // Build headers
         let headerRow1: any[];
         let headerRow2: any[] | undefined;
         let tableHeader: any[][];
@@ -1019,10 +1014,12 @@ export class EventService {
             {},
             {},
             {},
-            ...dateSet.flatMap(date => ({ text: date, alignment: 'center', bold: true }))
+            ...dateSet.map(date => ({ text: date, alignment: 'center', bold: true }))
           ];
+
           tableHeader = [headerRow1, headerRow2];
           headerRowsCount = 2;
+
         } else {
           const totalSpan = dateSet.length * 2;
           headerRow1 = [
@@ -1039,10 +1036,7 @@ export class EventService {
             {},
             {},
             {},
-            ...dateSet.flatMap(date => ([
-              { text: date, alignment: 'center', bold: true, colSpan: 2 },
-              {}
-            ]))
+            ...dateSet.flatMap(date => [{ text: date, alignment: 'center', bold: true, colSpan: 2 }, {}])
           ];
 
           const headerRow3 = [
@@ -1050,84 +1044,71 @@ export class EventService {
             {},
             {},
             {},
-            ...dateSet.flatMap(() => ([
+            ...dateSet.flatMap(() => [
               { text: 'Morning', alignment: 'center' },
               { text: 'Afternoon', alignment: 'center' }
-            ]))
+            ])
           ];
 
           tableHeader = [headerRow1, headerRow2, headerRow3];
           headerRowsCount = 3;
         }
 
-        function getMark(status: attendance | null, report: boolean) {
-          if (!report) return '';        // When not generating report, leave blank
-          if (status === attendance.PRESENT) return 'P';
-          if (status === attendance.ABSENT) return 'A';
-          if (status === null) return 'N/A';
-        }
-
-        // Participant pages for this date group
         for (let i = 0; i < participants.length; i += participantsPerPage) {
           const pageParticipants = participants.slice(i, i + participantsPerPage);
           const tableBody: any[] = [...tableHeader];
 
+          function normalizeStatus(status: any): 'present' | 'absent' | null {
+            if (status === attendance.PRESENT) return 'present';
+            if (status === attendance.ABSENT) return 'absent';
+            return null;
+          }
+
+          function displayCell(val: 'present' | 'absent' | null, report: boolean) {
+            if (report && val === null) return { text: 'N/B' };
+            if (report && val === 'present') return { text: 'P' };
+            if (report && val === 'absent') return { text: 'A' };
+            return { text: '' };
+          }
+
           for (let j = 0; j < pageParticipants.length; j++) {
-            function normalizeStatus(status: attendance | null): 'present' | 'absent' | null {
-              if (status === attendance.PRESENT) return 'present';
-              if (status === attendance.ABSENT) return 'absent';
-              return null;
-            }
+            const p = pageParticipants[j];
 
-            function displayCell(val: 'present' | 'absent' | null, report: boolean) {
-              if (report && val === null) return { text: 'N/B' };
-              if (report && val === 'present') return { text: 'P' };
-              if (report && val === 'absent') return { text: 'A' };
-              return { text: '' };
-            }
+            const attendanceColumns = dateSet.flatMap(date => {
+              const eventDate = event.event_dates.find(
+                ed => new Date(ed.date).toLocaleDateString() === new Date(date).toLocaleDateString()
+              );
 
-            for (let j = 0; j < pageParticipants.length; j++) {
-              const p = pageParticipants[j];
+              if (!eventDate)
+                return isDayBased ? [displayCell(null, report)] : [displayCell(null, report), displayCell(null, report)];
 
-              const attendanceColumns = dateSet.flatMap(date => {
-                const eventDate = event.event_dates.find(
-                  ed => new Date(ed.date).toLocaleDateString() === new Date(date).toLocaleDateString()
-                );
+              if (isDayBased) {
+                const session = (eventDate.event_sessions || [])[0];
+                const map = session?.session_participant_maps?.find(m => m.participant?.id === p.id);
+                const status = normalizeStatus(map?.attendance?.status ?? null);
+                return [displayCell(status, report)];
+              } else {
+                const morningSession = (eventDate.event_sessions || []).find(s => s.session_type == "morning");
+                const afternoonSession = (eventDate.event_sessions || []).find(s => s.session_type == "afternoon");
 
-                if (!eventDate) return isDayBased ? [displayCell(null, report)] : [displayCell(null, report), displayCell(null, report)];
+                const morningMap = morningSession?.session_participant_maps?.find(m => String(m.participant?.id).toLowerCase() === String(p.id).toLowerCase());
+                const afternoonMap = afternoonSession?.session_participant_maps?.find(m => String(m.participant?.id).toLowerCase() === String(p.id).toLowerCase());
 
-                if (isDayBased) {
-                  const session = (eventDate.event_sessions || [])[0];
-                  // const map = session ? (p.session_participant_maps || []).find(m => m.event_session.id === session.id) : undefined;
-                  const map = session.session_participant_maps[0]
-                  const status = normalizeStatus(map?.attendance?.status ?? null);
-                  return [displayCell(status, report)];
-                } else {
-                  const morningSession = (eventDate.event_sessions || []).find(s => new Date(s.starts_at).getHours() < 12);
-                  const afternoonSession = (eventDate.event_sessions || []).find(s => new Date(s.starts_at).getHours() >= 12);
+                const morningStatus = normalizeStatus(morningMap?.attendance?.status ?? null);
+                const afternoonStatus = normalizeStatus(afternoonMap?.attendance?.status ?? null);
+                return [displayCell(morningStatus, report), displayCell(afternoonStatus, report)];
+              }
+            });
 
-                  const morningMap = morningSession?.session_participant_maps[0]
-                  const afternoonMap = afternoonSession?.session_participant_maps[0]
+            const row = [
+              { text: String(rowNumber++) },
+              { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
+              { text: p.gender ?? '-' },
+              { text: p.phone ?? '-' },
+              ...attendanceColumns
+            ];
 
-                  const morningStatus = normalizeStatus(morningMap?.attendance?.status ?? null);
-                  const afternoonStatus = normalizeStatus(afternoonMap?.attendance?.status ?? null);
-
-                  return [displayCell(morningStatus, report), displayCell(afternoonStatus, report)];
-                }
-              });
-
-              // Build row safely (no undefined allowed!)
-              const row = [
-                { text: String(rowNumber++) },
-                { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
-                { text: p.gender ?? '-' },
-                { text: p.phone ?? '-' },
-                ...attendanceColumns
-              ];
-
-              tableBody.push(row);
-            }
-
+            tableBody.push(row);
           }
 
           const remainingRows = participantsPerPage - pageParticipants.length;
@@ -1151,8 +1132,7 @@ export class EventService {
               ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
             ]);
           }
-
-          const reportTypeIndicator: reportType = report ? reportType.ATT_REP : reportType.EMPTY_ATT
+          const reportTypeIndicator: reportType = report ? reportType.ATT_REP : reportType.EMPTY_ATT;
           content.push(
             {
               text: `${event.name} Attendance Sheet ${reportTypeIndicator}`,
@@ -1201,15 +1181,16 @@ export class EventService {
       const pdfDoc = printer.createPdfKitDocument(docDefinition);
       const chunks: Uint8Array[] = [];
 
-      // ensure session maps exist before generating (if required)
       await this.participantSessionMap(eventId);
       console.log("generated.");
+
       return new Promise<Buffer>((resolve, reject) => {
         pdfDoc.on('data', (chunk) => chunks.push(chunk));
         pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
         pdfDoc.on('error', reject);
         pdfDoc.end();
       });
+
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -1221,6 +1202,7 @@ export class EventService {
       );
     }
   }
+
 
   async sessionBasedManualAttFill(eventId: UUID, sessionParticipanrMaps: UpdateSessionParticipantStatusDto[]) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -1245,8 +1227,6 @@ export class EventService {
           relations: ['event_session', 'event_session.event_date']
         });
 
-        console.log("map: ", map);
-
         if (!map) {
           throw new NotFoundException(`Session participant map with ID ${item.sessionParticipantMapId} not found`);
         }
@@ -1262,7 +1242,8 @@ export class EventService {
           throw new BadRequestException(`Session participant map ${item.sessionParticipantMapId} does not belong to event ${eventId}`);
         }
         // Update attendance
-        map.attendance = { ...map.attendance, status: item.status };
+        const normalizedStatus = typeof item.status === 'string' ? item.status.trim().toLowerCase() : item.status;
+        map.attendance = { ...map.attendance, status: normalizedStatus };
         await queryRunner.manager.save(map);
       }
       await queryRunner.commitTransaction();
@@ -1328,9 +1309,11 @@ export class EventService {
               event_session: { id: session.id }
             }
           });
+          const normalizedStatus = typeof item.status === 'string' ? item.status.trim().toLowerCase() : item.status;
 
           if (map) {
-            map.attendance = { ...map.attendance, status: item.status };
+
+            map.attendance = { ...map.attendance, status: normalizedStatus };
             await queryRunner.manager.save(map);
             updatedCount++;
           }

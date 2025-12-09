@@ -6,7 +6,7 @@ import { Participant } from './entities/participant.entity';
 import { FindManyOptions, DataSource } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
-import { community_type,gender } from 'src/common/enums/status_enums';
+import { community_type,gender } from 'src/common/constants/enums';
 import { ZoneService } from '../adress/zoneWoreda.service';
 import { LocationService } from 'src/location/location.service';
 @Injectable()
