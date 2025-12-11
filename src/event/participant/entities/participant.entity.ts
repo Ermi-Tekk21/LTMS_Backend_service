@@ -54,7 +54,7 @@ export class Participant {
     @Column({
         type: 'enum',
         enum: participant_type,
-        nullable: true,
+        nullable: false,
     })
     participant_type:participant_type | null;
 

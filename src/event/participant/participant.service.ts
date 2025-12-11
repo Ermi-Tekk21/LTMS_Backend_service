@@ -290,7 +290,7 @@ export class ParticipantService {
 
         if (!location) {
           invalidRows.push({
-            row: participants.indexOf(p) + 2, // +2 because we skipped header
+            row: participants.indexOf(p) + 2, 
             message: `Invalid region/zone/woreda: ${p.region} - ${p.zone} - ${p.woreda}`,
           });
           continue;
