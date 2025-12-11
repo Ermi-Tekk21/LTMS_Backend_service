@@ -9,7 +9,7 @@ import { map } from 'rxjs/operators';
 
 @Injectable()
 export class CapitalizeInterceptor implements NestInterceptor {
-  private readonly exceptions = ['email'];
+  private readonly exceptions = ['email','id'];
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     return next.handle().pipe(map((data) => this.capitalizeResponse(data)));

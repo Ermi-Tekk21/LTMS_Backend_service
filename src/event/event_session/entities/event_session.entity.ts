@@ -47,7 +47,7 @@ export class EventSession {
     @CreateDateColumn({ type: "timestamp" })
     created_at: Date
 
-    @Column({ type: "enum", enum: session_type, nullable: true })
+    @Column({ type: "enum", enum: session_type })
     session_type: session_type | null;
 
     @UpdateDateColumn({ type: "timestamp" })

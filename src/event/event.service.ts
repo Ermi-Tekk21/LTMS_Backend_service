@@ -1097,6 +1097,7 @@ export class EventService {
 
                 const morningStatus = normalizeStatus(morningMap?.attendance?.status ?? null);
                 const afternoonStatus = normalizeStatus(afternoonMap?.attendance?.status ?? null);
+                
                 return [displayCell(morningStatus, report), displayCell(afternoonStatus, report)];
               }
             });
