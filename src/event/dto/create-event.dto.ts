@@ -21,7 +21,7 @@ export class CreateEventDto {
   venue: string;
 
   @IsEnum(participant_type)
-  participant_type: participant_type;
+   participant_type: participant_type[];
 
   @IsOptional()
   @IsArray()

@@ -29,15 +29,13 @@ export class Event {
 
     @Column({ type: 'text' })
     name: string;
-
-     @Column({
-            type: 'enum',
-            enum: participant_type,
-            nullable: true,
-        })
-        participant_type:participant_type | null;
-    
-
+    @Column({
+        type: 'enum',
+        enum: participant_type,
+        array: true,     
+        nullable: false, 
+    })
+    participant_type: participant_type[];
     @Column({ type: 'text', nullable: true })
     location_id: string;
 
@@ -68,7 +66,7 @@ export class Event {
     @OneToMany(() => EventDate, (eventDate) => eventDate.event)
     event_dates: EventDate[];
 
-    @Column({ default: false, nullable:true })
+    @Column({ default: false, nullable: true })
     is_day_based: boolean
 
     @Column({ default: false })
@@ -94,7 +92,7 @@ export class Event {
 
     @ManyToMany(() => Participant, (participant) => participant.events, {
         cascade: true,
-        
+
         nullable: true
     })
     @JoinTable({

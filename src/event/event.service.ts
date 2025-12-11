@@ -68,7 +68,7 @@ export class EventService {
         file,
         bucketName,
         folder,
-        event.id as string,
+        event.id ,
       );
 
       await this.documentService.create({
