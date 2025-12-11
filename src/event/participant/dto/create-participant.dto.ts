@@ -1,5 +1,5 @@
 import {  IsString, IsUUID,IsEnum } from 'class-validator';
-import { community_type } from 'src/common/constants/enums';
+import { community_type, gender, participant_type } from 'src/common/constants/enums';
 
 export class CreateParticipantDto {
   @IsString()
@@ -8,8 +8,8 @@ export class CreateParticipantDto {
   @IsString()
   father_name: string;
 
-  @IsString()
-  gender: string;
+  @IsEnum(gender)
+  gender: gender;
  
   @IsString()
   Grandfather_name?:string
@@ -32,6 +32,8 @@ disability:string;
  @IsEnum(community_type)
 community_type: community_type;
 
+@IsEnum(participant_type)
+participant_type: participant_type;
 
   @IsString()
   letracy_level:string 
@@ -45,6 +47,11 @@ community_type: community_type;
 
   @IsString()
   woreda: string;
+ @IsString()
+  location_code?:string
+
+  // @IsString()
+  // location_id?:string
 
   @IsString()
   kebele: string;
