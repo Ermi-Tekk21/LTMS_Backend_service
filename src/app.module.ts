@@ -40,9 +40,9 @@ import { LocationModule } from './location/location.module';
       useClass: JwtAuthGuard, // <-- GLOBAL GUARD
     },
     {
-    provide: APP_GUARD,
-    useClass: PermissionGuard,// permission guard
-},
+      provide: APP_GUARD,
+      useClass: PermissionGuard,// permission guard
+    },
   ],
 })
-export class AppModule {}
+export class AppModule { }
