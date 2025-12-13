@@ -16,6 +16,9 @@ export class Participant {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
+    @Column({ type: 'text', nullable: true })
+    external_participant_id: string | null;
+
     @Column({ type: 'text' })
     first_name: string;
 
@@ -28,8 +31,10 @@ export class Participant {
     @Column({ type: 'text' })
     age: string;
 
-    @Column({ type: 'enum',
-        enum: gender, })
+    @Column({
+        type: 'enum',
+        enum: gender,
+    })
     gender: gender;
 
     @Column({ type: 'text', nullable: true })
@@ -56,7 +61,7 @@ export class Participant {
         enum: participant_type,
         nullable: false,
     })
-    participant_type:participant_type | null;
+    participant_type: participant_type | null;
 
     @Column({ type: 'text', nullable: true })
     letracy_level: string | null;
@@ -68,7 +73,7 @@ export class Participant {
     @Column({ type: 'text', nullable: true })
     location_code: string | null;
 
-    
+
 
     @Column({ type: 'text' })
     region: string;

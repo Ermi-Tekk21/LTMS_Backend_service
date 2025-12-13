@@ -1,7 +1,11 @@
-import { IsString, IsUUID, IsEnum } from 'class-validator';
+import { IsString, IsUUID, IsEnum, IsOptional } from 'class-validator';
 import { community_type, gender, participant_type } from 'src/common/constants/enums';
 
 export class CreateParticipantDto {
+  @IsOptional()
+  @IsString()
+  external_participant_id?: string;
+
   @IsString()
   first_name: string;
 
