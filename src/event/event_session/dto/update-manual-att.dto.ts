@@ -1,5 +1,5 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { attendance } from 'src/common/enums/status_enums';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { attendance } from 'src/common/constants/enums';
 
 export class UpdateSessionParticipantStatusDto {
   @IsUUID()

@@ -41,7 +41,20 @@ export enum attendance {
     PRESENT = 'present',
     ABSENT = 'absent'
 }
+export enum session_type {
+    MORNING = 'morning',
+    AFTERNOON = 'afternoon'
+}
 export enum gender {
     MALE = 'male',
     FEMALE = 'female'
+}
+export enum participant_type{
+    FARMER="farmer",
+    EGENT="agent"
+}
+
+export enum reportType {
+    EMPTY_ATT = '',
+    ATT_REP = 'Report'
 }

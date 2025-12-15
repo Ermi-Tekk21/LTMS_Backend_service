@@ -1,21 +1,28 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ParticipantService } from './participant.service';
 import { ParticipantController } from './participant.controller';
 import { Participant } from './entities/participant.entity';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { EventModule } from '../event.module';
 import { ParticipantDAL } from './dal/participant.dal';
-import { LocationModule } from '../adress/zone.module';
 import { ParticipantSessionMapDal } from './dal/participant_session_map.dal';
+// import { EventModule } from '../event/event.module';
+import { LocationModule } from 'src/location/location.module';
+import { EventModule } from '../event.module';
+import { AdressModule } from '../adress/adress.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Participant]),
     forwardRef(() => EventModule),
-    LocationModule,
+    LocationModule, 
+     AdressModule,
   ],
   controllers: [ParticipantController],
-  providers: [ParticipantService, ParticipantDAL, ParticipantSessionMapDal],
+  providers: [
+    ParticipantService,
+    ParticipantDAL,
+    ParticipantSessionMapDal,
+  ],
+  exports: [ParticipantService], // optional if other modules need it
 })
-export class ParticipantModule { }
-
+export class ParticipantModule {}

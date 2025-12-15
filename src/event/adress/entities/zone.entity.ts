@@ -14,4 +14,5 @@ export class Zone {
   region: Region;
 
   @OneToMany(() => Woreda, woreda => woreda.zone)
-  woredas: Woreda[];}
+  woredas: Woreda[];
+}

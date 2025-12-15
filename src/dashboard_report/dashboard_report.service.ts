@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { UUID } from 'crypto';
-import { attendance, community_type, event_status } from 'src/common/enums/status_enums';
+import { attendance, community_type, event_status } from 'src/common/constants/enums';
 import { EventDAL } from 'src/event/dal/event.dal';
 import { EventDateDal } from 'src/event/event_date/dal/event_date.dal';
 import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';

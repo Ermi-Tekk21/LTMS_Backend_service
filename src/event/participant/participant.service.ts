@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable ,InternalServerErrorException,NotFoundException} from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
@@ -6,20 +6,23 @@ import { Participant } from './entities/participant.entity';
 import { FindManyOptions, DataSource } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
-import { community_type,gender } from 'src/common/enums/status_enums';
+import { community_type, gender, participant_type } from 'src/common/constants/enums';
 import { ZoneService } from '../adress/zoneWoreda.service';
+import { LocationService } from 'src/location/location.service';
 @Injectable()
 export class ParticipantService {
   constructor(private readonly participantDAL: ParticipantDAL,
     private readonly zoneService: ZoneService,
     private readonly eventService: EventService,
     private readonly dataSource: DataSource,
+    private readonly locationService: LocationService,
   ) { }
 
   async create(
     dto: CreateParticipantDto,
     created_by: string,
-    eventId: string
+    eventId: string,
+    token: string,
   ): Promise<Participant> {
     if (!eventId) {
       throw new BadRequestException('Event ID is required.');
@@ -30,13 +33,21 @@ export class ParticipantService {
     await queryRunner.startTransaction();
 
     try {
-      // Create participant
+      // Fetch location_code dynamically from LocationService
+      const location = await this.locationService.getLocationCode(
+        dto.region,
+        dto.zone,
+        dto.woreda,
+        token,
+      );
+      if (!location) throw new BadRequestException('Invalid region/zone/woreda');
+
+      // Create participant with location_code
       const participant = await this.participantDAL.create(
-        { ...dto, created_by },
+        { ...dto, created_by, location_code: location.location_code, location_id: location.id, age: String(dto.age) },
         queryRunner,
       );
 
-      // Assign participant to event
       await this.eventService.assignParticipantsToEvent(
         eventId,
         [participant.id],
@@ -49,16 +60,14 @@ export class ParticipantService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
       console.log(error);
-      if (error instanceof BadRequestException) {
-        throw error
-      }
-      throw new InternalServerErrorException(`Failed to create participant: ${error.message}`)
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException(`Failed to create participant: ${error.message}`);
     } finally {
       await queryRunner.release();
     }
   }
 
-  async generateTemplate(): Promise<Buffer> {
+  async generateTemplate(token: string): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Participants');
 
@@ -66,106 +75,114 @@ export class ParticipantService {
       { header: 'First Name', key: 'first_name', width: 20 },
       { header: 'Father Name', key: 'father_name', width: 20 },
       { header: 'Grandfather Name', key: 'grandfather_name', width: 20 },
-      { header: 'Gender', key: 'gender', width: 10 },
-      { header: 'Age', key: 'age', width: 15 },
+      { header: 'Gender', key: 'gender', width: 15 },
+      { header: 'Age', key: 'age', width: 10 },
       { header: 'Phone', key: 'phone', width: 15 },
       { header: 'Region', key: 'region', width: 20 },
       { header: 'Zone', key: 'zone', width: 20 },
       { header: 'Woreda', key: 'woreda', width: 20 },
       { header: 'Kebele', key: 'kebele', width: 20 },
-      { header: 'Disability', key: 'disability', width: 15 },
+      { header: 'participant_type', key: 'participant_type', width: 20 },
+      { header: 'Disability', key: 'disability', width: 20 },
       { header: 'Occupation', key: 'occupation', width: 20 },
       { header: 'Organization', key: 'organization', width: 25 },
       { header: 'Community Type', key: 'community_type', width: 20 },
       { header: 'Literacy Level', key: 'literacy_level', width: 20 },
+
     ];
 
-    // Bold header
     sheet.getRow(1).font = { bold: true };
+
     const genderValues = Object.values(gender);
+    const participantValues = Object.values(participant_type);
     const communityValues = Object.values(community_type);
 
+    // Gender & Community dropdowns
     for (let row = 2; row <= 100; row++) {
       sheet.getCell(`D${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
         formulae: [`"${genderValues.join(',')}"`],
-        showErrorMessage: true,
-        errorTitle: 'Invalid Gender',
-        error: 'Please select a valid gender.',
       };
-
-      sheet.getCell(`N${row}`).dataValidation = {
+      sheet.getCell(`K${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`"${participantValues.join(',')}"`],
+      };
+      sheet.getCell(`O${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
         formulae: [`"${communityValues.join(',')}"`],
-        showErrorMessage: true,
-        errorTitle: 'Invalid Community Type',
-        error: 'Please select a valid Community Type.',
       };
     }
 
-const data = await this.zoneService.getRegionsWithZonesAndWoredas();
-const regionNames = data.map(r => r.region);
-const zoneNames = data
-  .flatMap(r => r.zones.map(z => z.zone))
-  .sort((a, b) => a.localeCompare(b));
-const woredaNames = data
-  .flatMap(r => r.zones.flatMap(z => z.woredas))
-  .sort((a, b) => a.localeCompare(b)); // alphabetical sort
+    const locations = await this.locationService.fetchEnglishLocations(token);
 
-for (let row = 2; row <= 100; row++) {
-  // Region dropdown
-  sheet.getCell(`G${row}`).dataValidation = {
-    type: 'list',
-    allowBlank: true,
-    formulae: [`"${regionNames.join(',')}"`],
-    showErrorMessage: true,
-    errorTitle: 'Invalid Region',
-    error: 'Please select a valid Region.',
-  };
+    const regionList = [
+      ...new Set(locations.map((l) => l.region)),
+    ].sort();
 
-  // Zone dropdown
-  sheet.getCell(`H${row}`).dataValidation = {
-    type: 'list',
-    allowBlank: true,
-    formulae: [`"${zoneNames.join(',')}"`],
-    showErrorMessage: true,
-    errorTitle: 'Invalid Zone',
-    error: 'Please select a valid Zone.',
-  };
+    const zoneList = [
+      ...new Set(locations.map((l) => l.zone)),
+    ].sort();
 
-  sheet.getCell(`I${row}`).dataValidation = {
-    type: 'list',
-    allowBlank: true,
-    formulae: [`"${woredaNames.join(',')}"`],
-    showErrorMessage: true,
-    errorTitle: 'Invalid Woreda',
-    error: 'Please select a valid Woreda.',
-  };
-}
+    const woredaList = [
+      ...new Set(locations.map((l) => l.woreda)),
+    ].sort();
 
-    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+    // Add dropdowns for Region, Zone, Woreda
+    for (let row = 2; row <= 100; row++) {
+      sheet.getCell(`G${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`"${regionList.join(',')}"`],
+      };
+
+      sheet.getCell(`H${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`"${zoneList.join(',')}"`],
+      };
+
+      sheet.getCell(`I${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`"${woredaList.join(',')}"`],
+      };
+    }
+
+    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;//as unknown as buffer-- i can do this if it display issue
+
   }
-
   async importFromExcel(
     file: Express.Multer.File,
     eventId: string,
     created_by: string,
-  ): Promise<{ success: boolean; count: number; conflicts: any[] }> {
+    token: string,
+  ): Promise<{
+    success: boolean;
+    count: number;
+    conflicts: any[];
+    invalidRows: { row: number; message: string }[];
+  }> {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(file.buffer as any);
 
     const sheet = workbook.getWorksheet('Participants');
     if (!sheet) throw new NotFoundException('Worksheet "Participants" not found.');
 
-  const participants: CreateParticipantDto[] = [];
-  const invalidRows: { row: number; missingFields: string[] }[] = [];
-  const conflicts: any[] = []; 
-  sheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return; // skip header
+    const participants: any[] = [];
+    const invalidRows: { row: number; message: string }[] = [];
+    const conflicts: any[] = [];
 
-      const values = Array.isArray(row.values) ? row.values : [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // skip header
+
+      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+
+      // Skip completely empty rows
+      if (values.every(v => v === undefined || v === null || v === '')) return;
+
       const [
         first_name,
         father_name,
@@ -177,13 +194,13 @@ for (let row = 2; row <= 100; row++) {
         zone,
         woreda,
         kebele,
+        participant_type,
         disability,
         occupation,
         organization,
         community_type,
         letracy_level,
-
-      ] = values.slice(1) as any[];
+      ] = values as any[];
 
       const missingFields: string[] = [];
       if (!first_name) missingFields.push('first_name');
@@ -195,9 +212,12 @@ for (let row = 2; row <= 100; row++) {
       if (!zone) missingFields.push('zone');
       if (!woreda) missingFields.push('woreda');
       if (!kebele) missingFields.push('kebele');
-
+      if (!participant_type) missingFields.push('participant_type')
       if (missingFields.length > 0) {
-        invalidRows.push({ row: rowNumber, missingFields });
+        invalidRows.push({
+          row: rowNumber,
+          message: `Missing fields: ${missingFields.join(', ')}`,
+        });
         return;
       }
 
@@ -217,22 +237,12 @@ for (let row = 2; row <= 100; row++) {
         zone,
         woreda,
         kebele,
+        participant_type,
         created_by,
       });
+      
     });
 
-    if (invalidRows.length > 0) {
-      const errorMessage = invalidRows
-        .map((r) => `Row ${r.row}: missing ${r.missingFields.join(', ')}`)
-        .join('\n');
-      throw new BadRequestException(errorMessage);
-    }
-
-    if (participants.length === 0) {
-      throw new BadRequestException('No valid participant rows found in the file.');
-    }
-
-    // Transaction
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -241,12 +251,10 @@ for (let row = 2; row <= 100; row++) {
       const participantRepo = queryRunner.manager.getRepository(Participant);
       const finalParticipantIds: string[] = [];
 
-      // Deduplication logic (by phone)
       for (const p of participants) {
         const existing = await participantRepo.findOne({ where: { phone: p.phone } });
 
         if (existing) {
-          // Check for name mismatch
           const mismatch =
             existing.first_name !== p.first_name ||
             existing.father_name !== p.father_name ||
@@ -267,19 +275,38 @@ for (let row = 2; row <= 100; row++) {
               },
               message: 'Excel name ignored; existing participant reused.',
             });
-
-            console.warn(
-              `Name mismatch for phone ${p.phone}. Using existing participant ${existing.id}.`,
-            );
           }
 
           finalParticipantIds.push(existing.id);
           continue;
         }
-        const saved = await participantRepo.save(p);
+
+        const location = await this.locationService.getLocationCode(
+          p.region,
+          p.zone,
+          p.woreda,
+          token,
+        );
+
+        if (!location) {
+          invalidRows.push({
+            row: participants.indexOf(p) + 2, 
+            message: `Invalid region/zone/woreda: ${p.region} - ${p.zone} - ${p.woreda}`,
+          });
+          continue;
+        }
+
+        const saved = await participantRepo.save({
+          ...p,
+          age: String(p.age),
+          location_code: location.location_code,
+          location_id: location.id,
+        });
+
         finalParticipantIds.push(saved.id);
       }
 
+      // Assign to event
       if (finalParticipantIds.length > 0) {
         await this.eventService.assignParticipantsToEvent(
           eventId,
@@ -287,25 +314,25 @@ for (let row = 2; row <= 100; row++) {
           queryRunner,
         );
       }
+
       await queryRunner.commitTransaction();
       await this.eventService.updateEventStatusIfReady(eventId);
 
       return {
-        success: true,
+        success: finalParticipantIds.length > 0,
         count: finalParticipantIds.length,
-        conflicts, // <-- return ignored Excel names
+        conflicts,
+        invalidRows,
       };
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw new BadRequestException(
-        `Failed to import participants: ${err instanceof Error ? err.message : String(err)
-        }`,
+        `Failed to import Excel: ${err instanceof Error ? err.message : String(err)}`,
       );
     } finally {
       await queryRunner.release();
     }
   }
-
 
 
   async findAll(
@@ -324,28 +351,29 @@ for (let row = 2; row <= 100; row++) {
         limit,
       };
 
-    if (search && search.trim() !== '') {
-      options.search = {
-        term: search,
-        fields: ['first_name', 'father_name', 'region','woreda','kebele'], 
+      if (search && search.trim() !== '') {
+        options.search = {
+          term: search,
+          fields: ['first_name', 'father_name', 'region', 'woreda', 'zone', 'kebele'],
+        };
+      }
+      const result = await this.participantDAL.findAll(options);
+      return {
+        data: result.data,
+        total: result.meta.total,
+        page: result.meta.page,
+        limit: result.meta.limit,
       };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `ParticipantService.findAll failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
-    const result = await this.participantDAL.findAll(options);
-    return {
-      data: result.data,
-      total: result.meta.total,
-      page: result.meta.page,
-      limit: result.meta.limit,
-    };
-  } catch (error) {
-    if (error instanceof BadRequestException) {
-      throw error;
-    }
-    throw new InternalServerErrorException(
-      `ParticipantService.findAll failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
   }
-}
+
   findOne(id: string) {
     return this.participantDAL.findById(id);
   }

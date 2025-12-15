@@ -1,4 +1,5 @@
-import { IsString, IsUUID, IsNumber, IsArray, ArrayNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsUUID, IsNumber, IsArray, ArrayNotEmpty, IsOptional, IsBoolean, IsEnum } from 'class-validator';
+import { participant_type } from 'src/common/constants/enums';
 
 export class CreateEventDto {
   @IsString()
@@ -18,6 +19,9 @@ export class CreateEventDto {
 
   @IsString()
   venue: string;
+
+  @IsEnum(participant_type)
+   participant_type: participant_type[];
 
   @IsOptional()
   @IsArray()

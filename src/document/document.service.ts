@@ -12,7 +12,7 @@ import { DocumentDAL } from './dal/document.dal';
 import { Document } from './entities/document.entity';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { EventService } from 'src/event/event.service';
-import { doc_type, event_status } from 'src/common/enums/status_enums';
+import { doc_type, event_status } from 'src/common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Event } from 'src/event/entities/event.entity';
 

@@ -5,7 +5,7 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
-import { doc_type, event_status } from 'src/common/enums/status_enums';
+import { doc_type, event_status } from 'src/common/constants/enums';
 import type { UUID } from 'crypto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Permission } from 'src/common/decorators/permission.decorator';
@@ -56,7 +56,7 @@ export class EventController {
       order: parsedOrder,
     });
   }
-  
+
   @Permission('read', 'event')
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -168,29 +168,32 @@ export class EventController {
 
   @Permission('delete', 'event')
   @Delete(':id')
-  remove(@Param('id') id: string,@CurrentUser() user: any,) {
-    return this.eventService.remove(id,user.userId);
+  remove(@Param('id') id: string, @CurrentUser() user: any,) {
+    return this.eventService.remove(id, user.userId);
   }
 
-   @Permission('read', 'event')
+  @Permission('read', 'event')
   @Get('attendance/:eventId/pdf')
   async downloadAttendancePdf(
     @Param('eventId') eventId: string,
     @Res() res: Response,
+    @Query('report') report: boolean,
   ) {
     try {
-      // Extract Authorization header from the underlying request object
       const reqAny = (res as any).req;
       const authHeader: string | undefined =
         reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
 
-      // Normalize and strip Bearer prefix if present
       const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+      const reportQuery = (reqAny as any)?.query?.report;
+      const normalizedReport =
+        typeof reportQuery === 'string'
+          ? reportQuery.toLowerCase() === 'true'
+          : Boolean(reportQuery);
+      report = normalizedReport;
 
-      // token is now available for use (e.g., pass to service, logging, etc.)
-      console.log('extracted token:', token);
+      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, token as string, report)
 
-      const pdfBuffer = await this.eventService.generateAttendancePdf(eventId, token as string);
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="attendance-${eventId}.pdf"`,

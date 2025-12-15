@@ -1,8 +1,6 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { EmailService } from './common/notification/email.service';
-// import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
- import { Permission } from './common/decorators/permission.decorator';
-//  import { PermissionGuard } from './common/guards/permission.guard';
+import { Permission } from './common/decorators/permission.decorator';
 import { AppService } from './app.service';
 import { CurrentUser } from './common/decorators/current-user.decorator';
 
@@ -14,7 +12,6 @@ export class AppController {
   ) {}
 
   @Get('test-email')
-  // @UseGuards(JwtAuthGuard,PermissionGuard )
    @Permission('read', 'farmers')
   async testEmail(@CurrentUser() user: any) {
     console.log(' Current User:', user);

@@ -18,4 +18,4 @@ import { ZoneService } from './zoneWoreda.service';
   providers: [RegionService, ZoneService],
   exports: [RegionService, ZoneService],
 })
-export class LocationModule {}
+export class AdressModule {}
