@@ -263,7 +263,8 @@ export class EventService {
             event_date: eventDate,
             venue: event.venue,
             starts_at: morningStart,
-            ends_at: morningEnd
+            ends_at: morningEnd,
+            session_type: session_type.MORNING,
           }, queryRunner);
 
           //afternoon session
@@ -271,7 +272,8 @@ export class EventService {
             event_date: eventDate,
             venue: event.venue,
             starts_at: afternoonStart,
-            ends_at: afternoonEnd
+            ends_at: afternoonEnd,
+            session_type: session_type.AFTERNOON,
           }, queryRunner);
         }
       }
