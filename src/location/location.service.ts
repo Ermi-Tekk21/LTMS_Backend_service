@@ -3,7 +3,7 @@ import axios from 'axios';
 
 @Injectable()
 export class LocationService {
-  private readonly apiUrl = 'http://164.160.187.141:3344/api/v1/farmer/getAllInOne';
+  private readonly apiUrl = process.env.LOCATION_URL || 'http://http://13.50.253.205:4499/api/v1/farmer/getAllInOne';
 
   constructor() {}
 
