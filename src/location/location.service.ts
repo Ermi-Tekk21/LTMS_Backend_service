@@ -3,7 +3,7 @@ import axios from 'axios';
 
 @Injectable()
 export class LocationService {
-  private readonly apiUrl = process.env.LOCATION_URL || 'http://http://13.50.253.205:4499/api/v1/farmer/getAllInOne';
+  private readonly apiUrl = process.env.FARMER_URL || 'http://http://13.50.253.205:4499/api/v1/farmer/getAllInOne';
 
   constructor() {}
 
@@ -26,6 +26,9 @@ export class LocationService {
   }
 
   async getLocationTree(token: string) {
+    // try {
+
+    // } catch 
     const locations = await this.fetchEnglishLocations(token);
     const tree = {};
 
