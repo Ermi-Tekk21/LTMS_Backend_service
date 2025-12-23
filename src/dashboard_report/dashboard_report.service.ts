@@ -6,7 +6,7 @@ import { EventDateDal } from 'src/event/event_date/dal/event_date.dal';
 import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { ParticipantSessionMapDal } from 'src/event/participant/dal/participant_session_map.dal';
 import { Participant } from 'src/event/participant/entities/participant.entity';
-import { Between, FindOptionsWhere } from 'typeorm';
+import { Between, FindOptionsWhere, MoreThanOrEqual } from 'typeorm';
 
 @Injectable()
 export class DashboardReportService {
@@ -16,7 +16,7 @@ export class DashboardReportService {
         private readonly eventDal: EventDAL,
         private readonly eventDateDal: EventDateDal
     ) { }
-
+    
     private getDateRange(period?: 'week' | 'month' | 'year') {
         if (!period) return null;
         const now = new Date();
@@ -39,54 +39,59 @@ export class DashboardReportService {
     }
 
     //helper function for checking weather a participant participate 2/3 of atleast one event
-    async isValidParticipant(participant: Participant): Promise<boolean> {
+   async isValidParticipant(participant: Participant): Promise<boolean> {
         try {
+            // dedupe relations to avoid duplicate JOIN / alias errors
+            const relations = Array.from(new Set([
+                'participant',
+                'event_session',
+                'event_session.event_date',
+                'event_session.event_date.event',
+            ]));
 
             const { data: sessionsMap } = await this.ParticipantSessionMapDal.findAll({
                 where: {
-                    participant: {
-                        id: participant.id
-                    }
-                }, relations: ['participant', 'event_session', 'event_session.event_date', 'event_session.event_date.event']
-            })
+                    participant: { id: participant.id },
+                },
+                relations,
+            });
 
             const events = Array.from(
                 new Map(
-                    sessionsMap.flatMap(s => s.event_session.event_date.event)
-                        .map(event => [event.id, event])
+                    sessionsMap
+                      .flatMap((s: any) => s.event_session?.event_date?.event || [])
+                      .map((event: any) => [event.id, event])
                 ).values()
             );
 
             for (const event of events) {
                 const numberOfDatesOfEvent = await this.eventDateDal.count({
-                    where: {
-                        event: {
-                            id: event.id
-                        }
-                    }
-                })
+                    where: { event: { id: event.id } },
+                });
+
                 const minDate = Math.ceil(0.667 * numberOfDatesOfEvent);
+
                 const presenceDateOfParticipant = Math.ceil(
-                    await this.ParticipantSessionMapDal.count({
+                    (await this.ParticipantSessionMapDal.count({
                         where: {
                             participant: { id: participant.id },
                             event_session: { event_date: { event: { id: event.id } } },
-                            attendance: { status: attendance.PRESENT }
-                        }
-                    }) / 2
+                            attendance: { status: attendance.PRESENT },
+                        },
+                    })) / 2
                 );
 
                 if (presenceDateOfParticipant >= minDate && presenceDateOfParticipant !== 0) {
                     return true;
                 }
             }
-            return false
-        } catch (error) {
-            console.error(error);
-        }
-        return true
-    }
 
+            return false;
+        } catch (error) {
+            console.error('isValidParticipant error:', error);
+            return false;
+        }
+    }
     async loadParticipantStats(eventId?: UUID, period?: 'week' | 'month' | 'year') {
         let where: FindOptionsWhere<Participant> = {};
         if (eventId) {
@@ -118,17 +123,19 @@ export class DashboardReportService {
             { label: '18_24', min: 18, max: 24 },
             { label: '25_34', min: 25, max: 34 },
             { label: '35_44', min: 35, max: 44 },
-            { label: '45_54', min: 45, max: 54 },
-            { label: '55_plus', min: 55, max: 120 },
+            { label: '45_plus', min: 45, max: 54 },
+             { label: '55_plus', min: 55, max:90  }
         ];
 
         const ageGroupCounts: Record<string, number> = {};
         await Promise.all(
             ageGroups.map(async (g) => {
-                const whereClause: FindOptionsWhere<Participant> = where
-                    ? { ...where, age: Between(g.min, g.max) } as any
-                    : ({ age: Between(g.min, g.max) } as any);
-
+                let whereClause: FindOptionsWhere<Participant>;
+                if (g.max == null) {
+                    whereClause = { ...where, age: MoreThanOrEqual(g.min) } as any;
+                } else {
+                    whereClause = { ...where, age: Between(g.min, g.max) } as any;
+                }
                 const count = await this.participantDAL.count({
                     where: whereClause,
                 });
