@@ -118,41 +118,54 @@ export class ParticipantService {
 
     const locations = await this.locationService.fetchEnglishLocations(token);
 
-    const regionList = [
-      ...new Set(locations.map((l) => l.region)),
-    ].sort();
+    const regionList = [...new Set(locations.map((l) => l.region))].sort();
+    const zoneList = [...new Set(locations.map((l) => l.zone))].sort();
+    const woredaList = [...new Set(locations.map((l) => l.woreda))].sort();
 
-    const zoneList = [
-      ...new Set(locations.map((l) => l.zone)),
-    ].sort();
+    const listsSheet = workbook.addWorksheet('Lists');
+    // write header row (optional)
+    listsSheet.getCell('A1').value = 'Regions';
+    listsSheet.getCell('B1').value = 'Zones';
+    listsSheet.getCell('C1').value = 'Woredas';
 
-    const woredaList = [
-      ...new Set(locations.map((l) => l.woreda)),
-    ].sort();
+    // write lists starting from row 2 so header row is preserved
+    regionList.forEach((val, idx) => listsSheet.getCell(`A${idx + 2}`).value = val);
+    zoneList.forEach((val, idx) => listsSheet.getCell(`B${idx + 2}`).value = val);
+    woredaList.forEach((val, idx) => listsSheet.getCell(`C${idx + 2}`).value = val);
 
-    // Add dropdowns for Region, Zone, Woreda
+    // hide the Lists sheet (veryHidden is supported by Excel; 'hidden' also OK)
+    listsSheet.state = 'hidden';
+
+    const regionRange = regionList.length > 0 ? `Lists!$A$2:$A$${regionList.length + 1}` : '';
+    const zoneRange = zoneList.length > 0 ? `Lists!$B$2:$B$${zoneList.length + 1}` : '';
+    const woredaRange = woredaList.length > 0 ? `Lists!$C$2:$C$${woredaList.length + 1}` : '';
+
+    // Add dropdowns using the vertical ranges (keeps each item on its own line)
     for (let row = 2; row <= 100; row++) {
-      sheet.getCell(`G${row}`).dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: [`"${regionList.join(',')}"`],
-      };
-
-      sheet.getCell(`H${row}`).dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: [`"${zoneList.join(',')}"`],
-      };
-
-      sheet.getCell(`I${row}`).dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: [`"${woredaList.join(',')}"`],
-      };
+      if (regionRange) {
+        sheet.getCell(`G${row}`).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [ `=${regionRange}` ],
+        };
+      }
+      if (zoneRange) {
+        sheet.getCell(`H${row}`).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [ `=${zoneRange}` ],
+        };
+      }
+      if (woredaRange) {
+        sheet.getCell(`I${row}`).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [ `=${woredaRange}` ],
+        };
+      }
     }
 
-    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;//as unknown as buffer-- i can do this if it display issue
-
+    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
   async importFromExcel(
     file: Express.Multer.File,

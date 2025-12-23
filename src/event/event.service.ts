@@ -68,7 +68,7 @@ export class EventService {
         file,
         bucketName,
         folder,
-        event.id ,
+        event.id,
       );
 
       await this.documentService.create({
@@ -812,15 +812,17 @@ export class EventService {
       ? event.documents.filter(doc => doc.doc_type === doc_type)
       : event.documents;
 
-    const paths = filteredDocs.map(doc => doc.path);
-
-    const presignedUrls = await Promise.all(
-      paths.map(path => this.documentService.viewDoc(path))
+    const documents = await Promise.all(
+      filteredDocs.map(async doc => ({
+        id: doc.id,
+        path: doc.path,
+        url: await this.documentService.viewDoc(doc.path),
+      }))
     );
     return {
       success: true,
       message: 'Document URLs generated successfully',
-      data: presignedUrls
+      data: documents
     };
   }
 
@@ -860,7 +862,7 @@ export class EventService {
   }
 
   async getProjectName(token: string, projectId: UUID) {
-    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://164.160.187.141:3344/api/v1/dynamic-form';
+    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://http://13.50.253.205:4499/api/v1/dynamic-form';
     const url = `${baseUrl}/project/${projectId}`;
     try {
       const headers: Record<string, string> = {
@@ -1099,7 +1101,7 @@ export class EventService {
 
                 const morningStatus = normalizeStatus(morningMap?.attendance?.status ?? null);
                 const afternoonStatus = normalizeStatus(afternoonMap?.attendance?.status ?? null);
-                
+
                 return [displayCell(morningStatus, report), displayCell(afternoonStatus, report)];
               }
             });

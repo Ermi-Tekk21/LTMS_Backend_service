@@ -3,22 +3,40 @@ import axios from 'axios';
 
 @Injectable()
 export class LocationService {
-  private readonly apiUrl = 'http://164.160.187.141:3344/api/v1/farmer/getAllInOne';
+  private readonly apiUrl =
+    process.env.FARMER_URL ||
+    'http://13.50.253.205:4499/api/v1/farmer/getAllInOne';
 
-  constructor() {}
+  // Normalize for logic
+  private normalize(value: string): string {
+    return value?.trim().toLowerCase();
+  }
 
-  // Pass the token 
-   async fetchEnglishLocations(token: string): Promise<any[]> {
+  // Format for display
+  private formatDisplay(value: string): string {
+    return value
+      ?.trim()
+      .toLowerCase()
+      .replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  async fetchEnglishLocations(token: string): Promise<any[]> {
     try {
-      const headers: Record<string, string> = {
+      const headers = {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
 
       const response = await axios.get(this.apiUrl, { headers });
 
-      // Only English locale
-      return response.data.data.location.filter(loc => loc.locale === 'EN');
+      return response.data.data.location
+        .filter(loc => loc.locale === 'EN')
+        .map(loc => ({
+          ...loc,
+          region: loc.region?.trim(),
+          zone: loc.zone?.trim(),
+          woreda: loc.woreda?.trim(),
+        }));
     } catch (error) {
       console.error('Error fetching locations:', error.message);
       throw new HttpException('Failed to fetch locations', 500);
@@ -27,25 +45,57 @@ export class LocationService {
 
   async getLocationTree(token: string) {
     const locations = await this.fetchEnglishLocations(token);
-    const tree = {};
+
+    const tree: Record<
+      string,
+      { name: string; zones: Record<string, string[]> }
+    > = {};
 
     locations.forEach(loc => {
-      if (!tree[loc.region]) tree[loc.region] = {};
-      if (!tree[loc.region][loc.zone]) tree[loc.region][loc.zone] = [];
-      if (!tree[loc.region][loc.zone].includes(loc.woreda)) {
-        tree[loc.region][loc.zone].push(loc.woreda);
+      const regionKey = this.normalize(loc.region);
+      const zoneKey = this.normalize(loc.zone);
+      const woredaKey = this.normalize(loc.woreda);
+
+      if (!tree[regionKey]) {
+        tree[regionKey] = {
+          name: this.formatDisplay(loc.region),
+          zones: {},
+        };
+      }
+
+      if (!tree[regionKey].zones[zoneKey]) {
+        tree[regionKey].zones[zoneKey] = [];
+      }
+
+      if (!tree[regionKey].zones[zoneKey].includes(woredaKey)) {
+        tree[regionKey].zones[zoneKey].push(
+          this.formatDisplay(loc.woreda),
+        );
       }
     });
 
     return tree;
   }
 
-  async getLocationCode(region: string, zone: string, woreda: string, token: string) {
+  async getLocationCode(
+    region: string,
+    zone: string,
+    woreda: string,
+    token: string,
+  ) {
     const locations = await this.fetchEnglishLocations(token);
-    const found = locations.find(
-      loc => loc.region === region && loc.zone === zone && loc.woreda === woreda
+
+    const found = locations.find(loc =>
+      this.normalize(loc.region) === this.normalize(region) &&
+      this.normalize(loc.zone) === this.normalize(zone) &&
+      this.normalize(loc.woreda) === this.normalize(woreda),
     );
+
     if (!found) return null;
-    return { location_code: found.location_code, id: found.id };
+
+    return {
+      location_code: found.location_code,
+      id: found.id,
+    };
   }
 }
