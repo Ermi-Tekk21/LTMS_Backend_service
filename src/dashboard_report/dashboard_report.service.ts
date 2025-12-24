@@ -16,7 +16,7 @@ export class DashboardReportService {
         private readonly eventDal: EventDAL,
         private readonly eventDateDal: EventDateDal
     ) { }
-    
+
     private getDateRange(period?: 'week' | 'month' | 'year') {
         if (!period) return null;
         const now = new Date();
@@ -39,7 +39,7 @@ export class DashboardReportService {
     }
 
     //helper function for checking weather a participant participate 2/3 of atleast one event
-   async isValidParticipant(participant: Participant): Promise<boolean> {
+    async isValidParticipant(participant: Participant): Promise<boolean> {
         try {
             // dedupe relations to avoid duplicate JOIN / alias errors
             const relations = Array.from(new Set([
@@ -59,8 +59,8 @@ export class DashboardReportService {
             const events = Array.from(
                 new Map(
                     sessionsMap
-                      .flatMap((s: any) => s.event_session?.event_date?.event || [])
-                      .map((event: any) => [event.id, event])
+                        .flatMap((s: any) => s.event_session?.event_date?.event || [])
+                        .map((event: any) => [event.id, event])
                 ).values()
             );
 
@@ -91,25 +91,28 @@ export class DashboardReportService {
             console.error('isValidParticipant error:', error);
             return false;
         }
-    }
-    async loadParticipantStats(eventId?: UUID, period?: 'week' | 'month' | 'year') {
+    } async loadParticipantStats(eventId?: UUID, period?: 'week' | 'month' | 'year') {
         let where: FindOptionsWhere<Participant> = {};
         if (eventId) {
-            // filter by the related event's id
             where = { ...where, event: { id: eventId as any } } as any;
         }
+
         const dateRange = this.getDateRange(period);
         if (dateRange) {
             where.created_at = Between(dateRange.startDate, dateRange.endDate);
         }
 
-        const totalParticipants = await this.participantDAL.count({ where });
-        const totparticipants = (await this.participantDAL.findAll()).data
-        const participantWhoParticipateMoreThanTwoThirds: Participant[] = []
+        // 1. Get all participants at once
+        const allParticipants = await this.participantDAL.findAll({ where, limit: 1000000 });
+        const participants = allParticipants.data;
+        const totalParticipants = participants.length;
+
+        // 2. Participants with at least 2/3 event participation
+        const participantWhoParticipateMoreThanTwoThirds: Participant[] = [];
         let maleValid = 0;
         let femaleValid = 0;
 
-        for (const participant of totparticipants) {
+        for (const participant of participants) {
             const isValid = await this.isValidParticipant(participant);
             if (isValid) {
                 participantWhoParticipateMoreThanTwoThirds.push(participant);
@@ -118,124 +121,84 @@ export class DashboardReportService {
             }
         }
 
+        // 3. Age groups percentages (skip null or empty ages)
         const ageGroups = [
             { label: 'under_18', min: 0, max: 17 },
             { label: '18_24', min: 18, max: 24 },
             { label: '25_34', min: 25, max: 34 },
             { label: '35_44', min: 35, max: 44 },
-            { label: '45_plus', min: 45, max: 54 },
-             { label: '55_plus', min: 55, max:90  }
+            { label: '45_54', min: 45, max: 54 },
+            { label: '55_plus', min: 55, max: 90 }
         ];
 
+        const validParticipantsForAge = participants.filter(p => p.age !== null && p.age !== "" && !isNaN(Number(p.age)));
+        const totalValidAgeParticipants = validParticipantsForAge.length;
+
         const ageGroupCounts: Record<string, number> = {};
-        await Promise.all(
-            ageGroups.map(async (g) => {
-                let whereClause: FindOptionsWhere<Participant>;
-                if (g.max == null) {
-                    whereClause = { ...where, age: MoreThanOrEqual(g.min) } as any;
-                } else {
-                    whereClause = { ...where, age: Between(g.min, g.max) } as any;
-                }
-                const count = await this.participantDAL.count({
-                    where: whereClause,
-                });
-
-                ageGroupCounts[g.label] = count;
-            })
-        );
-
-        const communityTypes = Object.values(community_type);
-        const communityStats: Record<string, number> = {}
-        await Promise.all(
-            communityTypes.map(async (type) => {
-                const count = await this.participantDAL.count({
-                    where: {
-                        ...where,
-                        community_type: type,
-                    } as any,
-                });
-
-                communityStats[type] = count;
-            })
-        );
-
-        const pwd = await this.participantDAL.count({
-            where: {
-                ...where,
-                disability: "yes",
-            } as any,
+        ageGroups.forEach(g => {
+            ageGroupCounts[g.label] = validParticipantsForAge.filter(p => {
+                const ageNum = Number(p.age);
+                return ageNum >= g.min && ageNum <= g.max;
+            }).length;
         });
 
-        const nonPwd = await this.participantDAL.count({
-            where: {
-                ...where,
-                disability: "no",
-            } as any,
-        });
-
-        const male = await this.participantDAL.count({
-            where: {
-                ...where,
-                gender: "male",
-            } as any,
-        });
-
-        const female = await this.participantDAL.count({
-            where: {
-                ...where,
-                gender: "female",
-            } as any,
-        });
-
-        const occupationStats = {
-            farmer: 0,
-            agent: 0,
-            other: 0,
-        };
-
-        const regionStats: Record<string, number> = {};
-
-        const participants = await this.participantDAL.findAll(
-            {
-                where,
-                select: ['occupation', 'region'],
-                limit: 10000000,
-            }
-        );
-
-        for (const p of participants.data) {
-            const occ = (p.occupation || '').toLowerCase().trim();
-            if (occ.includes('farm')) {
-                occupationStats.farmer++;
-            } else if (occ.includes('agent')) {
-                occupationStats.agent++;
-            } else {
-                occupationStats.other++;
-            }
-
-            if (p.region) {
-                regionStats[p.region] = (regionStats[p.region] || 0) + 1;
-            }
+        
+        const ageGroupPercentages: Record<string, number> = {};
+        for (const key in ageGroupCounts) {
+            ageGroupPercentages[key] = totalValidAgeParticipants > 0
+                ? Math.round(ageGroupCounts[key] / totalValidAgeParticipants * 100)
+                : 0;
         }
+
+        // 4. Gender counts
+        const maleCount = participants.filter(p => p.gender === 'male').length;
+        const femaleCount = participants.filter(p => p.gender === 'female').length;
+
+        // 5. Community type counts
+        // const communityTypes = Object.values(community_type);
+        // const communityStats: Record<string, number> = {};
+        // communityTypes.forEach(type => {
+        //     communityStats[type] = participants.filter(p => p.community_type === type).length;
+        // });
+
+        // 6. PWD counts
+        // const pwdCount = participants.filter(p => p.disability === 'yes').length;
+        // const nonPwdCount = participants.filter(p => p.disability === 'no').length;
+
+        // 7. Occupation counts
+        // const occupationStats = { farmer: 0, agent: 0, other: 0 };
+        // participants.forEach(p => {
+        //     const occ = (p.occupation || '').toLowerCase().trim();
+        //     if (occ.includes('farm')) occupationStats.farmer++;
+        //     else if (occ.includes('agent')) occupationStats.agent++;
+        //     else occupationStats.other++;
+        // });
+
+        // 8. Region counts
+        const regionStats: Record<string, number> = {};
+        participants.forEach(p => {
+            if (p.region) regionStats[p.region] = (regionStats[p.region] || 0) + 1;
+        });
 
         return {
             success: true,
             "participant stats": {
                 totalParticipants,
-                ageGroups: ageGroupCounts,
+                ageGroups: ageGroupPercentages,  // only age as percentage
+                gender: { male: maleCount, female: femaleCount },
                 // communityTypes: communityStats,
-                // pwd,
-                // nonPwd,
-                male,
-                female,
-                // occupationStats,
-                regionStats,
-                "participantsWithAtLeastTwoThirdsEventParticipation": participantWhoParticipateMoreThanTwoThirds.length,
+                // pwd: pwdCount,
+                // nonPwd: nonPwdCount,
+                // occupation: occupationStats,
+                region: regionStats,
+                participantsWithAtLeastTwoThirdsEventParticipation: participantWhoParticipateMoreThanTwoThirds.length,
                 maleParticipantsWithAtLeastTwoThirds: maleValid,
-                femaleParticipantsWithAtLeastTwoThirds: femaleValid
+                femaleParticipantsWithAtLeastTwoThirds: femaleValid,
             }
         };
     }
+
+
 
     async eventStats(period?: 'week' | 'month' | 'year') {
         let where: FindOptionsWhere<any> = {};
