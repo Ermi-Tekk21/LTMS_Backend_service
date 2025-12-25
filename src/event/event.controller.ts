@@ -226,4 +226,13 @@ export class EventController {
   ) {
     return this.eventService.dayBasedManualAttFill(eventId, updateDateParticipantMapDto.dateParticipantMaps || []);
   }
+  @Permission('read', 'event')
+  @Get('attendance-report/:id')
+  async getAttendanceReport(
+    @Param('id') eventId: string,
+    @Query('report') report: boolean,
+  ) {
+    const reportVal = String(report).toLowerCase() === 'true';
+    return this.eventService.getAttendanceReport(eventId, reportVal);
+  }
 }

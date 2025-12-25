@@ -68,7 +68,7 @@ export class EventService {
         file,
         bucketName,
         folder,
-        event.id ,
+        event.id,
       );
 
       await this.documentService.create({
@@ -1099,7 +1099,7 @@ export class EventService {
 
                 const morningStatus = normalizeStatus(morningMap?.attendance?.status ?? null);
                 const afternoonStatus = normalizeStatus(afternoonMap?.attendance?.status ?? null);
-                
+
                 return [displayCell(morningStatus, report), displayCell(afternoonStatus, report)];
               }
             });
@@ -1344,6 +1344,147 @@ export class EventService {
       );
     } finally {
       await queryRunner.release();
+    }
+  }
+  async getAttendanceReport(eventId: string, report: boolean) {
+    try {
+      // Ensure session participant maps exist
+      await this.participantSessionMap(eventId);
+
+      const event = await this.eventDAL.findOne({
+        where: { id: eventId },
+        relations: [
+          'participants',
+          'event_dates',
+          'event_dates.event_sessions',
+          'event_dates.event_sessions.session_participant_maps',
+          'event_dates.event_sessions.session_participant_maps.participant',
+        ],
+      });
+
+      if (!event) {
+        throw new NotFoundException(`Event with ID ${eventId} not found`);
+      }
+
+      const isDayBased = !!event.is_day_based;
+      const headers: any[] = [];
+      const data: any[] = [];
+
+      // Sort dates
+      const sortedDates = (event.event_dates || []).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      if (isDayBased) {
+        // Headers: Date
+        sortedDates.forEach(ed => {
+          headers.push({
+            label: new Date(ed.date).toDateString(),
+            date: ed.date,
+            id: ed.id,
+            type: 'day'
+          });
+        });
+
+        // Data
+        for (const p of (event.participants || [])) {
+          const history: any = {};
+          for (const ed of sortedDates) {
+            // For day based, check the first session (assuming sync) or any session for that date
+            const session = ed.event_sessions?.[0];
+            let status = null;
+            if (session) {
+              const map = session.session_participant_maps?.find(m => m.participant?.id === p.id);
+              if (map?.attendance?.status) status = map.attendance.status;
+            }
+            // Return object with status and eventDateId
+            history[new Date(ed.date).toDateString()] = {
+              status,
+              eventDateId: ed.id
+            };
+          }
+          data.push({
+            participant: {
+              id: p.id,
+              first_name: p.first_name,
+              father_name: p.father_name,
+              gender: p.gender,
+              phone: p.phone
+            },
+            history
+          })
+        }
+
+      } else {
+        // Session based
+        // Headers: Date - SessionType
+        sortedDates.forEach(ed => {
+          const sessions = (ed.event_sessions || []).sort((a, b) => {
+            if (a.session_type === session_type.MORNING) return -1;
+            if (b.session_type === session_type.MORNING) return 1;
+            return 0;
+          });
+
+          sessions.forEach(sess => {
+            headers.push({
+              label: `${new Date(ed.date).toDateString()} - ${sess.session_type}`,
+              date: ed.date,
+              session_type: sess.session_type,
+              sessionId: sess.id,
+              type: 'session'
+            });
+          })
+        });
+
+        for (const p of (event.participants || [])) {
+          const history: any = {};
+          for (const ed of sortedDates) {
+            const sessions = (ed.event_sessions || []).sort((a, b) => {
+              if (a.session_type === session_type.MORNING) return -1;
+              if (b.session_type === session_type.MORNING) return 1;
+              return 0;
+            });
+
+            for (const sess of sessions) {
+              const map = sess.session_participant_maps?.find(m => m.participant?.id === p.id);
+              const key = `${new Date(ed.date).toDateString()} - ${sess.session_type}`;
+              // Return object with status and sessionParticipantMapId
+              history[key] = {
+                status: map?.attendance?.status || null,
+                sessionParticipantMapId: map?.id || null
+              };
+            }
+          }
+          data.push({
+            participant: {
+              id: p.id,
+              first_name: p.first_name,
+              father_name: p.father_name,
+              gender: p.gender,
+              phone: p.phone
+            },
+            history
+          })
+        }
+      }
+
+      return {
+        event: {
+          id: event.id,
+          name: event.name,
+          is_day_based: isDayBased
+        },
+        headers,
+        data
+      }
+
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      throw new InternalServerErrorException(
+        `Failed to get attendance report: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 }
