@@ -152,6 +152,7 @@ export class EventController {
     return this.eventService.updateParticipantsForEvent(eventId, participantIds);
   }
 
+  
   @Permission('manage', 'participant')
   @Get(':id/participants')
   async getEventParticipants(

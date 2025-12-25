@@ -812,15 +812,17 @@ export class EventService {
       ? event.documents.filter(doc => doc.doc_type === doc_type)
       : event.documents;
 
-    const paths = filteredDocs.map(doc => doc.path);
-
-    const presignedUrls = await Promise.all(
-      paths.map(path => this.documentService.viewDoc(path))
+    const documents = await Promise.all(
+      filteredDocs.map(async doc => ({
+        id: doc.id,
+        path: doc.path,
+        url: await this.documentService.viewDoc(doc.path),
+      }))
     );
     return {
       success: true,
       message: 'Document URLs generated successfully',
-      data: presignedUrls
+      data: documents
     };
   }
 

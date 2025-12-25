@@ -125,10 +125,14 @@ export class DocumentService {
           console.warn(`S3 delete failed for ${document.path}:`, s3Err);
         }
       }
-
-      await this.documentDal.delete(document, queryRunner);
-      return true;
+      await this.documentDal.delete(document.id);
+      return {
+        success: true,
+        message: "the document has been successfully deleted."  
+      };
     } catch (err) {
+      console.log(err);
+      
       if (err instanceof NotFoundException) throw err;
       throw new InternalServerErrorException(`Failed to remove document`);
     }
