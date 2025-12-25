@@ -42,40 +42,57 @@ export class LocationService {
       throw new HttpException('Failed to fetch locations', 500);
     }
   }
+async getLocationTree(
+  token: string,
+  filters?: {
+    region?: string;
+    zone?: string;
+  },
+) {
+  const locations = await this.fetchEnglishLocations(token);
 
-  async getLocationTree(token: string) {
-    const locations = await this.fetchEnglishLocations(token);
+  const regionFilter = filters?.region
+    ? this.normalize(filters.region)
+    : null;
 
-    const tree: Record<
-      string,
-      { name: string; zones: Record<string, string[]> }
-    > = {};
+  const zoneFilter = filters?.zone
+    ? this.normalize(filters.zone)
+    : null;
 
-    locations.forEach(loc => {
-      const regionKey = this.normalize(loc.region);
-      const zoneKey = this.normalize(loc.zone);
-      const woredaKey = this.normalize(loc.woreda);
+  const tree: Record<
+    string,
+    { name: string; zones: Record<string, string[]> }
+  > = {};
 
-      if (!tree[regionKey]) {
-        tree[regionKey] = {
-          name: this.formatDisplay(loc.region),
-          zones: {},
-        };
-      }
+  locations.forEach(loc => {
+    const regionKey = this.normalize(loc.region);
+    const zoneKey = this.normalize(loc.zone);
+    const woredaKey = this.normalize(loc.woreda);
 
-      if (!tree[regionKey].zones[zoneKey]) {
-        tree[regionKey].zones[zoneKey] = [];
-      }
+    // 🔹 Apply optional filters
+    if (regionFilter && regionKey !== regionFilter) return;
+    if (zoneFilter && zoneKey !== zoneFilter) return;
 
-      if (!tree[regionKey].zones[zoneKey].includes(woredaKey)) {
-        tree[regionKey].zones[zoneKey].push(
-          this.formatDisplay(loc.woreda),
-        );
-      }
-    });
+    if (!tree[regionKey]) {
+      tree[regionKey] = {
+        name: this.formatDisplay(loc.region),
+        zones: {},
+      };
+    }
 
-    return tree;
-  }
+    if (!tree[regionKey].zones[zoneKey]) {
+      tree[regionKey].zones[zoneKey] = [];
+    }
+
+    const woredaDisplay = this.formatDisplay(loc.woreda);
+
+    if (!tree[regionKey].zones[zoneKey].includes(woredaDisplay)) {
+      tree[regionKey].zones[zoneKey].push(woredaDisplay);
+    }
+  });
+
+  return tree;
+}
 
   async getLocationCode(
     region: string,
