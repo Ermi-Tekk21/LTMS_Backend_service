@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
@@ -7,12 +7,12 @@ import { FindManyOptions, DataSource } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 import { community_type, gender, participant_type } from 'src/common/constants/enums';
-import { ZoneService } from '../adress/zoneWoreda.service';
 import { LocationService } from 'src/location/location.service';
 @Injectable()
 export class ParticipantService {
-  constructor(private readonly participantDAL: ParticipantDAL,
-    private readonly zoneService: ZoneService,
+  constructor(
+    private readonly participantDAL: ParticipantDAL,
+    @Inject(forwardRef(() => EventService))
     private readonly eventService: EventService,
     private readonly dataSource: DataSource,
     private readonly locationService: LocationService,
@@ -146,21 +146,21 @@ export class ParticipantService {
         sheet.getCell(`G${row}`).dataValidation = {
           type: 'list',
           allowBlank: true,
-          formulae: [ `=${regionRange}` ],
+          formulae: [`=${regionRange}`],
         };
       }
       if (zoneRange) {
         sheet.getCell(`H${row}`).dataValidation = {
           type: 'list',
           allowBlank: true,
-          formulae: [ `=${zoneRange}` ],
+          formulae: [`=${zoneRange}`],
         };
       }
       if (woredaRange) {
         sheet.getCell(`I${row}`).dataValidation = {
           type: 'list',
           allowBlank: true,
-          formulae: [ `=${woredaRange}` ],
+          formulae: [`=${woredaRange}`],
         };
       }
     }
@@ -189,7 +189,7 @@ export class ParticipantService {
     const conflicts: any[] = [];
 
     sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; 
+      if (rowNumber === 1) return;
 
       const values = Array.isArray(row.values) ? row.values.slice(1) : [];
 
@@ -251,7 +251,7 @@ export class ParticipantService {
         participant_type,
         created_by,
       });
-      
+
     });
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -301,8 +301,9 @@ export class ParticipantService {
 
         if (!location) {
           invalidRows.push({
-            row: participants.indexOf(p) + 2, 
-            message: `Invalid region/zone/woreda: ${p.region} - ${p.zone} - ${p.woreda}`,
+            row: participants.indexOf(p) + 2,
+            message: `Location not found. Please check the Region, Zone, and Woreda values: 
+Region="${p.region}", Zone="${p.zone}", Woreda="${p.woreda}".`,
           });
           continue;
         }
@@ -382,7 +383,7 @@ export class ParticipantService {
       throw new InternalServerErrorException(
         `ParticipantService.findAll failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-  }
+    }
   }
 
   findOne(id: string) {
@@ -416,10 +417,10 @@ export class ParticipantService {
       deleted_at: new Date(),
     });
     return {
-      message: 'Participant soft-deleted successfully',
+      message: 'Participant deleted successfully',
       softDeleted: true,
     };
   }
 
-  
+
 }

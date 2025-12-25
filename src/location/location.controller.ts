@@ -18,7 +18,6 @@ async getLocationTree(
   if (!authHeader) {
     throw new UnauthorizedException('Authorization token missing');
   }
-
   const token = authHeader.replace(/^Bearer\s+/i, '');
 
   return this.locationService.getLocationTree(token, {

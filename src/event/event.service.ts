@@ -25,6 +25,7 @@ import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
 import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
 import { report } from 'process';
+import { ParticipantService } from './participant/participant.service';
 
 @Injectable()
 export class EventService {
@@ -34,7 +35,7 @@ export class EventService {
 
     @InjectRepository(SessionParticipantMap)
     private readonly sessionParticipantMapRepo: Repository<SessionParticipantMap>,
-
+    private readonly participantService: ParticipantService,
     private readonly eventDAL: EventDAL,
     private readonly documentService: DocumentService,
     private readonly eventDateService: EventDateService,
@@ -661,39 +662,55 @@ export class EventService {
     }
   }
 
+
   // REMOVE PARTICIPANTS FROM EVENT
-  async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    try {
-      const eventRepo = queryRunner.manager.getRepository(Event);
+async removeParticipantFromEvent(eventId: string, participantId: string) {
+  return this.dataSource.transaction(async (manager) => {
+    const eventRepo = manager.getRepository(Event);
+    const participantRepo = manager.getRepository(Participant);
 
-      const event = await eventRepo.findOne({
-        where: { id: eventId },
-        relations: ['participants'],
-      });
-      if (!event) throw new NotFoundException('Event not found');
+    // 1. Load event
+    const event = await eventRepo.findOne({
+      where: { id: eventId },
+      relations: ['participants'],
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    
+    // 2. Ensure participant exists
+    const participant = await participantRepo.findOne({
+      where: { id: participantId },
+    });
+    if (!participant) throw new NotFoundException('Participant not found');
 
-      event.participants = event.participants.filter(
-        (participant) => !participantIds.includes(participant.id),
-      );
-      const updatedEvent = await eventRepo.save(event);
+    // 3. Remove relation
+    event.participants = event.participants.filter(
+      p => p.id !== participantId,
+    );
+    await eventRepo.save(event);
 
-      await queryRunner.commitTransaction();
-      return updatedEvent;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      if (error instanceof NotFoundException) {
-        throw error
-      }
-      throw new InternalServerErrorException(
-        `Failed to remove participants: ${error instanceof Error ? error.message : String(error)}`
-      )
-    } finally {
-      await queryRunner.release();
+    // 4. Count remaining event relations FROM DB
+    const remainingEventsCount = await eventRepo
+      .createQueryBuilder('e')
+      .innerJoin('e.participants', 'p')
+      .where('p.id = :participantId', { participantId })
+      .getCount();
+
+    // 5. Hard delete orphan participant
+    if (remainingEventsCount === 0) {
+      await participantRepo.delete(participantId);
     }
-  }
+
+    return {
+      message:
+        remainingEventsCount === 0
+          ? 'Participant permanently deleted'
+          : 'Participant removed from event only',
+    };
+  });
+}
+
+
+
 
   //  UPDATE (REPLACE ALL PARTICIPANTS)
   async updateParticipantsForEvent(eventId: string, participantIds: string[]) {
@@ -758,57 +775,57 @@ export class EventService {
     };
   }
   async searchParticipantsForEvent(
-  eventId: string,
-  search?: string,
-  page = 1,
-  limit = 10,
-): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
-  const eventRepo = this.dataSource.getRepository(Event);
-  const participantRepo = this.dataSource.getRepository(Participant);
+    eventId: string,
+    search?: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
+    const eventRepo = this.dataSource.getRepository(Event);
+    const participantRepo = this.dataSource.getRepository(Participant);
 
-  // Check if the event exists
-  const event = await eventRepo.findOne({ where: { id: eventId }, relations: ['participants'] });
-  if (!event) throw new NotFoundException('Event not found');
+    // Check if the event exists
+    const event = await eventRepo.findOne({ where: { id: eventId }, relations: ['participants'] });
+    if (!event) throw new NotFoundException('Event not found');
 
-  // Get IDs of participants already assigned to this event
-  const assignedParticipantIds = event.participants.map(p => p.id);
+    // Get IDs of participants already assigned to this event
+    const assignedParticipantIds = event.participants.map(p => p.id);
 
-  // Build query
-  const query = participantRepo.createQueryBuilder('participant');
+    // Build query
+    const query = participantRepo.createQueryBuilder('participant');
 
-  // Exclude already assigned participants
-  if (assignedParticipantIds.length > 0) {
-    query.where('participant.id NOT IN (:...assignedIds)', { assignedIds: assignedParticipantIds });
-  }
-
-  // Add search filter
-  if (search && search.trim() !== '') {
-    const searchTerm = `%${search.trim()}%`;
+    // Exclude already assigned participants
     if (assignedParticipantIds.length > 0) {
-      query.andWhere(
-        `(participant.first_name LIKE :search OR participant.father_name LIKE :search OR participant.region LIKE :search OR participant.woreda LIKE :search OR participant.zone LIKE :search OR participant.kebele LIKE :search)`,
-        { search: searchTerm },
-      );
-    } else {
-      query.where(
-        `(participant.first_name LIKE :search OR participant.father_name LIKE :search OR participant.region LIKE :search OR participant.woreda LIKE :search OR participant.zone LIKE :search OR participant.kebele LIKE :search)`,
-        { search: searchTerm },
-      );
+      query.where('participant.id NOT IN (:...assignedIds)', { assignedIds: assignedParticipantIds });
     }
+
+    // Add search filter
+    if (search && search.trim() !== '') {
+      const searchTerm = `%${search.trim()}%`;
+      if (assignedParticipantIds.length > 0) {
+        query.andWhere(
+          `(participant.first_name LIKE :search OR participant.father_name LIKE :search OR participant.region LIKE :search OR participant.woreda LIKE :search OR participant.zone LIKE :search OR participant.kebele LIKE :search)`,
+          { search: searchTerm },
+        );
+      } else {
+        query.where(
+          `(participant.first_name LIKE :search OR participant.father_name LIKE :search OR participant.region LIKE :search OR participant.woreda LIKE :search OR participant.zone LIKE :search OR participant.kebele LIKE :search)`,
+          { search: searchTerm },
+        );
+      }
+    }
+
+    // Pagination
+    query.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await query.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
-
-  // Pagination
-  query.skip((page - 1) * limit).take(limit);
-
-  const [data, total] = await query.getManyAndCount();
-
-  return {
-    data,
-    total,
-    page,
-    limit,
-  };
-}
 
 
   async updateEventStatusIfReady(eventId: string) {
@@ -915,7 +932,7 @@ export class EventService {
   }
 
   async getProjectName(token: string, projectId: UUID) {
-    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://http://13.50.253.205:4499/api/v1/dynamic-form';
+    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://http://13.50.253.205:3344/api/v1/dynamic-form';
     const url = `${baseUrl}/project/${projectId}`;
     try {
       const headers: Record<string, string> = {
