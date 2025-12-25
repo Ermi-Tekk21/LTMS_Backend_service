@@ -1,0 +1,33 @@
+# Node modules & dependencies
+node_modules
+npm-debug.log
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist
+*.tsbuildinfo
+
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.swp
+
+# Test / coverage files
+coverage
+test-results
+jest.config.js
+tsconfig.spec.json
+test
+
+# Docker & CI files (optional, for clean image)
+.dockerignore
+docker-compose.yml
+Dockerfile
+
+# Git files
+.git
+.gitignore
