@@ -25,6 +25,7 @@ import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
 import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
 import { report } from 'process';
+// import { ParticipantService } from './participant/participant.service';
 
 @Injectable()
 export class EventService {
@@ -661,39 +662,52 @@ export class EventService {
     }
   }
 
-  // REMOVE PARTICIPANTS FROM EVENT
-  async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    try {
-      const eventRepo = queryRunner.manager.getRepository(Event);
+   // REMOVE PARTICIPANTS FROM EVENT
+async removeParticipantFromEvent(eventId: string, participantId: string) {
+  return this.dataSource.transaction(async (manager) => {
+    const eventRepo = manager.getRepository(Event);
+    const participantRepo = manager.getRepository(Participant);
 
-      const event = await eventRepo.findOne({
-        where: { id: eventId },
-        relations: ['participants'],
-      });
-      if (!event) throw new NotFoundException('Event not found');
+    // 1. Load event
+    const event = await eventRepo.findOne({
+      where: { id: eventId },
+      relations: ['participants'],
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    
+    // 2. Ensure participant exists
+    const participant = await participantRepo.findOne({
+      where: { id: participantId },
+    });
+    if (!participant) throw new NotFoundException('Participant not found');
 
-      event.participants = event.participants.filter(
-        (participant) => !participantIds.includes(participant.id),
-      );
-      const updatedEvent = await eventRepo.save(event);
+    // 3. Remove relation
+    event.participants = event.participants.filter(
+      p => p.id !== participantId,
+    );
+    await eventRepo.save(event);
 
-      await queryRunner.commitTransaction();
-      return updatedEvent;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      if (error instanceof NotFoundException) {
-        throw error
-      }
-      throw new InternalServerErrorException(
-        `Failed to remove participants: ${error instanceof Error ? error.message : String(error)}`
-      )
-    } finally {
-      await queryRunner.release();
+    // 4. Count remaining event relations FROM DB
+    const remainingEventsCount = await eventRepo
+      .createQueryBuilder('e')
+      .innerJoin('e.participants', 'p')
+      .where('p.id = :participantId', { participantId })
+      .getCount();
+
+    // 5. Hard delete orphan participant
+    if (remainingEventsCount === 0) {
+      await participantRepo.delete(participantId);
     }
-  }
+
+    return {
+      message:
+        remainingEventsCount === 0
+          ? 'Participant permanently deleted'
+          : 'Participant removed from event only',
+    };
+  });
+}
+
 
   //  UPDATE (REPLACE ALL PARTICIPANTS)
   async updateParticipantsForEvent(eventId: string, participantIds: string[]) {
