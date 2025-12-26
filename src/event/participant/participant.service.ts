@@ -40,7 +40,11 @@ export class ParticipantService {
         dto.woreda,
         token,
       );
-      if (!location) throw new BadRequestException('Invalid region/zone/woreda');
+      if (!location) {
+        throw new BadRequestException(
+          'Invalid location information. Please check the Region, Zone, and Woreda fields.',
+        );
+      }
 
       // Create participant with location_code
       const participant = await this.participantDAL.create(
@@ -146,21 +150,21 @@ export class ParticipantService {
         sheet.getCell(`G${row}`).dataValidation = {
           type: 'list',
           allowBlank: true,
-          formulae: [ `=${regionRange}` ],
+          formulae: [`=${regionRange}`],
         };
       }
       if (zoneRange) {
         sheet.getCell(`H${row}`).dataValidation = {
           type: 'list',
           allowBlank: true,
-          formulae: [ `=${zoneRange}` ],
+          formulae: [`=${zoneRange}`],
         };
       }
       if (woredaRange) {
         sheet.getCell(`I${row}`).dataValidation = {
           type: 'list',
           allowBlank: true,
-          formulae: [ `=${woredaRange}` ],
+          formulae: [`=${woredaRange}`],
         };
       }
     }
@@ -253,7 +257,7 @@ export class ParticipantService {
         participant_type,
         created_by,
       });
-      
+
     });
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -303,8 +307,8 @@ export class ParticipantService {
 
         if (!location) {
           invalidRows.push({
-            row: participants.indexOf(p) + 2, 
-            message: `Invalid region/zone/woreda: ${p.region} - ${p.zone} - ${p.woreda}`,
+            row: participants.indexOf(p) + 2,
+            message: `Invalid location data (Region: ${p.region}, Zone: ${p.zone}, Woreda: ${p.woreda}). Please correct and try again.`,
           });
           continue;
         }
@@ -381,8 +385,10 @@ export class ParticipantService {
       if (error instanceof BadRequestException) {
         throw error;
       }
+      console.error('ParticipantService.findAll failed:', error);
+
       throw new InternalServerErrorException(
-        `ParticipantService.findAll failed: ${error instanceof Error ? error.message : String(error)}`,
+        'An unexpected error occurred while retrieving participants. Please try again later.',
       );
     }
   }
@@ -418,7 +424,7 @@ export class ParticipantService {
       deleted_at: new Date(),
     });
     return {
-      message: 'Participant soft-deleted successfully',
+      message: 'Participant deleted successfully',
       softDeleted: true,
     };
   }

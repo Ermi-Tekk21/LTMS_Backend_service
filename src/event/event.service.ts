@@ -25,6 +25,7 @@ import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
 import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
 import { report } from 'process';
+// import { ParticipantService } from './participant/participant.service';
 
 @Injectable()
 export class EventService {
@@ -662,38 +663,51 @@ export class EventService {
   }
 
   // REMOVE PARTICIPANTS FROM EVENT
-  async removeParticipantsFromEvent(eventId: string, participantIds: string[]) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    try {
-      const eventRepo = queryRunner.manager.getRepository(Event);
+  async removeParticipantFromEvent(eventId: string, participantId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const eventRepo = manager.getRepository(Event);
+      const participantRepo = manager.getRepository(Participant);
 
+      // 1. Load event
       const event = await eventRepo.findOne({
         where: { id: eventId },
         relations: ['participants'],
       });
       if (!event) throw new NotFoundException('Event not found');
 
-      event.participants = event.participants.filter(
-        (participant) => !participantIds.includes(participant.id),
-      );
-      const updatedEvent = await eventRepo.save(event);
+      // 2. Ensure participant exists
+      const participant = await participantRepo.findOne({
+        where: { id: participantId },
+      });
+      if (!participant) throw new NotFoundException('Participant not found');
 
-      await queryRunner.commitTransaction();
-      return updatedEvent;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      if (error instanceof NotFoundException) {
-        throw error
+      // 3. Remove relation
+      event.participants = event.participants.filter(
+        p => p.id !== participantId,
+      );
+      await eventRepo.save(event);
+
+      // 4. Count remaining event relations FROM DB
+      const remainingEventsCount = await eventRepo
+        .createQueryBuilder('e')
+        .innerJoin('e.participants', 'p')
+        .where('p.id = :participantId', { participantId })
+        .getCount();
+
+      // 5. Hard delete orphan participant
+      if (remainingEventsCount === 0) {
+        await participantRepo.delete(participantId);
       }
-      throw new InternalServerErrorException(
-        `Failed to remove participants: ${error instanceof Error ? error.message : String(error)}`
-      )
-    } finally {
-      await queryRunner.release();
-    }
+
+      return {
+        message:
+          remainingEventsCount === 0
+            ? 'Participant permanently deleted'
+            : 'Participant removed from event ',
+      };
+    });
   }
+
 
   //  UPDATE (REPLACE ALL PARTICIPANTS)
   async updateParticipantsForEvent(eventId: string, participantIds: string[]) {
@@ -721,9 +735,12 @@ export class EventService {
       if (error instanceof NotFoundException) {
         throw error
       }
+      console.error('Failed to update participants:', error);
+
       throw new InternalServerErrorException(
-        `Failed to update participants: ${error instanceof Error ? error.message : String(error)}`
-      )
+        'An unexpected error occurred while updating the participants. Please try again later.',
+      );
+
     } finally {
       await queryRunner.release();
     }
@@ -785,9 +802,12 @@ export class EventService {
       if (error instanceof NotFoundException) {
         throw error
       }
+      console.error('Failed to update event status:', error);
+
       throw new InternalServerErrorException(
-        `Failed to update event status: ${error instanceof Error ? error.message : String(error)}`
-      )
+        'An unexpected error occurred while updating the event status. Please try again later.',
+      );
+
     }
   }
 
@@ -1346,6 +1366,150 @@ export class EventService {
       );
     } finally {
       await queryRunner.release();
+    }
+  }
+  async getAttendanceReport(eventId: string, report: boolean) {
+    try {
+      // Ensure session participant maps exist
+      await this.participantSessionMap(eventId);
+
+      const event = await this.eventDAL.findOne({
+        where: { id: eventId },
+        relations: [
+          'participants',
+          'event_dates',
+          'event_dates.event_sessions',
+          'event_dates.event_sessions.session_participant_maps',
+          'event_dates.event_sessions.session_participant_maps.participant',
+        ],
+      });
+
+      if (!event) {
+        throw new NotFoundException(`Event with ID ${eventId} not found`);
+      }
+
+      const isDayBased = !!event.is_day_based;
+      const headers: any[] = [];
+      const data: any[] = [];
+
+      // Sort dates
+      const sortedDates = (event.event_dates || []).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      if (isDayBased) {
+        // Headers: Date
+        sortedDates.forEach(ed => {
+          headers.push({
+            label: new Date(ed.date).toDateString(),
+            date: ed.date,
+            id: ed.id,
+            type: 'day'
+          });
+        });
+
+        // Data
+        for (const p of (event.participants || [])) {
+          const history: any = {};
+          for (const ed of sortedDates) {
+            // For day based, check the first session (assuming sync) or any session for that date
+            const session = ed.event_sessions?.[0];
+            let status = null;
+            if (session) {
+              const map = session.session_participant_maps?.find(m => m.participant?.id === p.id);
+              if (map?.attendance?.status) status = map.attendance.status;
+            }
+            // Return object with status and eventDateId
+            history[new Date(ed.date).toDateString()] = {
+              status,
+              eventDateId: ed.id
+            };
+          }
+          data.push({
+            participant: {
+              id: p.id,
+              first_name: p.first_name,
+              father_name: p.father_name,
+              gender: p.gender,
+              phone: p.phone
+            },
+            history
+          })
+        }
+
+      } else {
+        // Session based
+        // Headers: Date - SessionType
+        sortedDates.forEach(ed => {
+          const sessions = (ed.event_sessions || []).sort((a, b) => {
+            if (a.session_type === session_type.MORNING) return -1;
+            if (b.session_type === session_type.MORNING) return 1;
+            return 0;
+          });
+
+          sessions.forEach(sess => {
+            headers.push({
+              label: `${new Date(ed.date).toDateString()} - ${sess.session_type}`,
+              date: ed.date,
+              session_type: sess.session_type,
+              sessionId: sess.id,
+              type: 'session'
+            });
+          })
+        });
+
+        for (const p of (event.participants || [])) {
+          const history: any = {};
+          for (const ed of sortedDates) {
+            const sessions = (ed.event_sessions || []).sort((a, b) => {
+              if (a.session_type === session_type.MORNING) return -1;
+              if (b.session_type === session_type.MORNING) return 1;
+              return 0;
+            });
+
+            for (const sess of sessions) {
+              const map = sess.session_participant_maps?.find(m => m.participant?.id === p.id);
+              const key = `${new Date(ed.date).toDateString()} - ${sess.session_type}`;
+              // Return object with status and sessionParticipantMapId
+              history[key] = {
+                status: map?.attendance?.status || null,
+                sessionParticipantMapId: map?.id || null
+              };
+            }
+          }
+          data.push({
+            participant: {
+              id: p.id,
+              first_name: p.first_name,
+              father_name: p.father_name,
+              gender: p.gender,
+              phone: p.phone
+            },
+            history
+          })
+        }
+      }
+
+      return {
+        event: {
+          id: event.id,
+          name: event.name,
+          is_day_based: isDayBased
+        },
+        headers,
+        data
+      }
+
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) throw error;
+
+      console.error('Failed to get attendance report:', error);
+
+      throw new InternalServerErrorException(
+        'An unexpected error occurred while retrieving the attendance report. Please try again later.',
+      );
+
     }
   }
 }

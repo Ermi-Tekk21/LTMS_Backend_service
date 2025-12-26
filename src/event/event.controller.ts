@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException, UseGuards, BadRequestException } from '@nestjs/common';
+
 import type { Response } from 'express';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -136,12 +137,13 @@ export class EventController {
     return this.eventService.assignParticipantsToEvent(eventId, participantIds);
   }
   @Permission('manage', 'participant')
-  @Delete(':id/participants')
-  async removeParticipants(
+  @Permission('manage', 'participant')
+  @Delete(':id/participants/:participantId')
+  async removeParticipant(
     @Param('id') eventId: string,
-    @Body('participantIds') participantIds: string[],
+    @Param('participantId') participantId: string,
   ) {
-    return this.eventService.removeParticipantsFromEvent(eventId, participantIds);
+    return this.eventService.removeParticipantFromEvent(eventId, participantId);
   }
   @Permission('manage', 'participant')
   @Patch(':id/participants')
@@ -152,6 +154,7 @@ export class EventController {
     return this.eventService.updateParticipantsForEvent(eventId, participantIds);
   }
 
+  
   @Permission('manage', 'participant')
   @Get(':id/participants')
   async getEventParticipants(
@@ -225,5 +228,14 @@ export class EventController {
     @Body() updateDateParticipantMapDto: UpdateDateParticipantMapDto
   ) {
     return this.eventService.dayBasedManualAttFill(eventId, updateDateParticipantMapDto.dateParticipantMaps || []);
+  }
+  @Permission('read', 'event')
+  @Get('attendance-report/:id')
+  async getAttendanceReport(
+    @Param('id') eventId: string,
+    @Query('report') report: boolean,
+  ) {
+    const reportVal = String(report).toLowerCase() === 'true';
+    return this.eventService.getAttendanceReport(eventId, reportVal);
   }
 }

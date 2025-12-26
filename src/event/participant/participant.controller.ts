@@ -26,8 +26,6 @@ import { IncomingHttpHeaders } from 'http';
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
 
-  // ---------------- CREATE PARTICIPANT ----------------
-
   @Permission('create', 'participant')
   @Post(':eventId')
   async createParticipant(

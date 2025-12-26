@@ -1,4 +1,4 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Controller, Get, Query, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { LocationService } from './location.service';
 
@@ -6,19 +6,24 @@ import { LocationService } from './location.service';
 export class LocationController {
   constructor(private readonly locationService: LocationService) {}
 
-  @Get('tree')
-  async getLocationTree(@Req() req: Request) {
-    const reqAny = req as any;
-    const authHeader: string | undefined =
-      reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
-    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+ @Get('tree')
+async getLocationTree(
+  @Req() req: Request,
+  @Query('region') region?: string,
+  @Query('zone') zone?: string,
+) {
+  const authHeader =
+    req.headers.authorization ?? (req.headers as any).Authorization;
 
-    if (!token) {
-      throw new Error('Authorization token missing');
-    }
-
-    console.log('extracted token:', token);
-
-    return await this.locationService.getLocationTree(token);
+  if (!authHeader) {
+    throw new UnauthorizedException('Authorization token missing');
   }
+
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+
+  return this.locationService.getLocationTree(token, {
+    region,
+    zone,
+  });
+}
 }
