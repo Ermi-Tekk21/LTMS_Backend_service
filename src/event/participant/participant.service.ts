@@ -7,13 +7,11 @@ import { FindManyOptions, DataSource } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 import { community_type, gender, participant_type } from 'src/common/constants/enums';
-import { ZoneService } from '../adress/zoneWoreda.service';
 import { LocationService } from 'src/location/location.service';
 @Injectable()
 export class ParticipantService {
   constructor(
     private readonly participantDAL: ParticipantDAL,
-    private readonly zoneService: ZoneService,
     private readonly eventService: EventService,
     private readonly dataSource: DataSource,
     private readonly locationService: LocationService,
@@ -127,7 +125,6 @@ export class ParticipantService {
     const participantValues = Object.values(participant_type);
     const communityValues = Object.values(community_type);
 
-    // Gender & Community dropdowns
     for (let row = 2; row <= 100; row++) {
       sheet.getCell(`D${row}`).dataValidation = {
         type: 'list',

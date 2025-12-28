@@ -49,9 +49,11 @@ export enum gender {
     MALE = 'male',
     FEMALE = 'female'
 }
-export enum participant_type{
-    FARMER="farmer",
-    EGENT="agent"
+export enum participant_type {
+    FARMER = "farmer",
+    EGENT = "Lersha Agent", 
+    EXTENSION_WORKERS = "Extension Workers",
+    GOVERNMENT_OFFICIALS = "Government Officials"
 }
 
 export enum reportType {
