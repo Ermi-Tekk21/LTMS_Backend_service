@@ -11,7 +11,8 @@ import { ZoneService } from '../adress/zoneWoreda.service';
 import { LocationService } from 'src/location/location.service';
 @Injectable()
 export class ParticipantService {
-  constructor(private readonly participantDAL: ParticipantDAL,
+  constructor(
+    private readonly participantDAL: ParticipantDAL,
     private readonly zoneService: ZoneService,
     private readonly eventService: EventService,
     private readonly dataSource: DataSource,
@@ -96,6 +97,31 @@ export class ParticipantService {
     ];
 
     sheet.getRow(1).font = { bold: true };
+
+    const requiredKeys = [
+      'first_name',
+      'father_name',
+      'grandfather_name',
+      'gender',
+      'age',
+      'phone',
+      'region',
+      'zone',
+      'woreda',
+      'kebele',
+      'participant_type'
+    ];
+
+    sheet.getRow(1).eachCell((cell, colNumber) => {
+      const column = sheet.getColumn(colNumber);
+      if (column.key && requiredKeys.includes(column.key as string)) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFFF00' },
+        };
+      }
+    });
 
     const genderValues = Object.values(gender);
     const participantValues = Object.values(participant_type);
@@ -323,7 +349,6 @@ export class ParticipantService {
         finalParticipantIds.push(saved.id);
       }
 
-      // Assign to event
       if (finalParticipantIds.length > 0) {
         await this.eventService.assignParticipantsToEvent(
           eventId,
