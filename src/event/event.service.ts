@@ -7,7 +7,7 @@ import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from 'src/document/document.service';
-import { attendance, doc_type, event_status, reportType, session_type } from 'src/common/constants/enums';
+import { attendance, doc_type, event_status, participant_type, reportType, session_type } from 'src/common/constants/enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
@@ -62,6 +62,7 @@ export class EventService {
         expected_participant_number: dto.expected_participant_number,
         is_day_based: dto.is_day_based,
         participant_type: dto.participant_type,
+        description: dto.description,
         created_by,
       }, queryRunner);
 
@@ -943,9 +944,26 @@ export class EventService {
 
       if (Array.isArray(event.participants)) {
         event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
-        event.participants = event.participants.sort((a, b) =>
-          a.first_name.localeCompare(b.first_name, undefined, { sensitivity: 'base' })
-        );
+        const priority: Record<string, number> = {
+          [participant_type.LERSHA_AGENT]: 1,
+          [participant_type.FARMER]: 2,
+          [participant_type.EXTENSION_WORKERS]: 3,
+          [participant_type.GOVERNMENT_OFFICIALS]: 4,
+        };
+
+        event.participants = event.participants.sort((a, b) => {
+          const typeA = a.participant_type;
+          const typeB = b.participant_type;
+
+          const pA = (typeA && priority[typeA]) ? priority[typeA] : 3;
+          const pB = (typeB && priority[typeB]) ? priority[typeB] : 3;
+
+          if (pA !== pB) {
+            return pA - pB;
+          }
+
+          return (a.first_name || '').localeCompare(b.first_name || '', undefined, { sensitivity: 'base' });
+        });
       } else {
         event.participants = [];
       }
@@ -1029,12 +1047,14 @@ export class EventService {
             { text: '#', bold: true, alignment: 'center' },
             { text: 'Full Name', bold: true, alignment: 'center' },
             { text: 'Gender', bold: true, alignment: 'center' },
+            { text: 'Role', bold: true, alignment: 'center' },
             { text: 'Phone No', bold: true, alignment: 'center' },
             { text: 'Signature', alignment: 'center', bold: true, colSpan: dateSet.length },
           ];
           for (let i = 1; i < dateSet.length; i++) headerRow1.push({});
 
           headerRow2 = [
+            {},
             {},
             {},
             {},
@@ -1051,6 +1071,7 @@ export class EventService {
             { text: '#', rowSpan: 3, bold: true, alignment: 'center' },
             { text: 'Full Name', rowSpan: 3, bold: true, alignment: 'center' },
             { text: 'Gender', rowSpan: 3, bold: true, alignment: 'center' },
+            { text: 'Participant_type', rowSpan: 3, bold: true, alignment: 'center' },
             { text: 'Phone No', rowSpan: 3, bold: true, alignment: 'center' },
             { text: 'Signature', alignment: 'center', bold: true, colSpan: totalSpan },
           ];
@@ -1061,10 +1082,12 @@ export class EventService {
             {},
             {},
             {},
+            {},
             ...dateSet.flatMap(date => [{ text: date, alignment: 'center', bold: true, colSpan: 2 }, {}])
           ];
 
           const headerRow3 = [
+            {},
             {},
             {},
             {},
@@ -1130,6 +1153,7 @@ export class EventService {
               { text: String(rowNumber++) },
               { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
               { text: p.gender ?? '-' },
+              { text: p.participant_type ?? '-', alignment: 'center' },
               { text: p.phone ?? '-' },
               ...attendanceColumns
             ];
@@ -1144,6 +1168,7 @@ export class EventService {
               '',
               '',
               '',
+              '',
               ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
             ]);
           }
@@ -1152,6 +1177,7 @@ export class EventService {
           for (let extra = 0; extra < participantsPerPage; extra++) {
             tableBody.push([
               String(rowNumber++),
+              '',
               '',
               '',
               '',
@@ -1169,10 +1195,11 @@ export class EventService {
               table: {
                 headerRows: headerRowsCount,
                 widths: [
-                  15,
+                  25,
                   '*',
-                  50,
-                  70,
+                  60,
+                  95,
+                  95,
                   ...dateSet.flatMap(() => isDayBased ? [58] : [58, 58])
                 ],
                 body: tableBody
@@ -1191,6 +1218,88 @@ export class EventService {
             content.push({ text: '', pageBreak: 'after' });
           }
         }
+      }
+      
+      // Per Diem Sheet Generation
+      for (let i = 0; i < participants.length; i += participantsPerPage) {
+        const pageParticipants = participants.slice(i, i + participantsPerPage);
+
+        let rowNumber = i + 1;
+
+        const tableBody: any[] = [
+          [
+            { text: '#', bold: true, alignment: 'center' },
+            { text: 'Full Name', bold: true, alignment: 'center' },
+            { text: 'Role', bold: true, alignment: 'center' },
+            { text: 'Phone No', bold: true, alignment: 'center' },
+            { text: 'Bank Name', bold: true, alignment: 'center' },
+            { text: 'Bank Account', bold: true, alignment: 'center' },
+            { text: 'Branch', bold: true, alignment: 'center' },
+            { text: 'Signature', bold: true, alignment: 'center' },
+          ]
+        ];
+
+        for (const p of pageParticipants) {
+          tableBody.push([
+            { text: String(rowNumber++) },
+            { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
+            { text: p.participant_type ?? '-', alignment: 'center' },
+            { text: p.phone ?? '-' },
+            { text: '' },
+            { text: '' },
+            { text: '' },
+            { text: '' }
+          ]);
+        }
+
+        const remainingRows = participantsPerPage - pageParticipants.length;
+        for (let k = 0; k < remainingRows; k++) {
+          tableBody.push([
+            String(rowNumber++),
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            ''
+          ]);
+        }
+
+        // additional blank block (keeps space for signatures)
+        for (let extra = 0; extra < participantsPerPage; extra++) {
+          tableBody.push([
+            String(rowNumber++),
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            ''
+          ]);
+        }
+
+        content.push(
+          {
+            text: 'Per Diem Sheet',
+            style: 'header',
+            margin: [0, 5, 0, 15],
+            pageBreak: 'before'
+          },
+          {
+            table: {
+              headerRows: 1,
+              widths: [25, '*', 80, 80, 100, 100, 100, 80],
+              body: tableBody
+            },
+            layout: {
+              fillColor: (rowIndex: number) => (rowIndex < 1 ? '#F5F5F5' : null),
+              hLineWidth: () => 0.5,
+              vLineWidth: () => 0.5
+            }
+          }
+        );
       }
 
       const docDefinition: any = {

@@ -16,9 +16,13 @@ export class CreateEventDto {
 
   @IsString()
   location_id: string;
+  
 
   @IsString()
   venue: string;
+
+  @IsString()
+  description: string;
 
   @IsEnum(participant_type)
    participant_type: participant_type[];

@@ -51,9 +51,10 @@ export enum gender {
 }
 export enum participant_type {
     FARMER = "farmer",
-    EGENT = "Lersha Agent", 
+    LERSHA_AGENT = "Lersha Agent", 
     EXTENSION_WORKERS = "Extension Workers",
-    GOVERNMENT_OFFICIALS = "Government Officials"
+    GOVERNMENT_OFFICIALS = "Government Officials",
+    PARTNER = "Partner"
 }
 
 export enum reportType {

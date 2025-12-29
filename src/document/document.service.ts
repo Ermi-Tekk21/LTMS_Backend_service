@@ -107,6 +107,48 @@ export class DocumentService {
     }
   }
 
+  async createLink(
+    link: string,
+    eventID: string,
+    docType: doc_type,
+    userId: string
+  ) {
+    const doctype = docType.toLowerCase();
+
+    try {
+      const event = await this.eventService.findOne(eventID);
+      if (!event) {
+        throw new NotFoundException('Event not found');
+      }
+
+      if (doctype === doc_type.REPORT) {
+        this.ensureReportUploadAllowed(event);
+      }
+
+      if (doctype === doc_type.REPORT) {
+        event.event_status = event_status.COMPLATED;
+        await this.eventRepo.save(event);
+      }
+
+      const newDoc = await this.create({
+        event,
+        path: link, // Store the link directly as the path
+        file_type: 'link', // Special file type for links
+        doc_type: doctype as doc_type,
+        created_by: userId
+      });
+
+      return newDoc;
+    } catch (err) {
+      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new InternalServerErrorException(
+        `Failed to save link: ${err.message}`,
+      );
+    }
+  }
+
   async remove(id: string, queryRunner?: QueryRunner, userId?: string) {
     try {
       const document = await this.documentDal.findOne({ where: { id } });
@@ -128,17 +170,22 @@ export class DocumentService {
       await this.documentDal.delete(document.id);
       return {
         success: true,
-        message: "the document has been successfully deleted."  
+        message: "the document has been successfully deleted."
       };
     } catch (err) {
       console.log(err);
-      
+
       if (err instanceof NotFoundException) throw err;
       throw new InternalServerErrorException(`Failed to remove document`);
     }
   }
 
-  viewDoc(key: string) {
+  async viewDoc(key: string) {
+    // If the key is an external link (starts with http/https), return it directly
+    if (key.startsWith('http://') || key.startsWith('https://')) {
+      return key;
+    }
+
     const bucketName = process.env.AWS_S3_BUCKET_NAME!;
     return this.awsS3Service.getPresignedUrl(bucketName, key);
   }
