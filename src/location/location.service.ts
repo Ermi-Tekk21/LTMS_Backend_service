@@ -5,7 +5,7 @@ import axios from 'axios';
 export class LocationService {
   private readonly apiUrl =
     process.env.FARMER_URL ||
-    'http://164.160.187.141:3344/api/v1/farmer/getAllInOne';
+    'http://13.50.253.205:3344/api/v1/farmer/getAllInOne';
 
   // Normalize for logic
   private normalize(value: string): string {
