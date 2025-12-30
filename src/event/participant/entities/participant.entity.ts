@@ -22,13 +22,13 @@ export class Participant {
     @Column({ type: 'text' })
     first_name: string;
 
-    @Column({ type: 'text', nullable: true })
+    @Column({ type: 'text' })
     father_name: string;
 
     @Column({ type: 'text', nullable: true })
     Grandfather_name: string;
 
-    @Column({ type: 'text' })
+    @Column({ type: 'text'  })
     age: string;
 
     @Column({
