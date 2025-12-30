@@ -235,11 +235,21 @@ export class EventService {
           updateData.event_status = updateData.status;
           delete updateData.status;
         }
-        await this.eventDAL.update(id, { ...updateData, updated_by }, queryRunner);
+
+        await this.eventDAL.update(id, { ...updateEventDto, ...updateData, updated_by }, queryRunner);
       }
 
       // Update event_dates relation
-      if (event_dates) {
+      let datesChanged = true;
+      if (event_dates && event.event_dates) {
+        const existing = event.event_dates.map(d => new Date(d.date).toDateString()).sort();
+        const incoming = event_dates.map(d => new Date(d).toDateString()).sort();
+        if (JSON.stringify(existing) === JSON.stringify(incoming)) {
+          datesChanged = false;
+        }
+      }
+
+      if (event_dates && datesChanged) {
         for (const event_date of event.event_dates) {
           await this.eventDateService.remove(event_date.id)
         }
@@ -366,7 +376,7 @@ export class EventService {
               event_session: {
                 id: session.id
               }
-            }, relations: ['participant', 'event_session']
+            }
           })
 
           if (!sessionParticipantExist || session == null) {
