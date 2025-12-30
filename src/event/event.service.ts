@@ -1231,7 +1231,7 @@ export class EventService {
             { text: '#', bold: true, alignment: 'center' },
             { text: 'Full Name', bold: true, alignment: 'center' },
             { text: 'Role', bold: true, alignment: 'center' },
-            { text: 'Phone No', bold: true, alignment: 'center' },
+            // { text: 'Phone No', bold: true, alignment: 'center' },
             { text: 'Bank Name', bold: true, alignment: 'center' },
             { text: 'Bank Account', bold: true, alignment: 'center' },
             { text: 'Branch', bold: true, alignment: 'center' },
@@ -1244,7 +1244,7 @@ export class EventService {
             { text: String(rowNumber++) },
             { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
             { text: p.participant_type ?? '-', alignment: 'center' },
-            { text: p.phone ?? '-' },
+            // { text: p.phone ?? '-' },
             { text: '' },
             { text: '' },
             { text: '' },
@@ -1256,7 +1256,6 @@ export class EventService {
         for (let k = 0; k < remainingRows; k++) {
           tableBody.push([
             String(rowNumber++),
-            '',
             '',
             '',
             '',
@@ -1275,17 +1274,33 @@ export class EventService {
             '',
             '',
             '',
-            '',
             ''
           ]);
         }
 
         content.push(
           {
+            columns: [{ image: logoBase64, width: 100 }],
+            columnGap: 10,
+            margin: [0, 0, 0, 10],
+            pageBreak: 'before'
+          },
+          {
+            text: 'Green Agro-Solution PLC (Lersha)',
+            style: { fontSize: 20, bold: true },
+            margin: [0, 0, 0, 10],
+            alignment: 'center',
+          },
+          {
+            text: `Project Name: ${projectName} `,
+            style: { fontSize: 17 },
+            margin: [0, 0, 0, 10],
+            alignment: 'center',
+          },
+          {
             text: 'Per Diem Sheet',
             style: 'header',
             margin: [0, 5, 0, 15],
-            pageBreak: 'before'
           },
           {
             table: {

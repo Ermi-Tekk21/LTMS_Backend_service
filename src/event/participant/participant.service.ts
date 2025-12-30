@@ -47,7 +47,7 @@ export class ParticipantService {
 
       // Create participant with location_code
       const participant = await this.participantDAL.create(
-        { ...dto, created_by, location_code: location.location_code, location_id: location.id, age: String(dto.age) },
+        { ...dto, created_by, location_code: location.location_code, location_id: location.id },
         queryRunner,
       );
 
@@ -86,11 +86,6 @@ export class ParticipantService {
       { header: 'Woreda', key: 'woreda', width: 20 },
       { header: 'Kebele', key: 'kebele', width: 20 },
       { header: 'participant_type', key: 'participant_type', width: 20 },
-      { header: 'Disability', key: 'disability', width: 20 },
-      { header: 'Occupation', key: 'occupation', width: 20 },
-      { header: 'Organization', key: 'organization', width: 25 },
-      { header: 'Community Type', key: 'community_type', width: 20 },
-      { header: 'Literacy Level', key: 'literacy_level', width: 20 },
 
     ];
 
@@ -99,7 +94,6 @@ export class ParticipantService {
     const requiredKeys = [
       'first_name',
       'father_name',
-      'grandfather_name',
       'gender',
       'age',
       'phone',
@@ -116,7 +110,7 @@ export class ParticipantService {
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFFFFF00' },
+          fgColor: { argb: '00FF00' },
         };
       }
     });

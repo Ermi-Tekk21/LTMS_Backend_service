@@ -185,7 +185,6 @@ export class DocumentService {
     if (key.startsWith('http://') || key.startsWith('https://')) {
       return key;
     }
-
     const bucketName = process.env.AWS_S3_BUCKET_NAME!;
     return this.awsS3Service.getPresignedUrl(bucketName, key);
   }
