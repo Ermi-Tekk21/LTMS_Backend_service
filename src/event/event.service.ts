@@ -990,7 +990,7 @@ export class EventService {
       const printer = new PdfPrinter(fonts);
 
       const participantsPerPage = 20;
-      const datesPerPage = 3;
+      const datesPerPage = !!event.is_day_based ? 6 : 3;
 
       const participants = event.participants || [];
       const eventDates = (event.event_dates || []).map(d => {
