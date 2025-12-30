@@ -235,11 +235,21 @@ export class EventService {
           updateData.event_status = updateData.status;
           delete updateData.status;
         }
-        await this.eventDAL.update(id, { ...updateData, updated_by }, queryRunner);
+
+        await this.eventDAL.update(id, { ...updateEventDto, ...updateData, updated_by }, queryRunner);
       }
 
       // Update event_dates relation
-      if (event_dates) {
+      let datesChanged = true;
+      if (event_dates && event.event_dates) {
+        const existing = event.event_dates.map(d => new Date(d.date).toDateString()).sort();
+        const incoming = event_dates.map(d => new Date(d).toDateString()).sort();
+        if (JSON.stringify(existing) === JSON.stringify(incoming)) {
+          datesChanged = false;
+        }
+      }
+
+      if (event_dates && datesChanged) {
         for (const event_date of event.event_dates) {
           await this.eventDateService.remove(event_date.id)
         }
@@ -366,7 +376,7 @@ export class EventService {
               event_session: {
                 id: session.id
               }
-            }, relations: ['participant', 'event_session']
+            }
           })
 
           if (!sessionParticipantExist || session == null) {
@@ -1219,7 +1229,7 @@ export class EventService {
           }
         }
       }
-      
+
       // Per Diem Sheet Generation
       for (let i = 0; i < participants.length; i += participantsPerPage) {
         const pageParticipants = participants.slice(i, i + participantsPerPage);
@@ -1231,7 +1241,7 @@ export class EventService {
             { text: '#', bold: true, alignment: 'center' },
             { text: 'Full Name', bold: true, alignment: 'center' },
             { text: 'Role', bold: true, alignment: 'center' },
-            { text: 'Phone No', bold: true, alignment: 'center' },
+            // { text: 'Phone No', bold: true, alignment: 'center' },
             { text: 'Bank Name', bold: true, alignment: 'center' },
             { text: 'Bank Account', bold: true, alignment: 'center' },
             { text: 'Branch', bold: true, alignment: 'center' },
@@ -1244,7 +1254,7 @@ export class EventService {
             { text: String(rowNumber++) },
             { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
             { text: p.participant_type ?? '-', alignment: 'center' },
-            { text: p.phone ?? '-' },
+            // { text: p.phone ?? '-' },
             { text: '' },
             { text: '' },
             { text: '' },
@@ -1256,7 +1266,6 @@ export class EventService {
         for (let k = 0; k < remainingRows; k++) {
           tableBody.push([
             String(rowNumber++),
-            '',
             '',
             '',
             '',
@@ -1275,17 +1284,33 @@ export class EventService {
             '',
             '',
             '',
-            '',
             ''
           ]);
         }
 
         content.push(
           {
+            columns: [{ image: logoBase64, width: 100 }],
+            columnGap: 10,
+            margin: [0, 0, 0, 10],
+            pageBreak: 'before'
+          },
+          {
+            text: 'Green Agro-Solution PLC (Lersha)',
+            style: { fontSize: 20, bold: true },
+            margin: [0, 0, 0, 10],
+            alignment: 'center',
+          },
+          {
+            text: `Project Name: ${projectName} `,
+            style: { fontSize: 17 },
+            margin: [0, 0, 0, 10],
+            alignment: 'center',
+          },
+          {
             text: 'Per Diem Sheet',
             style: 'header',
             margin: [0, 5, 0, 15],
-            pageBreak: 'before'
           },
           {
             table: {
