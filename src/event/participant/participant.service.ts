@@ -7,12 +7,11 @@ import { FindManyOptions, DataSource } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 import { community_type, gender, participant_type } from 'src/common/constants/enums';
-import { ZoneService } from '../adress/zoneWoreda.service';
 import { LocationService } from 'src/location/location.service';
 @Injectable()
 export class ParticipantService {
-  constructor(private readonly participantDAL: ParticipantDAL,
-    private readonly zoneService: ZoneService,
+  constructor(
+    private readonly participantDAL: ParticipantDAL,
     private readonly eventService: EventService,
     private readonly dataSource: DataSource,
     private readonly locationService: LocationService,
@@ -97,11 +96,35 @@ export class ParticipantService {
 
     sheet.getRow(1).font = { bold: true };
 
+    const requiredKeys = [
+      'first_name',
+      'father_name',
+      'grandfather_name',
+      'gender',
+      'age',
+      'phone',
+      'region',
+      'zone',
+      'woreda',
+      'kebele',
+      'participant_type'
+    ];
+
+    sheet.getRow(1).eachCell((cell, colNumber) => {
+      const column = sheet.getColumn(colNumber);
+      if (column.key && requiredKeys.includes(column.key as string)) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFFF00' },
+        };
+      }
+    });
+
     const genderValues = Object.values(gender);
     const participantValues = Object.values(participant_type);
     const communityValues = Object.values(community_type);
 
-    // Gender & Community dropdowns
     for (let row = 2; row <= 100; row++) {
       sheet.getCell(`D${row}`).dataValidation = {
         type: 'list',
@@ -323,7 +346,6 @@ export class ParticipantService {
         finalParticipantIds.push(saved.id);
       }
 
-      // Assign to event
       if (finalParticipantIds.length > 0) {
         await this.eventService.assignParticipantsToEvent(
           eventId,

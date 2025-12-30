@@ -10,8 +10,12 @@ export class LowercaseSubscriber implements EntitySubscriberInterface<Record<str
     if (event.entity) this.toLowercaseAllStrings(event.entity);
   }
 
+  private readonly exceptions = ['path', 'url', 'link', 'password', 'participant_type'];
+
   private toLowercaseAllStrings(entity: Record<string, any>) {
     for (const key of Object.keys(entity)) {
+      if (this.exceptions.includes(key)) continue;
+
       const value = entity[key];
       if (typeof value === 'string') {
         entity[key] = value.toLowerCase();

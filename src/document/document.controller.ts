@@ -24,6 +24,16 @@ export class DocumentController {
     return this.documentService.createAndUploadMultipleFile(files, eventId, docType, bucketName, user.userId);
   }
 
+  @Post('link/:eventId')
+  createLink(
+    @CurrentUser() user: any,
+    @Body('link') link: string,
+    @Body('doc-type') docType: doc_type,
+    @Param('eventId') eventId: string,
+  ) {
+    return this.documentService.createLink(link, eventId, docType, user.userId);
+  }
+
   @Get('/view')
   viewDoc(@Body() body: { key: string }) {
     return this.documentService.viewDoc(body.key);

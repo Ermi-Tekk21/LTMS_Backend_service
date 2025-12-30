@@ -42,6 +42,9 @@ export class Event {
     @Column({ type: 'text', nullable: true })
     venue: string;
 
+    @Column({ type: 'text', nullable: true })
+    description: string;
+    
     @Column({ nullable: true })
     expected_participant_number: number;
 
@@ -65,6 +68,8 @@ export class Event {
 
     @OneToMany(() => EventDate, (eventDate) => eventDate.event)
     event_dates: EventDate[];
+
+    
 
     @Column({ default: false, nullable: true })
     is_day_based: boolean

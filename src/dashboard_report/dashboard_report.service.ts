@@ -41,13 +41,10 @@ export class DashboardReportService {
     //helper function for checking weather a participant participate 2/3 of atleast one event
     async isValidParticipant(participant: Participant): Promise<boolean> {
         try {
-            // dedupe relations to avoid duplicate JOIN / alias errors
-            const relations = Array.from(new Set([
+            const relations = [
                 'participant',
-                'event_session',
-                'event_session.event_date',
                 'event_session.event_date.event',
-            ]));
+            ];
 
             const { data: sessionsMap } = await this.ParticipantSessionMapDal.findAll({
                 where: {
@@ -142,7 +139,7 @@ export class DashboardReportService {
             }).length;
         });
 
-        
+
         const ageGroupPercentages: Record<string, number> = {};
         for (const key in ageGroupCounts) {
             ageGroupPercentages[key] = totalValidAgeParticipants > 0
@@ -184,7 +181,7 @@ export class DashboardReportService {
             success: true,
             "participant stats": {
                 totalParticipants,
-                ageGroups: ageGroupPercentages,  // only age as percentage
+                ageGroups: ageGroupPercentages,
                 gender: { male: maleCount, female: femaleCount },
                 // communityTypes: communityStats,
                 // pwd: pwdCount,
@@ -197,8 +194,6 @@ export class DashboardReportService {
             }
         };
     }
-
-
 
     async eventStats(period?: 'week' | 'month' | 'year') {
         let where: FindOptionsWhere<any> = {};

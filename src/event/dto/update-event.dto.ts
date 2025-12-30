@@ -21,6 +21,10 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
   event_status?: event_status;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
   @IsNumber()
   expected_participant_number?: number;
 
