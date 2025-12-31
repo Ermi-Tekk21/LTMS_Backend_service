@@ -101,7 +101,7 @@ async getLocationTree(
     token: string,
   ) {
     const locations = await this.fetchEnglishLocations(token);
-
+    
     const found = locations.find(loc =>
       this.normalize(loc.region) === this.normalize(region) &&
       this.normalize(loc.zone) === this.normalize(zone) &&

@@ -1081,7 +1081,7 @@ export class EventService {
             { text: '#', rowSpan: 3, bold: true, alignment: 'center' },
             { text: 'Full Name', rowSpan: 3, bold: true, alignment: 'center' },
             { text: 'Gender', rowSpan: 3, bold: true, alignment: 'center' },
-            { text: 'Participant_type', rowSpan: 3, bold: true, alignment: 'center' },
+            { text: 'Role', rowSpan: 3, bold: true, alignment: 'center' },
             { text: 'Phone No', rowSpan: 3, bold: true, alignment: 'center' },
             { text: 'Signature', alignment: 'center', bold: true, colSpan: totalSpan },
           ];
