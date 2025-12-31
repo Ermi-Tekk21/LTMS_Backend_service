@@ -236,7 +236,7 @@ export class EventService {
           delete updateData.status;
         }
 
-        await this.eventDAL.update(id, { ...updateEventDto, ...updateData, updated_by }, queryRunner);
+        await this.eventDAL.update(id, { ...updateData, updated_by }, queryRunner);
       }
 
       // Update event_dates relation
