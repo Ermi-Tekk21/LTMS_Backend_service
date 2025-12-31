@@ -9,7 +9,7 @@ import { map } from 'rxjs/operators';
 
 @Injectable()
 export class CapitalizeInterceptor implements NestInterceptor {
-  private readonly exceptions = ['email','id','path'];
+  private readonly exceptions = ['email', 'id', 'path', 'status'];
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     return next.handle().pipe(map((data) => this.capitalizeResponse(data)));
@@ -54,7 +54,7 @@ export class CapitalizeInterceptor implements NestInterceptor {
   }
 
   // ---------------- STATIC UTILITY ----------------
-  static capitalizeData(data: any, exceptions: string[] = ['email'], seen = new WeakSet()): any {
+  static capitalizeData(data: any, exceptions: string[] = ['email', 'id', 'path', 'status'], seen = new WeakSet()): any {
     if (data instanceof Date) return data;
     if (Array.isArray(data)) {
       return data.map(item => this.capitalizeObjectStatic(item, exceptions, seen));

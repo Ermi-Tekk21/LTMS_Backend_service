@@ -1117,8 +1117,10 @@ export class EventService {
           const tableBody: any[] = [...tableHeader];
 
           function normalizeStatus(status: any): 'present' | 'absent' | null {
-            if (status === attendance.PRESENT) return 'present';
-            if (status === attendance.ABSENT) return 'absent';
+            if (!status) return null;
+            const s = String(status).toLowerCase();
+            if (s === 'present' || s === attendance.PRESENT.toLowerCase()) return 'present';
+            if (s === 'absent' || s === attendance.ABSENT.toLowerCase()) return 'absent';
             return null;
           }
 
