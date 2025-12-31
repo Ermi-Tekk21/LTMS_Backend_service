@@ -13,7 +13,7 @@ export class DocumentController {
   ) { }
 
   @Post('upload/:eventId')
-  @UseInterceptors(FilesInterceptor('docs', 10, multerOptions(true, ['pdf', 'image', 'vid'], 30)))
+  @UseInterceptors(FilesInterceptor('docs', 10, multerOptions(true, ['pdf', 'image', 'vid', 'excel', 'csv', 'doc'], 30)))
   create(
     @CurrentUser() user: any,
     @Body('doc-type') docType: doc_type,

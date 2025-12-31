@@ -34,6 +34,11 @@ export const fileTypes = {
     'video/x-ms-wmv',
     'video/x-flv',
   ] as const,
+  excel: [
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ] as const,
+  csv: ['text/csv'] as const,
 } as const;
 
 export type FileType = keyof typeof fileTypes;
