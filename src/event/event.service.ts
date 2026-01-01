@@ -955,18 +955,19 @@ export class EventService {
       if (Array.isArray(event.participants)) {
         event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
         const priority: Record<string, number> = {
-          [participant_type.LERSHA_AGENT]: 1,
-          [participant_type.FARMER]: 2,
-          [participant_type.EXTENSION_WORKERS]: 3,
-          [participant_type.GOVERNMENT_OFFICIALS]: 4,
+          [participant_type.LERSHA_AGENT.toLowerCase()]: 1,
+          [participant_type.PARTNER.toLowerCase()]: 2,
+          [participant_type.FARMER.toLowerCase()]: 3,
+          [participant_type.EXTENSION_WORKERS.toLowerCase()]: 4,
+          [participant_type.GOVERNMENT_OFFICIALS.toLowerCase()]: 5,
         };
 
         event.participants = event.participants.sort((a, b) => {
-          const typeA = a.participant_type;
-          const typeB = b.participant_type;
+          const typeA = a.participant_type?.toLowerCase();
+          const typeB = b.participant_type?.toLowerCase();
 
-          const pA = (typeA && priority[typeA]) ? priority[typeA] : 3;
-          const pB = (typeB && priority[typeB]) ? priority[typeB] : 3;
+          const pA = (typeA && priority[typeA]) ? priority[typeA] : 6;
+          const pB = (typeB && priority[typeB]) ? priority[typeB] : 6;
 
           if (pA !== pB) {
             return pA - pB;
