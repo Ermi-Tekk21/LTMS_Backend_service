@@ -82,7 +82,10 @@ export class DocumentService {
         });
       }
 
-      return true;
+      return {
+        success: true,
+        message: 'Files uploaded successfully',
+      };
     } catch (err) {
       if (err instanceof NotFoundException || err instanceof BadRequestException) {
         throw err;
