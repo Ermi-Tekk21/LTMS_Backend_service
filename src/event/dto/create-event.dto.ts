@@ -14,9 +14,22 @@ export class CreateEventDto {
   @IsNumber()
   expected_participant_number: number;
 
+  @IsOptional()
   @IsString()
-  location_id: string;
-  
+  location_id?: string;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  zone?: string;
+
+  @IsOptional()
+  @IsString()
+  woreda?: string;
+
 
   @IsString()
   venue: string;
@@ -25,7 +38,7 @@ export class CreateEventDto {
   description: string;
 
   @IsEnum(participant_type)
-   participant_type: participant_type[];
+  participant_type: participant_type[];
 
   @IsOptional()
   @IsArray()

@@ -23,9 +23,17 @@ export class EventController {
     @CurrentUser() user: any,
     @Body("data") data: string,
     @UploadedFile() file: Express.Multer.File,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const parsedData: CreateEventDto = JSON.parse(data)
-    return this.eventService.create(parsedData, file, user.userId,);
+
+    // Extract token from request headers
+    const reqAny = (res as any).req;
+    const authHeader: string | undefined =
+      reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : undefined;
+
+    return this.eventService.create(parsedData, file, user.userId, token);
   }
 
   @Permission('read', 'event')
@@ -154,7 +162,7 @@ export class EventController {
     return this.eventService.updateParticipantsForEvent(eventId, participantIds);
   }
 
-  
+
   @Permission('manage', 'participant')
   @Get(':id/participants')
   async getEventParticipants(

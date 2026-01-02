@@ -12,6 +12,7 @@ import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
 import { EmailService } from 'src/common/notification/email.service';
+import { LocationService } from 'src/location/location.service';
 import { QueryRunner } from 'typeorm/browser';
 import PdfPrinter from 'pdfmake';
 import * as path from 'path';
@@ -42,10 +43,11 @@ export class EventService {
     private readonly eventSessionService: EventSessionService,
     private readonly awsS3Service: AwsS3Service,
     private readonly emailService: EmailService,
+    private readonly locationService: LocationService,
     private readonly dataSource: DataSource,
   ) { }
 
-  async create(dto: CreateEventDto, file: Express.Multer.File, created_by: string) {
+  async create(dto: CreateEventDto, file: Express.Multer.File, created_by: string, token?: string) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -53,11 +55,35 @@ export class EventService {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
       const folder = 'tor';
 
+      // Resolve location_id from region, zone, and woreda if provided
+      let location_id = dto.location_id;
+      if (dto.region && dto.zone && dto.woreda && token) {
+        const locationData = await this.locationService.getLocationCode(
+          dto.region,
+          dto.zone,
+          dto.woreda,
+          token,
+        );
+        if (locationData) {
+          location_id = locationData.id;
+        } else {
+          throw new BadRequestException(
+            `Location not found for region: ${dto.region}, zone: ${dto.zone}, woreda: ${dto.woreda}`
+          );
+        }
+      }
+
+      if (!location_id) {
+        throw new BadRequestException(
+          'Either location_id or (region, zone, and woreda) must be provided'
+        );
+      }
+
       const event = await this.eventDAL.create({
         project_id: dto.project_id,
         type: dto.type,
         name: dto.name,
-        location_id: dto.location_id,
+        location_id: location_id,
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
         is_day_based: dto.is_day_based,
