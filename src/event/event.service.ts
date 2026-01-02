@@ -147,6 +147,7 @@ export class EventService {
       await queryRunner.manager.save(event);
       await queryRunner.commitTransaction();
 
+      const enrichedEvent = await this.findOne(event.id, token);
 
       if (dto.trainers?.length) {
         const trainers = dto.trainers
@@ -157,7 +158,7 @@ export class EventService {
         success: true,
         message: 'Event created successfully',
         data: {
-          event,
+          event: enrichedEvent,
           torDocument: uploadedFile,
         },
       };
@@ -178,7 +179,7 @@ export class EventService {
     }
   }
 
-  async replaceTOR(id: UUID, file: Express.Multer.File, updated_by: string, queryRunner?: QueryRunner) {
+  async replaceTOR(id: UUID, file: Express.Multer.File, updated_by: string, token?: string, queryRunner?: QueryRunner) {
     let ownTransaction = false;
     if (!queryRunner) {
       queryRunner = this.dataSource.createQueryRunner();
@@ -191,7 +192,7 @@ export class EventService {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
       const folder = 'tor';
 
-      const event = await this.findOne(String(id));
+      const event = await this.findOne(String(id), token);
       if (!event) {
         throw new NotFoundException(`Event not found`);
       }
@@ -337,7 +338,7 @@ export class EventService {
       }
 
       if (file) {
-        await this.replaceTOR(id as UUID, file, updated_by, queryRunner)
+        await this.replaceTOR(id as UUID, file, updated_by, token, queryRunner)
       }
 
       // Update trainers if provided
@@ -348,7 +349,7 @@ export class EventService {
       await queryRunner.commitTransaction();
 
       // Return the updated event with relations
-      const updatedEvent = await this.findOne(id);
+      const updatedEvent = await this.findOne(id, token);
       return {
         success: true,
         message: `Event ${updatedEvent?.id ?? id} updated successfully`,
@@ -378,7 +379,7 @@ export class EventService {
     page?: number;
     limit?: number;
     order?: Record<string, 'asc' | 'desc'>;
-  }) {
+  }, token?: string) {
     const options: any = {};
     options.relations = ['event_dates', 'trainers']
 
@@ -395,7 +396,24 @@ export class EventService {
     if (query?.page) options.page = query.page;
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
-    return this.eventDAL.findAll(options);
+
+    const result = await this.eventDAL.findAll(options);
+
+    if (token && result.data.length > 0) {
+      try {
+        const locationsMap = await this.locationService.getLocationsMap(token);
+        result.data = result.data.map(event => {
+          if (event.location_id && locationsMap.has(event.location_id)) {
+            (event as any).location = locationsMap.get(event.location_id);
+          }
+          return event;
+        });
+      } catch (error) {
+        console.error('Failed to fetch location names for findAll:', error.message);
+      }
+    }
+
+    return result;
   }
 
   async participantSessionMap(eventId: string) {
@@ -868,11 +886,23 @@ export class EventService {
     }
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, token?: string) {
     const res = await this.eventDAL.findOne({
       where: { id: id },
       relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates.event_sessions', 'event_dates.event_sessions.session_participant_maps', 'event_dates.event_sessions.session_participant_maps.participant']
     })
+
+    if (res && res.location_id && token) {
+      try {
+        const locationDetails = await this.locationService.getLocationById(res.location_id, token);
+        if (locationDetails) {
+          (res as any).location = locationDetails;
+        }
+      } catch (error) {
+        console.error(`Failed to fetch location names for event ${id}:`, error.message);
+      }
+    }
+
     return res;
   }
 
@@ -997,6 +1027,17 @@ export class EventService {
       }
 
       const projectName = await this.getProjectName(token, event.project_id as UUID);
+      let locationDetails = '';
+      if (event.location_id && token) {
+        try {
+          const loc = await this.locationService.getLocationById(event.location_id, token);
+          if (loc) {
+            locationDetails = `Location: ${loc.region}, ${loc.zone}, ${loc.woreda}`;
+          }
+        } catch (error) {
+          console.error('Failed to fetch location for PDF:', error.message);
+        }
+      }
 
       if (Array.isArray(event.participants)) {
         event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
@@ -1089,6 +1130,12 @@ export class EventService {
           {
             text: `Project Name: ${projectName} `,
             style: { fontSize: 17 },
+            margin: [0, 0, 0, 5],
+            alignment: 'center',
+          },
+          {
+            text: locationDetails,
+            style: { fontSize: 15 },
             margin: [0, 0, 0, 10],
             alignment: 'center',
           }
@@ -1353,6 +1400,12 @@ export class EventService {
           {
             text: `Project Name: ${projectName} `,
             style: { fontSize: 17 },
+            margin: [0, 0, 0, 5],
+            alignment: 'center',
+          },
+          {
+            text: locationDetails,
+            style: { fontSize: 15 },
             margin: [0, 0, 0, 10],
             alignment: 'center',
           },
