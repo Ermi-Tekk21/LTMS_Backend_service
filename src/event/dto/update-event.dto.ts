@@ -28,8 +28,8 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
   @IsNumber()
   expected_participant_number?: number;
 
-   @IsOptional()
-   @IsEnum(participant_type)
+  @IsOptional()
+  @IsEnum(participant_type)
   participant_type?: participant_type[];
 
   @IsOptional()
@@ -40,7 +40,24 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
 
   @IsOptional()
   @IsString()
+  location_id?: string;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  zone?: string;
+
+  @IsOptional()
+  @IsString()
+  woreda?: string;
+
+  @IsOptional()
+  @IsString()
   location?: string;
+
 
   @IsOptional()
   @IsString()

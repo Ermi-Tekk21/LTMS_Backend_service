@@ -83,14 +83,22 @@ export class EventController {
   @Permission('update', 'event')
   @Patch(':id')
   @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
-  update(
+  async update(
     @Param('id') id: string,
     @CurrentUser() user: any,
     @Body("data") data: string,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const parsedData: UpdateEventDto = JSON.parse(data)
-    return this.eventService.update(id, parsedData, user.userId, file);
+
+    // Extract token from request headers
+    const reqAny = (res as any).req;
+    const authHeader: string | undefined =
+      reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : undefined;
+
+    return this.eventService.update(id, parsedData, user.userId, token, file);
   }
 
   @Permission('manage', 'trainer')

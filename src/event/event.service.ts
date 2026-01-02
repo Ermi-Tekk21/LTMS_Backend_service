@@ -241,7 +241,7 @@ export class EventService {
     }
   }
 
-  async update(id: string, updateEventDto: UpdateEventDto, updated_by: string, file?: Express.Multer.File) {
+  async update(id: string, updateEventDto: UpdateEventDto, updated_by: string, token?: string, file?: Express.Multer.File) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -252,11 +252,31 @@ export class EventService {
         throw new NotFoundException('event to be updated not found...')
       }
 
-      const { trainers, event_dates, ...eventData } = updateEventDto;
+      const { trainers, event_dates, region, zone, woreda, location_id: dto_location_id, ...eventData } = updateEventDto;
+
+      let location_id = dto_location_id;
+      if (region && zone && woreda && token) {
+        const locationData = await this.locationService.getLocationCode(
+          region,
+          zone,
+          woreda,
+          token,
+        );
+        if (locationData) {
+          location_id = locationData.id;
+        } else {
+          throw new BadRequestException(
+            `Location not found for region: ${region}, zone: ${zone}, woreda: ${woreda}`
+          );
+        }
+      }
 
       // Update scalar properties - map DTO fields to entity properties
-      if (Object.keys(eventData).length > 0) {
+      if (Object.keys(eventData).length > 0 || location_id) {
         const updateData: any = { ...eventData };
+        if (location_id) {
+          updateData.location_id = location_id;
+        }
         if (updateData.status !== undefined) {
           updateData.event_status = updateData.status;
           delete updateData.status;

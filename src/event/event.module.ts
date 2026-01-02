@@ -28,7 +28,6 @@ import { LocationModule } from 'src/location/location.module';
     AdressModule,
     LocationModule,
 
-
     forwardRef(() => ParticipantModule),
     ActivityModule,
     DocumentModule,
