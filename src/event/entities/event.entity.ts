@@ -1,4 +1,5 @@
 import { event_status, participant_type } from 'src/common/constants/enums';
+import { Expose } from 'class-transformer';
 import {
     Column,
     Entity,
@@ -32,19 +33,28 @@ export class Event {
     @Column({
         type: 'enum',
         enum: participant_type,
-        array: true,     
-        nullable: false, 
+        array: true,
+        nullable: false,
     })
     participant_type: participant_type[];
     @Column({ type: 'text', nullable: true })
     location_id: string;
+
+    @Expose()
+    region?: string;
+
+    @Expose()
+    zone?: string;
+
+    @Expose()
+    woreda?: string;
 
     @Column({ type: 'text', nullable: true })
     venue: string;
 
     @Column({ type: 'text', nullable: true })
     description: string;
-    
+
     @Column({ nullable: true })
     expected_participant_number: number;
 
@@ -69,7 +79,7 @@ export class Event {
     @OneToMany(() => EventDate, (eventDate) => eventDate.event)
     event_dates: EventDate[];
 
-    
+
 
     @Column({ default: false, nullable: true })
     is_day_based: boolean

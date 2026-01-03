@@ -398,13 +398,22 @@ export class EventService {
     options.order = query?.order || { created_at: 'desc' };
 
     const result = await this.eventDAL.findAll(options);
+    console.log(`findAll: token present? ${!!token}, data count: ${result.data.length}`);
 
     if (token && result.data.length > 0) {
       try {
         const locationsMap = await this.locationService.getLocationsMap(token);
         result.data = result.data.map(event => {
-          if (event.location_id && locationsMap.has(event.location_id)) {
-            (event as any).location = locationsMap.get(event.location_id);
+          if (event.location_id) {
+            const normalizedId = String(event.location_id);
+            if (locationsMap.has(normalizedId)) {
+              const loc = locationsMap.get(normalizedId);
+              event.region = loc.region;
+              event.zone = loc.zone;
+              event.woreda = loc.woreda;
+            } else {
+              console.warn(`Location ID ${event.location_id} not found in locations map for event ${event.id}`);
+            }
           }
           return event;
         });
@@ -896,7 +905,11 @@ export class EventService {
       try {
         const locationDetails = await this.locationService.getLocationById(res.location_id, token);
         if (locationDetails) {
-          (res as any).location = locationDetails;
+          res.region = locationDetails.region;
+          res.zone = locationDetails.zone;
+          res.woreda = locationDetails.woreda;
+        } else {
+          console.warn(`Location details not found for ID ${res.location_id} in event ${id}`);
         }
       } catch (error) {
         console.error(`Failed to fetch location names for event ${id}:`, error.message);

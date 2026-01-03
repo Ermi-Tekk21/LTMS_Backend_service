@@ -120,7 +120,7 @@ export class LocationService {
     const locations = await this.fetchEnglishLocations(token);
     const map = new Map();
     locations.forEach(loc => {
-      map.set(loc.id, {
+      map.set(String(loc.id), {
         region: loc.region,
         zone: loc.zone,
         woreda: loc.woreda,
@@ -132,7 +132,7 @@ export class LocationService {
 
   async getLocationById(id: string, token: string) {
     const locations = await this.fetchEnglishLocations(token);
-    const found = locations.find(loc => loc.id === id);
+    const found = locations.find(loc => String(loc.id) === String(id));
     if (!found) return null;
     return {
       region: found.region,
