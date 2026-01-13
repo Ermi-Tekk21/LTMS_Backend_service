@@ -13,12 +13,17 @@ async function bootstrap() {
   app.useGlobalInterceptors(new CapitalizeInterceptor());
 
   app.enableCors({
-    origin: ['http://localhost:3000','http://164.160.187.141:8092', 'http://13.50.253.205:8092'],
+    origin: [
+      'http://localhost:3000',
+      'http://164.160.187.141:8092',
+      'http://13.50.253.205:8092',
+      'https://dc-portal.lersha.com',
+    ],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
-  
+
   const port = process.env.PORT || 4499;
   await app.listen(port);
 
