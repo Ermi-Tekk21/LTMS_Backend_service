@@ -17,8 +17,8 @@ async function bootstrap() {
       'http://localhost:3000',
       'http://164.160.187.141:8092',
       'http://13.50.253.205:8092',
-      'http://13.60.51.53:8092'
-      'https://kong.greenagrosolution.org',
+      'http://13.60.51.53:8092',
+      'https://dc-portal.lersha.com',
     ],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
