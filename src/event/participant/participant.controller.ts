@@ -24,7 +24,7 @@ import { IncomingHttpHeaders } from 'http';
 
 @Controller('participant')
 export class ParticipantController {
-  constructor(private readonly participantService: ParticipantService) {}
+  constructor(private readonly participantService: ParticipantService) { }
 
   @Permission('create', 'participant')
   @Post(':eventId')
@@ -85,53 +85,52 @@ export class ParticipantController {
   }
 
 
- @Permission('create', 'participant')
-@Post('upload/:eventId')
-@UseInterceptors(FileInterceptor('file'))
-async uploadExcel(
-  @Param('eventId') eventId: string,
-  @UploadedFile() file: Express.Multer.File,
-  @CurrentUser('userId') userId: string,
-  @Req() req: Request,
-) {
-  if (!file) {
-    throw new BadRequestException('No file uploaded.');
+  @Permission('create', 'participant')
+  @Post('upload/:eventId')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadExcel(
+    @Param('eventId') eventId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser('userId') userId: string,
+    @Req() req: Request,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded.');
+    }
+
+    if (!eventId) {
+      throw new BadRequestException('Event ID is required.');
+    }
+
+    //  Extract token safely from headers
+    const authHeader = req.headers['authorization'] as string | undefined;
+    if (!authHeader) {
+      throw new BadRequestException('Authorization token is missing');
+    }
+
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
+
+    try {
+      const result = await this.participantService.importFromExcel(
+        file,
+        eventId,
+        userId,
+        token,
+      );
+
+      return {
+        message: 'Excel file imported successfully.',
+        ...result,
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to import Excel: ${error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
-
-  if (!eventId) {
-    throw new BadRequestException('Event ID is required.');
-  }
-
-  //  Extract token safely from headers
-  const authHeader = req.headers['authorization'] as string | undefined;
-  if (!authHeader) {
-    throw new BadRequestException('Authorization token is missing');
-  }
-
-  const token = authHeader.startsWith('Bearer ')
-    ? authHeader.split(' ')[1]
-    : authHeader;
-
-  try {
-    const result = await this.participantService.importFromExcel(
-      file,
-      eventId,
-      userId,
-      token,
-    );
-
-    return {
-      message: 'Excel file imported successfully.',
-      ...result,
-    };
-  } catch (error) {
-    throw new BadRequestException(
-      `Failed to import Excel: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
-}
 
   @Permission('read', 'participant')
   @Get(':id')
