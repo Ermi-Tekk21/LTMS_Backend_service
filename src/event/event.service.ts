@@ -7,7 +7,7 @@ import { EventDateService } from './event_date/event_date.service';
 import { EventSessionService } from './event_session/event_session.service';
 import { AwsS3Service } from 'src/common/aws-s3/aws-s3.service';
 import { DocumentService } from 'src/document/document.service';
-import { attendance, doc_type, event_status, participant_type, reportType, session_type } from 'src/common/constants/enums';
+import { attendance, doc_type, event_status, gender, participant_type, reportType, session_type } from 'src/common/constants/enums';
 import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
@@ -490,8 +490,6 @@ export class EventService {
       });
 
       if (!event) throw new NotFoundException('Event not found');
-
-      // load trainers by ids
       const trainers = await trainerRepo.findBy({ id: In(trainerIds) });
 
       const foundIds = new Set(trainers.map((t) => t.id));
@@ -499,8 +497,6 @@ export class EventService {
       if (missing.length) {
         throw new NotFoundException(`Trainers not found: ${missing.join(', ')}`);
       }
-
-      // ensure event.trainers array exists and avoid duplicates
       event.trainers = event.trainers || [];
       const existingIds = new Set(event.trainers.map((t) => t.id));
       const trainersToAdd = trainers.filter((t) => !existingIds.has(t.id));
@@ -523,7 +519,7 @@ export class EventService {
       }
       await queryRunner.commitTransaction();
       await this.updateEventStatusIfReady(eventId);
-      // return fresh event with trainers relation
+
       return await eventRepo.findOne({
         where: { id: eventId },
         relations: ['trainers'],
@@ -680,9 +676,14 @@ export class EventService {
   //  ASSIGN PARTICIPANTS TO EVENT
   async assignParticipantsToEvent(
     eventId: string,
-    participantIds: string[],
+
+    participants: any[] | undefined, // Mix of IDs or Participant Objects
     queryRunner?: QueryRunner, // optional
+    token?: string,
   ) {
+    if (!participants || !Array.isArray(participants)) {
+      throw new BadRequestException('Participants must be provided as an array');
+    }
     const runner = queryRunner || this.dataSource.createQueryRunner();
     let ownTransaction = false;
 
@@ -702,9 +703,47 @@ export class EventService {
       });
       if (!event) throw new NotFoundException('Event not found');
 
-      const participants = await participantRepo.findBy({ id: In(participantIds) });
+      const finalParticipantIds: string[] = [];
 
-      event.participants = [...(event.participants || []), ...participants];
+      for (const p of participants) {
+        if (typeof p === 'string') {
+          // It's a local ID
+          finalParticipantIds.push(p);
+        } else if (p && typeof p === 'object') {
+          let existing = await participantRepo.findOne({
+            where: [
+              { phone: p.phone },
+              { external_participant_id: String(p.external_participant_id || p.id) }
+            ]
+          });
+
+          if (existing) {
+            finalParticipantIds.push(existing.id);
+          } else {
+
+            // Normalize for entity
+            const newParticipant = participantRepo.create({
+              ...p,
+              external_participant_id: String(p.external_participant_id || p.id),
+              id: undefined, // let typeorm generate UUID
+              age: String(p.age || '0'),
+            });
+
+            // Save may return either a single entity or an array; normalize to a single Participant.
+            const savedResult = await runner.manager.save(newParticipant) as unknown;
+            const savedEntity = Array.isArray(savedResult) ? (savedResult as Participant[])[0] : (savedResult as Participant);
+            finalParticipantIds.push(savedEntity.id);
+          }
+        }
+      }
+
+      const dbParticipants = await participantRepo.findBy({ id: In(finalParticipantIds) });
+
+      // Avoid duplicates
+      const existingIds = new Set(event.participants?.map(p => p.id) || []);
+      const toAdd = dbParticipants.filter(p => !existingIds.has(p.id));
+
+      event.participants = [...(event.participants || []), ...toAdd];
       const updatedEvent = await eventRepo.save(event);
 
       if (ownTransaction) await runner.commitTransaction();
@@ -859,6 +898,189 @@ export class EventService {
     };
   }
 
+  async searchParticipantsForEvent(
+    eventId: string,
+    search: string,
+    page = 1,
+    limit = 10,
+    token?: string,
+    filters?: {
+      participant_type?: participant_type;
+      region?: string;
+      zone?: string;
+      kebele?: string;
+    },
+  ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    try {
+      const participantRepo = this.dataSource.getRepository(Participant);
+
+      // 1. Get already assigned participant info to exclude
+      const assignedResult = await this.getEventParticipants(eventId, 1, 10000);
+      const assignedExternalIds = new Set<string>();
+      const assignedPhones = new Set<string>();
+
+      assignedResult.data.forEach(p => {
+        if (p.external_participant_id) assignedExternalIds.add(p.external_participant_id);
+        if (p.phone) assignedPhones.add(p.phone);
+      });
+
+      // 2. Fetch Local Participants (excluding assigned)
+      const queryBuilder = participantRepo.createQueryBuilder('p');
+      if (search && search.trim() !== '') {
+        queryBuilder.andWhere(
+          '(p.first_name ILIKE :search OR p.father_name ILIKE :search OR p.phone ILIKE :search)',
+          { search: `%${search}%` }
+        );
+      }
+
+      if (filters?.participant_type) {
+        queryBuilder.andWhere('p.participant_type = :pType', { pType: filters.participant_type });
+      }
+      if (filters?.region) {
+        queryBuilder.andWhere('p.region ILIKE :region', { region: `%${filters.region}%` });
+      }
+      if (filters?.zone) {
+        queryBuilder.andWhere('p.zone ILIKE :zone', { zone: `%${filters.zone}%` });
+      }
+      if (filters?.kebele) {
+        queryBuilder.andWhere('p.kebele ILIKE :kebele', { kebele: `%${filters.kebele}%` });
+      }
+
+      // We sub-filter assigned by phone/id to be safe
+      const allLocalHits = await queryBuilder.getMany();
+      let localData = allLocalHits
+        .filter(p => !assignedPhones.has(p.phone))
+        .map(p => ({ ...p, source: 'local' }));
+
+      // Fetch External Sources
+      let externalData: any[] = [];
+      const hasSearch = search && search.trim() !== '';
+      const hasLocationFilters = filters && (filters.region || filters.zone || filters.kebele);
+      const shouldFetchExternal = token && (hasSearch || hasLocationFilters || filters?.participant_type);
+
+      if (shouldFetchExternal) {
+        const headers = { Authorization: `Bearer ${token}` };
+
+        // Optimization: Only fetch Agents if type is unspecified or specified as LERSHA_AGENT
+        if (!filters?.participant_type || filters.participant_type === participant_type.LERSHA_AGENT) {
+          try {
+            // A. Agents
+            const agentBaseUrl = process.env.AGENT_SERVICE_URL || 'http://164.160.187.141:3344/api/v1/dynamic-form/project/all_agents';
+            let agentUrl = `${agentBaseUrl}?search=${search || ''}`;
+            if (filters?.region) agentUrl += `&region=${filters.region}`;
+            if (filters?.zone) agentUrl += `&zone=${filters.zone}`;
+            if (filters?.kebele) agentUrl += `&kebele=${filters.kebele}`;
+
+            const agentsRes = await axios.get(agentUrl, { headers });
+            if (agentsRes.data?.data) {
+              const agents = Array.isArray(agentsRes.data.data) ? agentsRes.data.data : [agentsRes.data.data];
+              externalData.push(
+                ...agents.map(a => ({
+                  id: a.id,
+                  external_participant_id: String(a.id),
+
+                  first_name: (a.first_name),
+                  father_name: (a.middle_name),
+                  Grandfather_name: (a.last_name || ''),
+
+                  phone: a.phone_number || a.user?.phone_number,
+                  gender:
+                    a.gender?.toLowerCase() === 'male'
+                      ? gender.MALE
+                      : gender.FEMALE,
+
+                  region: a.location?.region || null,
+                  zone: a.location?.zone || null,
+                  woreda: a.location?.woreda || null,
+                  kebele: a.kebele || null,
+
+                  source: 'Agent',
+                  participant_type: participant_type.LERSHA_AGENT,
+                })),
+              );
+            }
+          } catch (e) {
+            console.error('Failed to fetch agents:', e.message);
+          }
+        }
+
+        // Optimization: Only fetch Farmers if type is unspecified or specified as FARMER
+        if (!filters?.participant_type || filters.participant_type === participant_type.FARMER) {
+          try {
+            // B. Farmers
+            const payload = {
+              search: search || "",
+              region: filters?.region,
+              zone: filters?.zone,
+              woreda: filters?.kebele
+            };
+            const farmerUrl = process.env.FARMER_SERVICE_URL || `http://164.160.187.141:3344/api/v1/farmer/find_all`;
+            const farmersRes = await axios.post(farmerUrl, payload, { headers });
+            if (farmersRes.data?.data?.data) {
+              const farmers = Array.isArray(farmersRes.data.data.data) ? farmersRes.data.data.data : [];
+              externalData.push(...farmers.map(f => ({
+                id: f.id,
+                external_participant_id: String(f.id),
+                first_name: f.first_name,
+                father_name: f.middle_name || f.father_name || '',
+                Grandfather_name: f.last_name || f.Grandfather_name || '',
+                phone: f.phone || f.phone_number,
+                gender: f.gender?.toLowerCase() === 'male' ? gender.MALE : gender.FEMALE,
+                region: f.location?.region || f.region,
+                zone: f.location?.zone || f.zone,
+                woreda: f.location?.woreda || f.woreda,
+                kebele: f.address?.kebele || f.kebele,
+                source: 'farmer',
+                participant_type: participant_type.FARMER
+              })));
+            }
+          } catch (e) {
+            console.error('Failed to fetch farmers:', e.message);
+          }
+        }
+      }
+
+      // Final filter for external data (exclude assigned and local hits, and ensure search match)
+      const localPhones = new Set(localData.map(p => p.phone));
+      const searchLower = search ? search.toLowerCase() : '';
+
+      externalData = externalData.filter(p => {
+        // Exclude assigned
+        if (assignedExternalIds.has(String(p.id)) || assignedPhones.has(p.phone)) return false;
+        // Exclude local duplicates
+        if (localPhones.has(p.phone)) return false;
+
+        // Apply filters
+        if (filters?.region && !p.region?.toLowerCase().includes(filters.region.toLowerCase())) return false;
+        if (filters?.zone && !p.zone?.toLowerCase().includes(filters.zone.toLowerCase())) return false;
+        if (filters?.kebele && !p.kebele?.toLowerCase().includes(filters.kebele.toLowerCase())) return false;
+
+        // Apply Search match check
+        const matchesSearch =
+          (p.first_name && p.first_name.toLowerCase().includes(searchLower)) ||
+          (p.father_name && p.father_name.toLowerCase().includes(searchLower)) ||
+          (p.Grandfather_name && p.Grandfather_name.toLowerCase().includes(searchLower)) ||
+          (p.phone && p.phone.toLowerCase().includes(searchLower));
+
+        return matchesSearch;
+      });
+
+      const mergedData = [...localData, ...externalData];
+
+      return {
+        data: mergedData.slice((page - 1) * limit, page * limit),
+        total: mergedData.length,
+        page,
+        limit,
+      };
+    } catch (error) {
+      console.error('EventService.searchParticipantsForEvent failed:', error);
+      throw new InternalServerErrorException(
+        'An unexpected error occurred while searching participants.',
+      );
+    }
+  }
+
   async updateEventStatusIfReady(eventId: string) {
     try {
       const eventRepo = this.dataSource.getRepository(Event);
@@ -982,7 +1204,7 @@ export class EventService {
   }
 
   async getProjectName(token: string, projectId: UUID) {
-    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://http://13.50.253.205:4499/api/v1/dynamic-form';
+    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://13.50.253.205:4499/api/v1/dynamic-form';
     const url = `${baseUrl}/project/${projectId}`;
     try {
       const headers: Record<string, string> = {
