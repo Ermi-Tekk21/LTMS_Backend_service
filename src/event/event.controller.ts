@@ -183,7 +183,7 @@ export class EventController {
     @Query('search') search: string,
     @Req() req: any,
     @Query('page') page = 1,
-    @Query('limit') limit = 10,
+    @Query('limit') limit = 20,
     @Query('participant_type') participant_type?: participant_type,
     @Query('region') region?: string,
     @Query('zone') zone?: string,

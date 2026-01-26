@@ -879,7 +879,7 @@ export class EventService {
         .filter(p => !assignedPhones.has(p.phone))
         .map(p => ({ ...p, source: 'local' }));
 
-      // 3. Fetch External Sources
+      // Fetch External Sources
       let externalData: any[] = [];
       const hasSearch = search && search.trim() !== '';
       const hasLocationFilters = filters && (filters.region || filters.zone || filters.kebele);
@@ -892,7 +892,8 @@ export class EventService {
         if (!filters?.participant_type || filters.participant_type === participant_type.LERSHA_AGENT) {
           try {
             // A. Agents
-            let agentUrl = `http://164.160.187.141:3344/api/v1/dynamic-form/project/all_agents?search=${search || ''}`;
+            const agentBaseUrl = process.env.AGENT_SERVICE_URL || 'http://164.160.187.141:3344/api/v1/dynamic-form/project/all_agents';
+            let agentUrl = `${agentBaseUrl}?search=${search || ''}`;
             if (filters?.region) agentUrl += `&region=${filters.region}`;
             if (filters?.zone) agentUrl += `&zone=${filters.zone}`;
             if (filters?.kebele) agentUrl += `&kebele=${filters.kebele}`;
@@ -906,7 +907,7 @@ export class EventService {
                   external_participant_id: String(a.id),
 
                   first_name: (a.first_name),
-                  father_name: (a.middle_name || ''),
+                  father_name: (a.middle_name),
                   Grandfather_name: (a.last_name || ''),
 
                   phone: a.phone_number || a.user?.phone_number,
@@ -940,7 +941,8 @@ export class EventService {
               zone: filters?.zone,
               woreda: filters?.kebele
             };
-            const farmersRes = await axios.post(`http://164.160.187.141:3344/api/v1/farmer/find_all`, payload, { headers });
+            const farmerUrl = process.env.FARMER_SERVICE_URL || `http://164.160.187.141:3344/api/v1/farmer/find_all`;
+            const farmersRes = await axios.post(farmerUrl, payload, { headers });
             if (farmersRes.data?.data?.data) {
               const farmers = Array.isArray(farmersRes.data.data.data) ? farmersRes.data.data.data : [];
               externalData.push(...farmers.map(f => ({
@@ -1113,7 +1115,7 @@ export class EventService {
   }
 
   async getProjectName(token: string, projectId: UUID) {
-    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://http://13.50.253.205:4499/api/v1/dynamic-form';
+    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://13.50.253.205:4499/api/v1/dynamic-form';
     const url = `${baseUrl}/project/${projectId}`;
     try {
       const headers: Record<string, string> = {
