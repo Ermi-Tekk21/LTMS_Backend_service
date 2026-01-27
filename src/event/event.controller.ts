@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Req, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException, UseGuards, BadRequestException } from '@nestjs/common';
 
 import type { Response } from 'express';
 import { EventService } from './event.service';
@@ -6,7 +6,7 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/common/fileHandler/MulterOption';
-import { doc_type, event_status } from 'src/common/constants/enums';
+import { doc_type, event_status, participant_type } from 'src/common/constants/enums';
 import type { UUID } from 'crypto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Permission } from 'src/common/decorators/permission.decorator';
@@ -161,9 +161,16 @@ export class EventController {
   @Post(':id/participants')
   async assignParticipants(
     @Param('id') eventId: string,
-    @Body('participantIds') participantIds: string[],
+    @Body() body: { participants?: any[], participantIds?: any[] },
+    @Req() req: any,
   ) {
-    return this.eventService.assignParticipantsToEvent(eventId, participantIds);
+    const participants = body.participants || body.participantIds;
+    const authHeader = req.headers['authorization'] as string | undefined;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
+
+    return this.eventService.assignParticipantsToEvent(eventId, participants, undefined, token);
   }
   @Permission('manage', 'participant')
   @Permission('manage', 'participant')
@@ -196,6 +203,39 @@ export class EventController {
     const limitNumber = Number(limit) || 10;
 
     return this.eventService.getEventParticipants(eventId, pageNumber, limitNumber);
+  }
+
+  @Permission('manage', 'participant')
+  @Get(':id/participant-search')
+  async searchParticipantsForEvent(
+    @Param('id') eventId: string,
+    @Query('search') search: string,
+    @Req() req: any,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('participant_type') participant_type?: participant_type,
+    @Query('region') region?: string,
+    @Query('zone') zone?: string,
+    @Query('kebele') kebele?: string,
+  ) {
+    const authHeader = req.headers['authorization'] as string | undefined;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
+
+    return this.eventService.searchParticipantsForEvent(
+      eventId,
+      search,
+      Number(page) || 1,
+      Number(limit) || 10,
+      token,
+      {
+        participant_type,
+        region,
+        zone,
+        kebele,
+      }
+    );
   }
 
   @Permission('delete', 'event')

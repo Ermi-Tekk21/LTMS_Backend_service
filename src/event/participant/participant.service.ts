@@ -9,6 +9,7 @@ import { EventService } from '../event.service';
 import { community_type, gender, participant_type } from 'src/common/constants/enums';
 import { LocationService } from 'src/location/location.service';
 @Injectable()
+
 export class ParticipantService {
   constructor(
     private readonly participantDAL: ParticipantDAL,
@@ -32,25 +33,52 @@ export class ParticipantService {
     await queryRunner.startTransaction();
 
     try {
-      // Fetch location_code dynamically from LocationService
-      const location = await this.locationService.getLocationCode(
-        dto.region,
-        dto.zone,
-        dto.woreda,
-        token,
-      );
-      if (!location) {
-        throw new BadRequestException(
-          'Invalid location information. Please check the Region, Zone, and Woreda fields.',
+      const participantRepo = queryRunner.manager.getRepository(Participant);
+
+      // 1. Check if participant already exists (including soft-deleted)
+      let existing = await participantRepo.findOne({
+        where: [
+          { phone: dto.phone },
+          { external_participant_id: dto.external_participant_id }
+        ].filter(condition => condition.phone || condition.external_participant_id),
+        withDeleted: true,
+      });
+
+      let participant: Participant;
+
+      if (existing) {
+        // 2. If soft-deleted, restore
+        if (existing.deleted_at) {
+          await participantRepo.restore(existing.id);
+          existing.deleted_at = null;
+        }
+
+        participant = existing;
+      } else {
+        // 3. Fetch location_code dynamically from LocationService
+        const location = await this.locationService.getLocationCode(
+          dto.region,
+          dto.zone,
+          dto.woreda,
+          token,
         );
+        if (!location) {
+          throw new BadRequestException(
+            'Invalid location information. Please check the Region, Zone, and Woreda fields.',
+          );
+        }
+
+        // 4. Create participant with location_code
+        participant = participantRepo.create({
+          ...dto,
+          created_by,
+          location_code: location.location_code,
+          location_id: location.id,
+        });
+        participant = await participantRepo.save(participant);
       }
 
-      // Create participant with location_code
-      const participant = await this.participantDAL.create(
-        { ...dto, created_by, location_code: location.location_code, location_id: location.id },
-        queryRunner,
-      );
-
+      // 5. Assign to event
       await this.eventService.assignParticipantsToEvent(
         eventId,
         [participant.id],
@@ -85,8 +113,7 @@ export class ParticipantService {
       { header: 'Zone', key: 'zone', width: 20 },
       { header: 'Woreda', key: 'woreda', width: 20 },
       { header: 'Kebele', key: 'kebele', width: 20 },
-      { header: 'participant_type', key: 'participant_type', width: 20 },
-
+      { header: 'Participant Type', key: 'participant_type', width: 20 },
     ];
 
     sheet.getRow(1).font = { bold: true };
@@ -101,7 +128,7 @@ export class ParticipantService {
       'zone',
       'woreda',
       'kebele',
-      'participant_type'
+      'participant_type',
     ];
 
     sheet.getRow(1).eachCell((cell, colNumber) => {
@@ -115,75 +142,119 @@ export class ParticipantService {
       }
     });
 
+    const locations = await this.locationService.fetchEnglishLocations(token);
+
+    // Build hierarchy for dependent dropdowns
+    const hierarchy: Record<string, Record<string, string[]>> = {};
+    const regionList: string[] = [];
+
+    // Filter out entries with missing location data to prevent errors
+    const validLocations = locations.filter((loc) => loc.region && loc.zone && loc.woreda);
+
+    validLocations.forEach((loc) => {
+      const region = loc.region;
+      const zone = loc.zone;
+      const woreda = loc.woreda;
+
+      if (!hierarchy[region]) {
+        hierarchy[region] = {};
+        regionList.push(region);
+      }
+      if (!hierarchy[region][zone]) {
+        hierarchy[region][zone] = [];
+      }
+      if (!hierarchy[region][zone].includes(woreda)) {
+        hierarchy[region][zone].push(woreda);
+      }
+    });
+    regionList.sort();
+
+    const metaSheetName = 'Metadata_Internal';
+    const metaSheet = workbook.addWorksheet(metaSheetName, { state: 'hidden' });
+
+    // 1. Regions Named Range
+    metaSheet.getColumn(1).values = ['Regions', ...regionList];
+    workbook.definedNames.add(`'${metaSheetName}'!$A$2:$A$${regionList.length + 1}`, 'RegionList');
+
+    let colIndex = 2; // Start from Column B
+
+    // 2. Zones Named Ranges (Per Region)
+    // Using Prefix 'R_' to avoid collisions between Region names and Zone names
+    regionList.forEach((region) => {
+      const zoneNames = Object.keys(hierarchy[region]).sort();
+      const col = this.getColumnLetter(colIndex);
+      metaSheet.getColumn(colIndex).values = [region, ...zoneNames];
+      workbook.definedNames.add(
+        `'${metaSheetName}'!$${col}$2:$${col}$${zoneNames.length + 1}`,
+        'R_' + this.sanitize(region),
+      );
+      colIndex++;
+    });
+
+    // 3. Woredas Named Ranges (Per Zone)
+    // Using Prefix 'Z_' to avoid collisions
+    const processedZones = new Set<string>();
+    regionList.forEach((region) => {
+      const zoneNames = Object.keys(hierarchy[region]).sort();
+      zoneNames.forEach((zone) => {
+        const sanitizedZone = this.sanitize(zone);
+        if (processedZones.has(sanitizedZone)) return; // Avoid duplicate named ranges
+
+        const woredaNames = hierarchy[region][zone].sort();
+        const col = this.getColumnLetter(colIndex);
+        metaSheet.getColumn(colIndex).values = [zone, ...woredaNames];
+        workbook.definedNames.add(
+          `'${metaSheetName}'!$${col}$2:$${col}$${woredaNames.length + 1}`,
+          'Z_' + sanitizedZone,
+        );
+        processedZones.add(sanitizedZone);
+        colIndex++;
+      });
+    });
+
     const genderValues = Object.values(gender);
     const participantValues = Object.values(participant_type);
     const communityValues = Object.values(community_type);
 
     for (let row = 2; row <= 100; row++) {
+      // Gender (D)
       sheet.getCell(`D${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
         formulae: [`"${genderValues.join(',')}"`],
       };
+      // Region (G)
+      sheet.getCell(`G${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['=RegionList'],
+      };
+      // Zone (H) - Dependent on Region (G)
+      // Using Prefix "R_" to match the named range
+      sheet.getCell(`H${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`=INDIRECT("R_" & SUBSTITUTE(SUBSTITUTE(G${row}," ","_"),"-","_"))`],
+      };
+      // Woreda (I) - Dependent on Zone (H)
+      // Using Prefix "Z_" to match the named range
+      sheet.getCell(`I${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`=INDIRECT("Z_" & SUBSTITUTE(SUBSTITUTE(H${row}," ","_"),"-","_"))`],
+      };
+      // Participant Type (K)
       sheet.getCell(`K${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
         formulae: [`"${participantValues.join(',')}"`],
       };
+      // Community Type (O)
       sheet.getCell(`O${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
         formulae: [`"${communityValues.join(',')}"`],
       };
-    }
-
-    const locations = await this.locationService.fetchEnglishLocations(token);
-
-    const regionList = [...new Set(locations.map((l) => l.region))].sort();
-    const zoneList = [...new Set(locations.map((l) => l.zone))].sort();
-    const woredaList = [...new Set(locations.map((l) => l.woreda))].sort();
-
-    const listsSheet = workbook.addWorksheet('Lists');
-    // write header row (optional)
-    listsSheet.getCell('A1').value = 'Regions';
-    listsSheet.getCell('B1').value = 'Zones';
-    listsSheet.getCell('C1').value = 'Woredas';
-
-    // write lists starting from row 2 so header row is preserved
-    regionList.forEach((val, idx) => listsSheet.getCell(`A${idx + 2}`).value = val);
-    zoneList.forEach((val, idx) => listsSheet.getCell(`B${idx + 2}`).value = val);
-    woredaList.forEach((val, idx) => listsSheet.getCell(`C${idx + 2}`).value = val);
-
-    // hide the Lists sheet (veryHidden is supported by Excel; 'hidden' also OK)
-    listsSheet.state = 'hidden';
-
-    const regionRange = regionList.length > 0 ? `Lists!$A$2:$A$${regionList.length + 1}` : '';
-    const zoneRange = zoneList.length > 0 ? `Lists!$B$2:$B$${zoneList.length + 1}` : '';
-    const woredaRange = woredaList.length > 0 ? `Lists!$C$2:$C$${woredaList.length + 1}` : '';
-
-    // Add dropdowns using the vertical ranges (keeps each item on its own line)
-    for (let row = 2; row <= 100; row++) {
-      if (regionRange) {
-        sheet.getCell(`G${row}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`=${regionRange}`],
-        };
-      }
-      if (zoneRange) {
-        sheet.getCell(`H${row}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`=${zoneRange}`],
-        };
-      }
-      if (woredaRange) {
-        sheet.getCell(`I${row}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`=${woredaRange}`],
-        };
-      }
     }
 
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
@@ -443,5 +514,19 @@ export class ParticipantService {
       message: 'Participant deleted successfully',
       softDeleted: true,
     };
+  }
+
+  private getColumnLetter(n: number): string {
+    let s = '';
+    while (n > 0) {
+      const m = (n - 1) % 26;
+      s = String.fromCharCode(65 + m) + s;
+      n = Math.floor((n - m) / 26);
+    }
+    return s;
+  }
+
+  private sanitize(text: string): string {
+    return text.replace(/ /g, '_').replace(/-/g, '_');
   }
 }
