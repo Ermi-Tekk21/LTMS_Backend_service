@@ -641,10 +641,14 @@ export class EventService {
             where: [
               { phone: p.phone },
               { external_participant_id: String(p.external_participant_id || p.id) }
-            ]
+            ],
+            withDeleted: true,
           });
 
           if (existing) {
+            if (existing.deleted_at) {
+              await runner.manager.restore(Participant, existing.id);
+            }
             finalParticipantIds.push(existing.id);
           } else {
 
@@ -852,7 +856,7 @@ export class EventService {
       });
 
       // 2. Fetch Local Participants (excluding assigned)
-      const queryBuilder = participantRepo.createQueryBuilder('p');
+      const queryBuilder = participantRepo.createQueryBuilder('p').withDeleted();
       if (search && search.trim() !== '') {
         queryBuilder.andWhere(
           '(p.first_name ILIKE :search OR p.father_name ILIKE :search OR p.phone ILIKE :search)',
@@ -909,7 +913,7 @@ export class EventService {
                   first_name: (a.first_name),
                   father_name: (a.middle_name),
                   Grandfather_name: (a.last_name || ''),
-
+                  age:(a.age || ""),
                   phone: a.phone_number || a.user?.phone_number,
                   gender:
                     a.gender?.toLowerCase() === 'male'
@@ -951,6 +955,7 @@ export class EventService {
                 first_name: f.first_name,
                 father_name: f.middle_name || f.father_name || '',
                 Grandfather_name: f.last_name || f.Grandfather_name || '',
+                age:(f.age || ""),  
                 phone: f.phone || f.phone_number,
                 gender: f.gender?.toLowerCase() === 'male' ? gender.MALE : gender.FEMALE,
                 region: f.location?.region || f.region,
@@ -968,14 +973,28 @@ export class EventService {
       }
 
       // Final filter for external data (exclude assigned and local hits, and ensure search match)
-      const localPhones = new Set(localData.map(p => p.phone));
+      const externalPhones = externalData.map(p => p.phone).filter(Boolean);
+      const externalIds = externalData.map(p => p.external_participant_id).filter(Boolean);
+
+      // Fetch ALL local participants with matching phones/IDs to ensure no collisions
+      const localCollisions = await participantRepo.find({
+        where: [
+          { phone: In(externalPhones) },
+          { external_participant_id: In(externalIds) }
+        ].filter(c => (c as any).phone?.length > 0 || (c as any).external_participant_id?.length > 0),
+        withDeleted: true
+      });
+
+      const localPhoneSet = new Set(localCollisions.map(p => p.phone));
+      const localIdSet = new Set(localCollisions.map(p => p.external_participant_id));
       const searchLower = search ? search.toLowerCase() : '';
 
       externalData = externalData.filter(p => {
         // Exclude assigned
         if (assignedExternalIds.has(String(p.id)) || assignedPhones.has(p.phone)) return false;
-        // Exclude local duplicates
-        if (localPhones.has(p.phone)) return false;
+
+        // Exclude local duplicates (including those that didn't match the search term)
+        if (localPhoneSet.has(p.phone) || localIdSet.has(p.external_participant_id)) return false;
 
         // Apply filters
         if (filters?.region && !p.region?.toLowerCase().includes(filters.region.toLowerCase())) return false;
