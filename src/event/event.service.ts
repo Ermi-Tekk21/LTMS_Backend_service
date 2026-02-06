@@ -24,7 +24,6 @@ import { CapitalizeInterceptor } from 'src/common/database/capitalize-response.i
 import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
 import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
-import { report } from 'process';
 // import { ParticipantService } from './participant/participant.service';
 
 @Injectable()
@@ -1240,7 +1239,7 @@ export class EventService {
 
       const printer = new PdfPrinter(fonts);
 
-      const participantsPerPage = 20;
+      const participantsPerPage = 12;
       const datesPerPage = !!event.is_day_based ? 6 : 3;
 
       const participants = event.participants || [];
@@ -1265,226 +1264,175 @@ export class EventService {
 
       for (let dgIndex = 0; dgIndex < dateGroups.length; dgIndex++) {
         const dateSet = dateGroups[dgIndex];
+        const isDayBased = !!event.is_day_based;
+        const totalSpan = isDayBased ? dateSet.length : dateSet.length * 2;
+        const headerRowsCount = isDayBased ? 2 : 3;
 
         let rowNumber = 1;
+        const numParticipantPages = Math.max(1, Math.ceil(participants.length / participantsPerPage));
+        const totalPages = report ? numParticipantPages : numParticipantPages + 2;
 
-        content.push(
-          {
-            columns: [{ image: logoBase64, width: 100 }],
-            columnGap: 10,
-            margin: [0, 0, 0, 10],
-          },
-          {
-            text: 'Green Agro-Solution PLC (Lersha)',
-            style: { fontSize: 20, bold: true },
-            margin: [0, 0, 0, 10],
-            alignment: 'center',
-          },
-          {
-            text: `Project Name: ${projectName} `,
-            style: { fontSize: 17 },
-            margin: [0, 0, 0, 10],
-            alignment: 'center',
+        for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+          const i = pageIdx * participantsPerPage;
+          const pageParticipants = i < participants.length ? participants.slice(i, i + participantsPerPage) : [];
+
+          // FRESH objects for every page to avoid pdfmake reuse issues
+          const headerRows: any[][] = [];
+
+          if (isDayBased) {
+            headerRows.push([
+              { text: '#', rowSpan: 2, bold: true, alignment: 'center' },
+              { text: 'Full Name', rowSpan: 2, bold: true, alignment: 'center' },
+              { text: 'Gender', rowSpan: 2, bold: true, alignment: 'center' },
+              { text: 'Role', rowSpan: 2, bold: true, alignment: 'center' },
+              { text: 'Phone No', rowSpan: 2, bold: true, alignment: 'center' },
+              { text: 'Signature', alignment: 'center', bold: true, colSpan: dateSet.length },
+              ...Array(dateSet.length - 1).fill({})
+            ]);
+            headerRows.push([
+              {}, {}, {}, {}, {},
+              ...dateSet.map(date => ({ text: date, alignment: 'center', bold: true }))
+            ]);
+          } else {
+            headerRows.push([
+              { text: '#', rowSpan: 3, bold: true, alignment: 'center' },
+              { text: 'Full Name', rowSpan: 3, bold: true, alignment: 'center' },
+              { text: 'Gender', rowSpan: 3, bold: true, alignment: 'center' },
+              { text: 'Role', rowSpan: 3, bold: true, alignment: 'center' },
+              { text: 'Phone No', rowSpan: 3, bold: true, alignment: 'center' },
+              { text: 'Signature', alignment: 'center', bold: true, colSpan: totalSpan },
+              ...Array(totalSpan - 1).fill({})
+            ]);
+            headerRows.push([
+              {}, {}, {}, {}, {},
+              ...dateSet.flatMap(date => [{ text: date, alignment: 'center', bold: true, colSpan: 2 }, {}])
+            ]);
+            headerRows.push([
+              {}, {}, {}, {}, {},
+              ...dateSet.flatMap(() => [
+                { text: 'Morning', alignment: 'center' },
+                { text: 'Afternoon', alignment: 'center' }
+              ])
+            ]);
           }
-        );
 
-        let headerRow1: any[];
-        let headerRow2: any[] | undefined;
-        let tableHeader: any[][];
-        let headerRowsCount: number;
-
-        if (isDayBased) {
-          headerRow1 = [
-            { text: '#', bold: true, alignment: 'center' },
-            { text: 'Full Name', bold: true, alignment: 'center' },
-            { text: 'Gender', bold: true, alignment: 'center' },
-            { text: 'Role', bold: true, alignment: 'center' },
-            { text: 'Phone No', bold: true, alignment: 'center' },
-            { text: 'Signature', alignment: 'center', bold: true, colSpan: dateSet.length },
-          ];
-          for (let i = 1; i < dateSet.length; i++) headerRow1.push({});
-
-          headerRow2 = [
-            {},
-            {},
-            {},
-            {},
-            {},
-            ...dateSet.map(date => ({ text: date, alignment: 'center', bold: true }))
-          ];
-
-          tableHeader = [headerRow1, headerRow2];
-          headerRowsCount = 2;
-
-        } else {
-          const totalSpan = dateSet.length * 2;
-          headerRow1 = [
-            { text: '#', rowSpan: 3, bold: true, alignment: 'center' },
-            { text: 'Full Name', rowSpan: 3, bold: true, alignment: 'center' },
-            { text: 'Gender', rowSpan: 3, bold: true, alignment: 'center' },
-            { text: 'Participant_type', rowSpan: 3, bold: true, alignment: 'center' },
-            { text: 'Phone No', rowSpan: 3, bold: true, alignment: 'center' },
-            { text: 'Signature', alignment: 'center', bold: true, colSpan: totalSpan },
-          ];
-          for (let i = 1; i < totalSpan; i++) headerRow1.push({});
-
-          headerRow2 = [
-            {},
-            {},
-            {},
-            {},
-            {},
-            ...dateSet.flatMap(date => [{ text: date, alignment: 'center', bold: true, colSpan: 2 }, {}])
-          ];
-
-          const headerRow3 = [
-            {},
-            {},
-            {},
-            {},
-            {},
-            ...dateSet.flatMap(() => [
-              { text: 'Morning', alignment: 'center' },
-              { text: 'Afternoon', alignment: 'center' }
-            ])
-          ];
-
-          tableHeader = [headerRow1, headerRow2, headerRow3];
-          headerRowsCount = 3;
-        }
-
-        for (let i = 0; i < participants.length; i += participantsPerPage) {
-          const pageParticipants = participants.slice(i, i + participantsPerPage);
-          const tableBody: any[] = [...tableHeader];
+          const tableBody: any[][] = [...headerRows];
 
           function normalizeStatus(status: any): 'present' | 'absent' | null {
             if (!status) return null;
             const s = String(status).toLowerCase();
-            if (s === 'present' || s === attendance.PRESENT.toLowerCase()) return 'present';
-            if (s === 'absent' || s === attendance.ABSENT.toLowerCase()) return 'absent';
-            return null;
+            return (s === 'present' || s === attendance.PRESENT.toLowerCase()) ? 'present' :
+              (s === 'absent' || s === attendance.ABSENT.toLowerCase()) ? 'absent' : null;
           }
 
-          function displayCell(val: 'present' | 'absent' | null, report: boolean) {
-            if (report && val === null) return { text: 'N/B' };
-            if (report && val === 'present') return { text: 'P' };
-            if (report && val === 'absent') return { text: 'A' };
+          function displayCell(val: 'present' | 'absent' | null, isReport: boolean) {
+            if (isReport && val === null) return { text: 'N/B' };
+            if (isReport && val === 'present') return { text: 'P' };
+            if (isReport && val === 'absent') return { text: 'A' };
             return { text: '' };
           }
 
-          for (let j = 0; j < pageParticipants.length; j++) {
-            const p = pageParticipants[j];
-
-            const attendanceColumns = dateSet.flatMap(date => {
-              const eventDate = event.event_dates.find(
-                ed => new Date(ed.date).toLocaleDateString() === new Date(date).toLocaleDateString()
-              );
-
-              if (!eventDate)
-                return isDayBased ? [displayCell(null, report)] : [displayCell(null, report), displayCell(null, report)];
+          // Add participant rows
+          for (const p of pageParticipants) {
+            const attCols = dateSet.flatMap(date => {
+              const eDate = event.event_dates.find(ed => new Date(ed.date).toLocaleDateString() === new Date(date).toLocaleDateString());
+              if (!eDate) return isDayBased ? [displayCell(null, report)] : [displayCell(null, report), displayCell(null, report)];
 
               if (isDayBased) {
-                const session = (eventDate.event_sessions || [])[0];
-                const map = session?.session_participant_maps?.find(m => m.participant?.id === p.id);
-                const status = normalizeStatus(map?.attendance?.status ?? null);
-                return [displayCell(status, report)];
+                const sess = (eDate.event_sessions || [])[0];
+                const map = sess?.session_participant_maps?.find(m => m.participant?.id === p.id);
+                return [displayCell(normalizeStatus(map?.attendance?.status), report)];
               } else {
-                const morningSession = (eventDate.event_sessions || []).find(s => s.session_type == "morning");
-                const afternoonSession = (eventDate.event_sessions || []).find(s => s.session_type == "afternoon");
-
-                const morningMap = morningSession?.session_participant_maps?.find(m => String(m.participant?.id).toLowerCase() === String(p.id).toLowerCase());
-                const afternoonMap = afternoonSession?.session_participant_maps?.find(m => String(m.participant?.id).toLowerCase() === String(p.id).toLowerCase());
-
-                const morningStatus = normalizeStatus(morningMap?.attendance?.status ?? null);
-                const afternoonStatus = normalizeStatus(afternoonMap?.attendance?.status ?? null);
-
-                return [displayCell(morningStatus, report), displayCell(afternoonStatus, report)];
+                const ms = (eDate.event_sessions || []).find(s => s.session_type === 'morning');
+                const as = (eDate.event_sessions || []).find(s => s.session_type === 'afternoon');
+                const mP = ms?.session_participant_maps?.find(m => String(m.participant?.id).toLowerCase() === String(p.id).toLowerCase());
+                const aP = as?.session_participant_maps?.find(m => String(m.participant?.id).toLowerCase() === String(p.id).toLowerCase());
+                return [displayCell(normalizeStatus(mP?.attendance?.status), report), displayCell(normalizeStatus(aP?.attendance?.status), report)];
               }
             });
 
-            const row = [
+            tableBody.push([
               { text: String(rowNumber++) },
               { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
               { text: p.gender ?? '-' },
               { text: p.participant_type ?? '-', alignment: 'center' },
               { text: p.phone ?? '-' },
-              ...attendanceColumns
-            ];
-
-            tableBody.push(row);
-          }
-
-          const remainingRows = participantsPerPage - pageParticipants.length;
-          for (let k = 0; k < remainingRows; k++) {
-            tableBody.push([
-              String(rowNumber++),
-              '',
-              '',
-              '',
-              '',
-              ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
+              ...attCols
             ]);
           }
 
-          // additional blank block (keeps space for signatures)
-          for (let extra = 0; extra < participantsPerPage; extra++) {
+          // Add blank rows for remaining space
+          const blanks = participantsPerPage - pageParticipants.length;
+          for (let k = 0; k < blanks; k++) {
             tableBody.push([
-              String(rowNumber++),
-              '',
-              '',
-              '',
-              '',
-              ...dateSet.flatMap(() => isDayBased ? [''] : ['', ''])
+              { text: String(rowNumber++) },
+              { text: '' }, { text: '' }, { text: '' }, { text: '' },
+              ...dateSet.flatMap(() => isDayBased ? [{ text: '' }] : [{ text: '' }, { text: '' }])
             ]);
           }
-          const reportTypeIndicator: reportType = report ? reportType.ATT_REP : reportType.EMPTY_ATT;
+
+          const reportTypeIndicator = report ? reportType.ATT_REP : reportType.EMPTY_ATT;
+
           content.push(
+            {
+              columns: [{ image: logoBase64, width: 90 }],
+              columnGap: 10,
+              margin: [0, 0, 0, 5],
+            },
+            {
+              text: 'Green Agro-Solution PLC (Lersha)',
+              style: { fontSize: 18, bold: true },
+              margin: [0, 0, 0, 2],
+              alignment: 'center',
+            },
+            {
+              text: `Project Name: ${projectName} `,
+              style: { fontSize: 14 },
+              margin: [0, 0, 0, 2],
+              alignment: 'center',
+            },
             {
               text: `${event.name} Attendance Sheet ${reportTypeIndicator}`,
               style: 'header',
-              margin: [0, 5, 0, 15],
+              margin: [0, 2, 0, 8],
             },
             {
               table: {
                 headerRows: headerRowsCount,
-                widths: [
-                  25,
-                  '*',
-                  60,
-                  95,
-                  95,
-                  ...dateSet.flatMap(() => isDayBased ? [58] : [58, 58])
-                ],
+                widths: [25, '*', 50, 85, 85, ...dateSet.flatMap(() => isDayBased ? [65] : [65, 65])],
                 body: tableBody
               },
               layout: {
                 fillColor: (rowIndex: number) => (rowIndex < headerRowsCount ? '#F5F5F5' : null),
                 hLineWidth: () => 0.5,
-                vLineWidth: () => 0.5
+                vLineWidth: () => 0.5,
+                paddingTop: () => 5,
+                paddingBottom: () => 5
               }
             }
           );
 
-          const isLastDateGroup = dgIndex === dateGroups.length - 1;
-          const isLastParticipantPage = i + participantsPerPage >= participants.length;
-          if (!(isLastDateGroup && isLastParticipantPage)) {
+          if (!(dgIndex === dateGroups.length - 1 && pageIdx === totalPages - 1)) {
             content.push({ text: '', pageBreak: 'after' });
           }
         }
       }
 
       // Per Diem Sheet Generation
-      for (let i = 0; i < participants.length; i += participantsPerPage) {
-        const pageParticipants = participants.slice(i, i + participantsPerPage);
+      const numPerDiemPages = Math.max(1, Math.ceil(participants.length / participantsPerPage));
+      const totalPerDiemPages = report ? numPerDiemPages : numPerDiemPages + 2;
 
-        let rowNumber = i + 1;
+      for (let pageIdx = 0; pageIdx < totalPerDiemPages; pageIdx++) {
+        const i = pageIdx * participantsPerPage;
+        const pageParticipants = i < participants.length ? participants.slice(i, i + participantsPerPage) : [];
+
+        let rowNum = i + 1;
 
         const tableBody: any[] = [
           [
             { text: '#', bold: true, alignment: 'center' },
             { text: 'Full Name', bold: true, alignment: 'center' },
             { text: 'Role', bold: true, alignment: 'center' },
-            // { text: 'Phone No', bold: true, alignment: 'center' },
             { text: 'Bank Name', bold: true, alignment: 'center' },
             { text: 'Bank Account', bold: true, alignment: 'center' },
             { text: 'Branch', bold: true, alignment: 'center' },
@@ -1494,10 +1442,9 @@ export class EventService {
 
         for (const p of pageParticipants) {
           tableBody.push([
-            { text: String(rowNumber++) },
+            { text: String(rowNum++) },
             { text: `${p.first_name ?? ''} ${p.father_name ?? ''}`.trim() || '-' },
             { text: p.participant_type ?? '-', alignment: 'center' },
-            // { text: p.phone ?? '-' },
             { text: '' },
             { text: '' },
             { text: '' },
@@ -1508,20 +1455,7 @@ export class EventService {
         const remainingRows = participantsPerPage - pageParticipants.length;
         for (let k = 0; k < remainingRows; k++) {
           tableBody.push([
-            String(rowNumber++),
-            '',
-            '',
-            '',
-            '',
-            '',
-            ''
-          ]);
-        }
-
-        // additional blank block (keeps space for signatures)
-        for (let extra = 0; extra < participantsPerPage; extra++) {
-          tableBody.push([
-            String(rowNumber++),
+            String(rowNum++),
             '',
             '',
             '',
@@ -1533,38 +1467,40 @@ export class EventService {
 
         content.push(
           {
-            columns: [{ image: logoBase64, width: 100 }],
+            columns: [{ image: logoBase64, width: 90 }],
             columnGap: 10,
-            margin: [0, 0, 0, 10],
+            margin: [0, 0, 0, 5],
             pageBreak: 'before'
           },
           {
             text: 'Green Agro-Solution PLC (Lersha)',
-            style: { fontSize: 20, bold: true },
-            margin: [0, 0, 0, 10],
+            style: { fontSize: 18, bold: true },
+            margin: [0, 0, 0, 2],
             alignment: 'center',
           },
           {
             text: `Project Name: ${projectName} `,
-            style: { fontSize: 17 },
-            margin: [0, 0, 0, 10],
+            style: { fontSize: 14 },
+            margin: [0, 0, 0, 2],
             alignment: 'center',
           },
           {
-            text: 'Per Diem Sheet',
+            text: `${event.name} Per Diem Sheet`,
             style: 'header',
-            margin: [0, 5, 0, 15],
+            margin: [0, 2, 0, 8],
           },
           {
             table: {
               headerRows: 1,
-              widths: [25, '*', 80, 80, 100, 100, 100, 80],
+              widths: [25, '*', 80, 100, 100, 100, 80],
               body: tableBody
             },
             layout: {
               fillColor: (rowIndex: number) => (rowIndex < 1 ? '#F5F5F5' : null),
               hLineWidth: () => 0.5,
-              vLineWidth: () => 0.5
+              vLineWidth: () => 0.5,
+              paddingTop: () => 5,
+              paddingBottom: () => 5
             }
           }
         );
@@ -1890,40 +1826,41 @@ export class EventService {
     }
   }
 
- async getEventsByParticipant(
-  participantId: string,
-): Promise<{ id: string; name: string; event_type: string; start_date: string | null; completed_date: string | null }[]> {
+  async getEventsByParticipant(
+    participantId: string,
+  ): Promise<{ id: string; name: string; event_type: string; start_date: string | null; completed_date: string | null }[]> {
 
-  const result = await this.eventDAL.findAll({
-    where: {
-      participants: {
-        id: participantId,
+    const result = await this.eventDAL.findAll({
+      where: {
+        participants: {
+          id: participantId,
+        },
       },
-    },
-    relations: ['participants', 'event_dates'], 
-    select: {id: true,name: true, type: true,
-    },
-  });
+      relations: ['participants', 'event_dates'],
+      select: {
+        id: true, name: true, type: true,
+      },
+    });
 
-  if (!result.data || result.data.length === 0) {
-    throw new NotFoundException(
-      `No events found for participant with ID ${participantId}`,
-    );
+    if (!result.data || result.data.length === 0) {
+      throw new NotFoundException(
+        `No events found for participant with ID ${participantId}`,
+      );
+    }
+
+    return result.data.map(event => {
+      const dates = (event.event_dates || [])
+        .filter(d => !d.is_deleted)
+        .map(d => new Date(d.date))
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      return {
+        id: event.id,
+        name: event.name,
+        event_type: event.type,
+        start_date: dates[0] ? dates[0].toISOString().split('T')[0] : null,
+        completed_date: dates[dates.length - 1] ? dates[dates.length - 1].toISOString().split('T')[0] : null,
+      };
+    });
   }
-
-  return result.data.map(event => {
-    const dates = (event.event_dates || [])
-      .filter(d => !d.is_deleted)
-      .map(d => new Date(d.date))
-      .sort((a, b) => a.getTime() - b.getTime());
-
-    return {
-      id: event.id,
-      name: event.name,
-      event_type: event.type,
-      start_date: dates[0] ? dates[0].toISOString().split('T')[0] : null,
-      completed_date: dates[dates.length - 1] ? dates[dates.length - 1].toISOString().split('T')[0] : null,
-    };
-  });
-}
 }
