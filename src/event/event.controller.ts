@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Req, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Req, Param, Delete, UseInterceptors, UploadedFile, Query, Res, NotFoundException, InternalServerErrorException, UseGuards, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 
 import type { Response } from 'express';
 import { EventService } from './event.service';
+import type { Event as EventEntity } from './entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -57,6 +58,14 @@ export class EventController {
       order: parsedOrder,
     });
   }
+ @Get('participant/:participantId')
+async getEventsByParticipant(
+  @Param('participantId') participantId: string,
+): Promise<{ id: string; name: string; event_type: string }[]> {
+  return this.eventService.getEventsByParticipant(participantId);
+}
+
+  
 
   @Permission('read', 'event')
   @Get(':id')

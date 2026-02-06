@@ -29,6 +29,7 @@ export enum doc_type {
     PORTFOLIO = "portfolio",
     REPORT = "report",
     PER_DIEM = "per_diem",
+    SOCIAL_LINK="social_link"
 }
 
 export enum community_type {

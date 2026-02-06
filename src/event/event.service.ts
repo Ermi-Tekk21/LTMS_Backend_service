@@ -913,7 +913,7 @@ export class EventService {
                   first_name: (a.first_name),
                   father_name: (a.middle_name),
                   Grandfather_name: (a.last_name || ''),
-                  age:(a.age || ""),
+                  age: (a.age || ""),
                   phone: a.phone_number || a.user?.phone_number,
                   gender:
                     a.gender?.toLowerCase() === 'male'
@@ -955,7 +955,7 @@ export class EventService {
                 first_name: f.first_name,
                 father_name: f.middle_name || f.father_name || '',
                 Grandfather_name: f.last_name || f.Grandfather_name || '',
-                age:(f.age || ""),  
+                age: (f.age || ""),
                 phone: f.phone || f.phone_number,
                 gender: f.gender?.toLowerCase() === 'male' ? gender.MALE : gender.FEMALE,
                 region: f.location?.region || f.region,
@@ -1889,4 +1889,41 @@ export class EventService {
 
     }
   }
+
+ async getEventsByParticipant(
+  participantId: string,
+): Promise<{ id: string; name: string; event_type: string; start_date: string | null; completed_date: string | null }[]> {
+
+  const result = await this.eventDAL.findAll({
+    where: {
+      participants: {
+        id: participantId,
+      },
+    },
+    relations: ['participants', 'event_dates'], 
+    select: {id: true,name: true, type: true,
+    },
+  });
+
+  if (!result.data || result.data.length === 0) {
+    throw new NotFoundException(
+      `No events found for participant with ID ${participantId}`,
+    );
+  }
+
+  return result.data.map(event => {
+    const dates = (event.event_dates || [])
+      .filter(d => !d.is_deleted)
+      .map(d => new Date(d.date))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    return {
+      id: event.id,
+      name: event.name,
+      event_type: event.type,
+      start_date: dates[0] ? dates[0].toISOString().split('T')[0] : null,
+      completed_date: dates[dates.length - 1] ? dates[dates.length - 1].toISOString().split('T')[0] : null,
+    };
+  });
+}
 }
