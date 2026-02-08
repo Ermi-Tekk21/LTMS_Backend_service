@@ -74,7 +74,7 @@ export class Participant {
     location_code: string | null;
 
 
-@Column({ type: 'text' })
+    @Column({ type: 'uuid' })
     clusterId: string;
     @Column({ type: 'text' })
     region: string;
