@@ -41,6 +41,9 @@ export class CreateParticipantDto {
 
   @IsString()
   letracy_level: string
+ 
+  @IsUUID()
+    clusterId: string;
 
 
   @IsString()

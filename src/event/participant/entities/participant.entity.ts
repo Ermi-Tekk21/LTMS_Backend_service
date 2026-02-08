@@ -74,7 +74,8 @@ export class Participant {
     location_code: string | null;
 
 
-
+@Column({ type: 'text' })
+    clusterId: string;
     @Column({ type: 'text' })
     region: string;
 
