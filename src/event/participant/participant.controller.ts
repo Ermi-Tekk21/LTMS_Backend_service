@@ -26,26 +26,6 @@ import { IncomingHttpHeaders } from 'http';
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) { }
 
-  @Permission('create', 'participant')
-  @Post(':eventId')
-  async createParticipant(
-    @Param('eventId') eventId: string,
-    @Body() dto: CreateParticipantDto,
-    @CurrentUser() currentUser: any,
-    @Req() req: Request,
-  ) {
-    // Safe token extraction
-    const headers = req.headers as IncomingHttpHeaders;
-    const authHeader = headers.authorization || (headers as any).Authorization;
-    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
-
-    if (!token) {
-      throw new BadRequestException('Authorization token is missing.');
-    }
-
-    return this.participantService.create(dto, currentUser.id, eventId, token);
-  }
-
   // ---------------- GET ALL ----------------
 
   @Permission('read', 'participant')
@@ -83,7 +63,6 @@ export class ParticipantController {
 
     res.end(buffer);
   }
-
 
   @Permission('create', 'participant')
   @Post('upload/:eventId')
@@ -130,6 +109,26 @@ export class ParticipantController {
         }`,
       );
     }
+  }
+
+  @Permission('create', 'participant')
+  @Post(':eventId')
+  async createParticipant(
+    @Param('eventId') eventId: string,
+    @Body() dto: CreateParticipantDto,
+    @CurrentUser() currentUser: any,
+    @Req() req: Request,
+  ) {
+    // Safe token extraction
+    const headers = req.headers as IncomingHttpHeaders;
+    const authHeader = headers.authorization || (headers as any).Authorization;
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+
+    if (!token) {
+      throw new BadRequestException('Authorization token is missing.');
+    }
+
+    return this.participantService.create(dto, currentUser.id, eventId, token);
   }
 
   @Permission('read', 'participant')

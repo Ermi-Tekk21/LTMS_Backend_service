@@ -1133,7 +1133,7 @@ export class EventService {
   }
 
   async getProjectName(token: string, projectId: UUID) {
-    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://13.50.253.205:4499/api/v1/dynamic-form';
+    const baseUrl = process.env.DYNAMIC_FORM_BASE_URL || 'http://13.50.253.205:3344/api/v1/dynamic-form';
     const url = `${baseUrl}/project/${projectId}`;
     try {
       const headers: Record<string, string> = {

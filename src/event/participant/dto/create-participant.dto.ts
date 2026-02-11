@@ -41,9 +41,10 @@ export class CreateParticipantDto {
 
   @IsString()
   letracy_level: string
- 
-  @IsUUID()
-    clusterId: string;
+
+
+  @IsString()
+  clusterId: string;
 
 
   @IsString()
@@ -55,7 +56,7 @@ export class CreateParticipantDto {
   @IsString()
   woreda: string;
   @IsString()
-  location_code?: string
+  location_code: string
 
   // @IsString()
   // location_id?:string
