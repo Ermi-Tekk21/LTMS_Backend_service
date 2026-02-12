@@ -26,21 +26,22 @@ import { IncomingHttpHeaders } from 'http';
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) { }
 
-  // ---------------- GET ALL ----------------
 
-  @Permission('read', 'participant')
-  @Get()
-  async getAllParticipants(
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
-    @Query('search') search?: string,
-  ) {
-    return this.participantService.findAll(
-      Number(page),
-      Number(limit),
-      search,
-    );
-  }
+@Permission('read', 'participant')
+@Get()
+async getAllParticipants(
+  @Query('page') page = '1',
+  @Query('limit') limit = '10',
+  @Query('search') search?: string,
+  @Query('clusterId') clusterId?: string,   
+) {
+  return this.participantService.findAll(
+    Number(page),
+    Number(limit),
+    search,
+    clusterId ? Number(clusterId) : undefined, 
+  );
+}
 
 
   @Permission('create', 'participant')

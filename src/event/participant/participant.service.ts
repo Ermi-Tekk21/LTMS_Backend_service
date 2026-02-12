@@ -124,11 +124,6 @@ export class ParticipantService {
       { header: 'Kebele', key: 'kebele', width: 20 },
       { header: 'Participant Type', key: 'participant_type', width: 20 },
       { header: 'Cluster', key: 'cluster', width: 20 },
-      { header: 'Disability', key: 'disability', width: 20 },
-      { header: 'Occupation', key: 'occupation', width: 20 },
-      { header: 'Organization', key: 'organization', width: 20 },
-      { header: 'Community Type', key: 'community_type', width: 20 },
-      { header: 'Literacy Level', key: 'letracy_level', width: 20 },
     ];
 
     sheet.getRow(1).font = { bold: true };
@@ -220,7 +215,7 @@ export class ParticipantService {
       const zoneNames = Object.keys(hierarchy[region]).sort();
       zoneNames.forEach((zone) => {
         const sanitizedZone = this.sanitize(zone);
-        if (processedZones.has(sanitizedZone)) return; 
+        if (processedZones.has(sanitizedZone)) return;
 
         const woredaNames = hierarchy[region][zone].sort();
         const col = this.getColumnLetter(colIndex);
@@ -484,6 +479,7 @@ export class ParticipantService {
     page = 1,
     limit = 10,
     search?: string,
+    clusterId?: number,
   ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
     try {
       const options: FindManyOptions<Participant> & {
@@ -496,13 +492,28 @@ export class ParticipantService {
         limit,
       };
 
+      // ✅ Filter by clusterId (column-based)
+      if (clusterId) {
+        options.where = { clusterId: clusterId.toString() };
+      }
+
+      // ✅ Search still works
       if (search && search.trim() !== '') {
         options.search = {
           term: search,
-          fields: ['first_name', 'father_name', 'region', 'woreda', 'zone', 'kebele'],
+          fields: [
+            'first_name',
+            'father_name',
+            'region',
+            'woreda',
+            'zone',
+            'kebele',
+          ],
         };
       }
+
       const result = await this.participantDAL.findAll(options);
+
       return {
         data: result.data,
         total: result.meta.total,
@@ -513,10 +524,11 @@ export class ParticipantService {
       if (error instanceof BadRequestException) {
         throw error;
       }
+
       console.error('ParticipantService.findAll failed:', error);
 
       throw new InternalServerErrorException(
-        'An unexpected error occurred while retrieving participants. Please try again later.',
+        'An unexpected error occurred while retrieving participants.',
       );
     }
   }
