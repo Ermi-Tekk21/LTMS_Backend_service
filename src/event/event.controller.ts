@@ -24,14 +24,23 @@ export class EventController {
     @CurrentUser() user: any,
     @Body("data") data: string,
     @UploadedFile() file: Express.Multer.File,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const parsedData: CreateEventDto = JSON.parse(data)
-    return this.eventService.create(parsedData, file, user.userId,);
+
+    // Extract token from request headers
+    const reqAny = (res as any).req;
+    const authHeader: string | undefined =
+      reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : undefined;
+
+    return this.eventService.create(parsedData, file, user.userId, token);
   }
 
   @Permission('read', 'event')
   @Get()
   findAll(
+    @Res({ passthrough: true }) res: Response,
     @Query('searchTerm') searchTerm?: string,
     @Query('searchFields') searchFields?: string,
     @Query('status') status?: event_status,
@@ -47,6 +56,12 @@ export class EventController {
       ? Object.fromEntries(order.split(',').map((o) => o.split(':')))
       : undefined;
 
+    // Extract token from request headers
+    const reqAny = (res as any).req;
+    const authHeader: string | undefined =
+      reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : undefined;
+
     return this.eventService.findAll({
       searchTerm,
       searchFields: parsedFields,
@@ -56,7 +71,7 @@ export class EventController {
       page: Number(page) || 1,
       limit: Number(limit) || 10,
       order: parsedOrder,
-    });
+    }, token);
   }
  @Get('participant/:participantId')
 async getEventsByParticipant(
@@ -69,8 +84,14 @@ async getEventsByParticipant(
 
   @Permission('read', 'event')
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.eventService.findOne(id);
+  findOne(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    // Extract token from request headers
+    const reqAny = (res as any).req;
+    const authHeader: string | undefined =
+      reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : undefined;
+
+    return this.eventService.findOne(id, token);
   }
   @Permission('read', 'event')
   @Get('docs/:id')
@@ -84,14 +105,22 @@ async getEventsByParticipant(
   @Permission('update', 'event')
   @Patch(':id')
   @UseInterceptors(FileInterceptor('tor', multerOptions(true, ['pdf'], 20)))
-  update(
+  async update(
     @Param('id') id: string,
     @CurrentUser() user: any,
     @Body("data") data: string,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const parsedData: UpdateEventDto = JSON.parse(data)
-    return this.eventService.update(id, parsedData, user.userId, file);
+
+    // Extract token from request headers
+    const reqAny = (res as any).req;
+    const authHeader: string | undefined =
+      reqAny?.headers?.authorization ?? reqAny?.headers?.Authorization;
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : undefined;
+
+    return this.eventService.update(id, parsedData, user.userId, token, file);
   }
 
   @Permission('manage', 'trainer')
@@ -227,8 +256,8 @@ async getEventsByParticipant(
   @Permission('read', 'event')
   @Get('attendance/:eventId/pdf')
   async downloadAttendancePdf(
-    @Param('eventId') eventId: string,
     @Res() res: Response,
+    @Param('eventId') eventId: string,
     @Query('report') report: boolean,
   ) {
     try {

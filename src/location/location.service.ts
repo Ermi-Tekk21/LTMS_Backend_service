@@ -5,7 +5,7 @@ import axios from 'axios';
 export class LocationService {
   private readonly apiUrl =
     process.env.FARMER_URL ||
-    'http://164.160.187.141:3344/api/v1/farmer/getAllInOne';
+    'http://13.50.253.205:3344/api/v1/farmer/getAllInOne';
 
   // Normalize for logic
   private normalize(value: string): string {
@@ -42,57 +42,57 @@ export class LocationService {
       throw new HttpException('Failed to fetch locations', 500);
     }
   }
-async getLocationTree(
-  token: string,
-  filters?: {
-    region?: string;
-    zone?: string;
-  },
-) {
-  const locations = await this.fetchEnglishLocations(token);
+  async getLocationTree(
+    token: string,
+    filters?: {
+      region?: string;
+      zone?: string;
+    },
+  ) {
+    const locations = await this.fetchEnglishLocations(token);
 
-  const regionFilter = filters?.region
-    ? this.normalize(filters.region)
-    : null;
+    const regionFilter = filters?.region
+      ? this.normalize(filters.region)
+      : null;
 
-  const zoneFilter = filters?.zone
-    ? this.normalize(filters.zone)
-    : null;
+    const zoneFilter = filters?.zone
+      ? this.normalize(filters.zone)
+      : null;
 
-  const tree: Record<
-    string,
-    { name: string; zones: Record<string, string[]> }
-  > = {};
+    const tree: Record<
+      string,
+      { name: string; zones: Record<string, string[]> }
+    > = {};
 
-  locations.forEach(loc => {
-    const regionKey = this.normalize(loc.region);
-    const zoneKey = this.normalize(loc.zone);
-    const woredaKey = this.normalize(loc.woreda);
+    locations.forEach(loc => {
+      const regionKey = this.normalize(loc.region);
+      const zoneKey = this.normalize(loc.zone);
+      const woredaKey = this.normalize(loc.woreda);
 
-    // 🔹 Apply optional filters
-    if (regionFilter && regionKey !== regionFilter) return;
-    if (zoneFilter && zoneKey !== zoneFilter) return;
+      // 🔹 Apply optional filters
+      if (regionFilter && regionKey !== regionFilter) return;
+      if (zoneFilter && zoneKey !== zoneFilter) return;
 
-    if (!tree[regionKey]) {
-      tree[regionKey] = {
-        name: this.formatDisplay(loc.region),
-        zones: {},
-      };
-    }
+      if (!tree[regionKey]) {
+        tree[regionKey] = {
+          name: this.formatDisplay(loc.region),
+          zones: {},
+        };
+      }
 
-    if (!tree[regionKey].zones[zoneKey]) {
-      tree[regionKey].zones[zoneKey] = [];
-    }
+      if (!tree[regionKey].zones[zoneKey]) {
+        tree[regionKey].zones[zoneKey] = [];
+      }
 
-    const woredaDisplay = this.formatDisplay(loc.woreda);
+      const woredaDisplay = this.formatDisplay(loc.woreda);
 
-    if (!tree[regionKey].zones[zoneKey].includes(woredaDisplay)) {
-      tree[regionKey].zones[zoneKey].push(woredaDisplay);
-    }
-  });
+      if (!tree[regionKey].zones[zoneKey].includes(woredaDisplay)) {
+        tree[regionKey].zones[zoneKey].push(woredaDisplay);
+      }
+    });
 
-  return tree;
-}
+    return tree;
+  }
 
   async getLocationCode(
     region: string,
@@ -113,6 +113,32 @@ async getLocationTree(
     return {
       location_code: found.location_code,
       id: found.id,
+    };
+  }
+
+  async getLocationsMap(token: string): Promise<Map<string, any>> {
+    const locations = await this.fetchEnglishLocations(token);
+    const map = new Map();
+    locations.forEach(loc => {
+      map.set(String(loc.id), {
+        region: loc.region,
+        zone: loc.zone,
+        woreda: loc.woreda,
+        location_code: loc.location_code,
+      });
+    });
+    return map;
+  }
+
+  async getLocationById(id: string, token: string) {
+    const locations = await this.fetchEnglishLocations(token);
+    const found = locations.find(loc => String(loc.id) === String(id));
+    if (!found) return null;
+    return {
+      region: found.region,
+      zone: found.zone,
+      woreda: found.woreda,
+      location_code: found.location_code,
     };
   }
 }

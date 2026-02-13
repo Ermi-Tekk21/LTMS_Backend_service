@@ -14,6 +14,7 @@ import { AwsS3Module } from 'src/common/aws-s3/aws-s3.module';
 import { EmailModule } from 'src/common/notification/email.module';
 import { SessionParticipantMap } from './participant/entities/sessionParticipantMap.entity';
 import { AdressModule } from './adress/adress.module';
+import { LocationModule } from 'src/location/location.module';
 
 @Module({
   imports: [
@@ -25,8 +26,8 @@ import { AdressModule } from './adress/adress.module';
     forwardRef(() => AwsS3Module),
     TrainerModule,
     AdressModule,
+    LocationModule,
 
-   
     forwardRef(() => ParticipantModule),
     ActivityModule,
     DocumentModule,
@@ -34,6 +35,6 @@ import { AdressModule } from './adress/adress.module';
   ],
   controllers: [EventController],
   providers: [EventService, EventDAL],
-  exports: [EventService,TypeOrmModule],
+  exports: [EventService, TypeOrmModule],
 })
 export class EventModule { }

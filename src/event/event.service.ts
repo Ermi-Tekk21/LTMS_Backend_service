@@ -12,6 +12,7 @@ import { Trainer } from './trainer/entities/trainer.entity';
 import { Event } from './entities/event.entity';
 import { Participant } from './participant/entities/participant.entity';
 import { EmailService } from 'src/common/notification/email.service';
+import { LocationService } from 'src/location/location.service';
 import { QueryRunner } from 'typeorm/browser';
 import PdfPrinter from 'pdfmake';
 import * as path from 'path';
@@ -41,10 +42,11 @@ export class EventService {
     private readonly eventSessionService: EventSessionService,
     private readonly awsS3Service: AwsS3Service,
     private readonly emailService: EmailService,
+    private readonly locationService: LocationService,
     private readonly dataSource: DataSource,
   ) { }
 
-  async create(dto: CreateEventDto, file: Express.Multer.File, created_by: string) {
+  async create(dto: CreateEventDto, file: Express.Multer.File, created_by: string, token?: string) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -52,11 +54,35 @@ export class EventService {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
       const folder = 'tor';
 
+      // Resolve location_id from region, zone, and woreda if provided
+      let location_id = dto.location_id;
+      if (dto.region && dto.zone && dto.woreda && token) {
+        const locationData = await this.locationService.getLocationCode(
+          dto.region,
+          dto.zone,
+          dto.woreda,
+          token,
+        );
+        if (locationData) {
+          location_id = locationData.id;
+        } else {
+          throw new BadRequestException(
+            `Location not found for region: ${dto.region}, zone: ${dto.zone}, woreda: ${dto.woreda}`
+          );
+        }
+      }
+
+      if (!location_id) {
+        throw new BadRequestException(
+          'Either location_id or (region, zone, and woreda) must be provided'
+        );
+      }
+
       const event = await this.eventDAL.create({
         project_id: dto.project_id,
         type: dto.type,
         name: dto.name,
-        location_id: dto.location_id,
+        location_id: location_id,
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
         is_day_based: dto.is_day_based,
@@ -120,6 +146,7 @@ export class EventService {
       await queryRunner.manager.save(event);
       await queryRunner.commitTransaction();
 
+      const enrichedEvent = await this.findOne(event.id, token);
 
       if (dto.trainers?.length) {
         const trainers = dto.trainers
@@ -130,7 +157,7 @@ export class EventService {
         success: true,
         message: 'Event created successfully',
         data: {
-          event,
+          event: enrichedEvent,
           torDocument: uploadedFile,
         },
       };
@@ -151,7 +178,7 @@ export class EventService {
     }
   }
 
-  async replaceTOR(id: UUID, file: Express.Multer.File, updated_by: string, queryRunner?: QueryRunner) {
+  async replaceTOR(id: UUID, file: Express.Multer.File, updated_by: string, token?: string, queryRunner?: QueryRunner) {
     let ownTransaction = false;
     if (!queryRunner) {
       queryRunner = this.dataSource.createQueryRunner();
@@ -164,7 +191,7 @@ export class EventService {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
       const folder = 'tor';
 
-      const event = await this.findOne(String(id));
+      const event = await this.findOne(String(id), token);
       if (!event) {
         throw new NotFoundException(`Event not found`);
       }
@@ -214,7 +241,7 @@ export class EventService {
     }
   }
 
-  async update(id: string, updateEventDto: UpdateEventDto, updated_by: string, file?: Express.Multer.File) {
+  async update(id: string, updateEventDto: UpdateEventDto, updated_by: string, token?: string, file?: Express.Multer.File) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -225,11 +252,31 @@ export class EventService {
         throw new NotFoundException('event to be updated not found...')
       }
 
-      const { trainers, event_dates, ...eventData } = updateEventDto;
+      const { trainers, event_dates, region, zone, woreda, location_id: dto_location_id, ...eventData } = updateEventDto;
+
+      let location_id = dto_location_id;
+      if (region && zone && woreda && token) {
+        const locationData = await this.locationService.getLocationCode(
+          region,
+          zone,
+          woreda,
+          token,
+        );
+        if (locationData) {
+          location_id = locationData.id;
+        } else {
+          throw new BadRequestException(
+            `Location not found for region: ${region}, zone: ${zone}, woreda: ${woreda}`
+          );
+        }
+      }
 
       // Update scalar properties - map DTO fields to entity properties
-      if (Object.keys(eventData).length > 0) {
+      if (Object.keys(eventData).length > 0 || location_id) {
         const updateData: any = { ...eventData };
+        if (location_id) {
+          updateData.location_id = location_id;
+        }
         if (updateData.status !== undefined) {
           updateData.event_status = updateData.status;
           delete updateData.status;
@@ -290,7 +337,7 @@ export class EventService {
       }
 
       if (file) {
-        await this.replaceTOR(id as UUID, file, updated_by, queryRunner)
+        await this.replaceTOR(id as UUID, file, updated_by, token, queryRunner)
       }
 
       // Update trainers if provided
@@ -301,7 +348,7 @@ export class EventService {
       await queryRunner.commitTransaction();
 
       // Return the updated event with relations
-      const updatedEvent = await this.findOne(id);
+      const updatedEvent = await this.findOne(id, token);
       return {
         success: true,
         message: `Event ${updatedEvent?.id ?? id} updated successfully`,
@@ -331,7 +378,7 @@ export class EventService {
     page?: number;
     limit?: number;
     order?: Record<string, 'asc' | 'desc'>;
-  }) {
+  }, token?: string) {
     const options: any = {};
     options.relations = ['event_dates', 'trainers']
 
@@ -348,7 +395,33 @@ export class EventService {
     if (query?.page) options.page = query.page;
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
-    return this.eventDAL.findAll(options);
+
+    const result = await this.eventDAL.findAll(options);
+    console.log(`findAll: token present? ${!!token}, data count: ${result.data.length}`);
+
+    if (token && result.data.length > 0) {
+      try {
+        const locationsMap = await this.locationService.getLocationsMap(token);
+        result.data = result.data.map(event => {
+          if (event.location_id) {
+            const normalizedId = String(event.location_id);
+            if (locationsMap.has(normalizedId)) {
+              const loc = locationsMap.get(normalizedId);
+              event.region = loc.region;
+              event.zone = loc.zone;
+              event.woreda = loc.woreda;
+            } else {
+              console.warn(`Location ID ${event.location_id} not found in locations map for event ${event.id}`);
+            }
+          }
+          return event;
+        });
+      } catch (error) {
+        console.error('Failed to fetch location names for findAll:', error.message);
+      }
+    }
+
+    return result;
   }
 
   async participantSessionMap(eventId: string) {
@@ -895,7 +968,7 @@ export class EventService {
         if (!filters?.participant_type || filters.participant_type === participant_type.LERSHA_AGENT) {
           try {
             // A. Agents
-            const agentBaseUrl = process.env.AGENT_SERVICE_URL || 'http://164.160.187.141:3344/api/v1/dynamic-form/project/all_agents';
+            const agentBaseUrl = process.env.AGENT_SERVICE_URL || 'http://13.50.253.205:3344/api/v1/dynamic-form/project/all_agents';
             let agentUrl = `${agentBaseUrl}?search=${search || ''}`;
             if (filters?.region) agentUrl += `&region=${filters.region}`;
             if (filters?.zone) agentUrl += `&zone=${filters.zone}`;
@@ -944,7 +1017,7 @@ export class EventService {
               zone: filters?.zone,
               woreda: filters?.kebele
             };
-            const farmerUrl = process.env.FARMER_SERVICE_URL || `http://164.160.187.141:3344/api/v1/farmer/find_all`;
+            const farmerUrl = process.env.FARMER_SERVICE_URL || `http://13.50.253.205:3344/api/v1/farmer/find_all`;
             const farmersRes = await axios.post(farmerUrl, payload, { headers });
             if (farmersRes.data?.data?.data) {
               const farmers = Array.isArray(farmersRes.data.data.data) ? farmersRes.data.data.data : [];
@@ -1062,11 +1135,27 @@ export class EventService {
     }
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, token?: string) {
     const res = await this.eventDAL.findOne({
       where: { id: id },
       relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates.event_sessions', 'event_dates.event_sessions.session_participant_maps', 'event_dates.event_sessions.session_participant_maps.participant']
     })
+
+    if (res && res.location_id && token) {
+      try {
+        const locationDetails = await this.locationService.getLocationById(res.location_id, token);
+        if (locationDetails) {
+          res.region = locationDetails.region;
+          res.zone = locationDetails.zone;
+          res.woreda = locationDetails.woreda;
+        } else {
+          console.warn(`Location details not found for ID ${res.location_id} in event ${id}`);
+        }
+      } catch (error) {
+        console.error(`Failed to fetch location names for event ${id}:`, error.message);
+      }
+    }
+
     return res;
   }
 
@@ -1191,22 +1280,34 @@ export class EventService {
       }
 
       const projectName = await this.getProjectName(token, event.project_id as UUID);
+      let locationDetails = '';
+      if (event.location_id && token) {
+        try {
+          const loc = await this.locationService.getLocationById(event.location_id, token);
+          if (loc) {
+            locationDetails = `Location: ${loc.region}, ${loc.zone}, ${loc.woreda}`;
+          }
+        } catch (error) {
+          console.error('Failed to fetch location for PDF:', error.message);
+        }
+      }
 
       if (Array.isArray(event.participants)) {
         event.participants = CapitalizeInterceptor.capitalizeData(event.participants);
         const priority: Record<string, number> = {
-          [participant_type.LERSHA_AGENT]: 1,
-          [participant_type.FARMER]: 2,
-          [participant_type.EXTENSION_WORKERS]: 3,
-          [participant_type.GOVERNMENT_OFFICIALS]: 4,
+          [participant_type.LERSHA_AGENT.toLowerCase()]: 1,
+          [participant_type.PARTNER.toLowerCase()]: 2,
+          [participant_type.FARMER.toLowerCase()]: 3,
+          [participant_type.EXTENSION_WORKERS.toLowerCase()]: 4,
+          [participant_type.GOVERNMENT_OFFICIALS.toLowerCase()]: 5,
         };
 
         event.participants = event.participants.sort((a, b) => {
-          const typeA = a.participant_type;
-          const typeB = b.participant_type;
+          const typeA = a.participant_type?.toLowerCase();
+          const typeB = b.participant_type?.toLowerCase();
 
-          const pA = (typeA && priority[typeA]) ? priority[typeA] : 3;
-          const pB = (typeB && priority[typeB]) ? priority[typeB] : 3;
+          const pA = (typeA && priority[typeA]) ? priority[typeA] : 6;
+          const pB = (typeB && priority[typeB]) ? priority[typeB] : 6;
 
           if (pA !== pB) {
             return pA - pB;
