@@ -10,7 +10,7 @@ export class AppController {
     private readonly emailService: EmailService,
     private readonly appService: AppService,
   ) {}
-
+  
   @Get('test-email')
    @Permission('read', 'farmers')
   async testEmail(@CurrentUser() user: any) {

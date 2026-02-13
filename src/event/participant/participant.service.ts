@@ -3,11 +3,12 @@ import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import { UpdateParticipantDto } from './dto/update-participant.dto';
 import { Participant } from './entities/participant.entity';
-import { FindManyOptions, DataSource } from 'typeorm';
+import { FindManyOptions, DataSource, FindOptionsWhere } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 import { community_type, gender, participant_type } from 'src/common/constants/enums';
 import { LocationService } from 'src/location/location.service';
+import { ClusterService } from 'src/common/external/cluster.service';
 @Injectable()
 
 export class ParticipantService {
@@ -16,6 +17,7 @@ export class ParticipantService {
     private readonly eventService: EventService,
     private readonly dataSource: DataSource,
     private readonly locationService: LocationService,
+    private readonly clusterService: ClusterService,
   ) { }
 
   async create(
@@ -24,9 +26,14 @@ export class ParticipantService {
     eventId: string,
     token: string,
   ): Promise<Participant> {
+    if (!dto) {
+      throw new BadRequestException('Participant data is required.');
+    }
     if (!eventId) {
       throw new BadRequestException('Event ID is required.');
     }
+
+
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -36,13 +43,15 @@ export class ParticipantService {
       const participantRepo = queryRunner.manager.getRepository(Participant);
 
       // 1. Check if participant already exists (including soft-deleted)
+      // Use phone and external_participant_id if available
       let existing = await participantRepo.findOne({
         where: [
           { phone: dto.phone },
           { external_participant_id: dto.external_participant_id }
         ].filter(condition => condition.phone || condition.external_participant_id),
-        withDeleted: true,
+
       });
+
 
       let participant: Participant;
 
@@ -114,6 +123,7 @@ export class ParticipantService {
       { header: 'Woreda', key: 'woreda', width: 20 },
       { header: 'Kebele', key: 'kebele', width: 20 },
       { header: 'Participant Type', key: 'participant_type', width: 20 },
+      { header: 'Cluster', key: 'cluster', width: 20 },
     ];
 
     sheet.getRow(1).font = { bold: true };
@@ -129,6 +139,7 @@ export class ParticipantService {
       'woreda',
       'kebele',
       'participant_type',
+      'cluster',
     ];
 
     sheet.getRow(1).eachCell((cell, colNumber) => {
@@ -172,11 +183,17 @@ export class ParticipantService {
     const metaSheetName = 'Metadata_Internal';
     const metaSheet = workbook.addWorksheet(metaSheetName, { state: 'hidden' });
 
-    // 1. Regions Named Range
-    metaSheet.getColumn(1).values = ['Regions', ...regionList];
-    workbook.definedNames.add(`'${metaSheetName}'!$A$2:$A$${regionList.length + 1}`, 'RegionList');
+    // 0. Clusters Named Range
+    const clusters = await this.clusterService.getClusters(token);
+    const clusterNames = clusters.map((c) => c.name).sort();
+    metaSheet.getColumn(1).values = ['Clusters', ...clusterNames];
+    workbook.definedNames.add(`'${metaSheetName}'!$A$2:$A$${clusterNames.length + 1}`, 'ClusterList');
 
-    let colIndex = 2; // Start from Column B
+    // 1. Regions Named Range
+    metaSheet.getColumn(2).values = ['Regions', ...regionList];
+    workbook.definedNames.add(`'${metaSheetName}'!$B$2:$B$${regionList.length + 1}`, 'RegionList');
+
+    let colIndex = 3; // Start from Column C
 
     // 2. Zones Named Ranges (Per Region)
     // Using Prefix 'R_' to avoid collisions between Region names and Zone names
@@ -198,7 +215,7 @@ export class ParticipantService {
       const zoneNames = Object.keys(hierarchy[region]).sort();
       zoneNames.forEach((zone) => {
         const sanitizedZone = this.sanitize(zone);
-        if (processedZones.has(sanitizedZone)) return; // Avoid duplicate named ranges
+        if (processedZones.has(sanitizedZone)) return;
 
         const woredaNames = hierarchy[region][zone].sort();
         const col = this.getColumnLetter(colIndex);
@@ -255,6 +272,12 @@ export class ParticipantService {
         allowBlank: true,
         formulae: [`"${communityValues.join(',')}"`],
       };
+      // Cluster (L)
+      sheet.getCell(`L${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['=ClusterList'],
+      };
     }
 
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
@@ -300,6 +323,7 @@ export class ParticipantService {
         woreda,
         kebele,
         participant_type,
+        cluster_name,
         disability,
         occupation,
         organization,
@@ -343,6 +367,7 @@ export class ParticipantService {
         woreda,
         kebele,
         participant_type,
+        cluster_name,
         created_by,
       });
 
@@ -355,6 +380,7 @@ export class ParticipantService {
     try {
       const participantRepo = queryRunner.manager.getRepository(Participant);
       const finalParticipantIds: string[] = [];
+      const clusters = await this.clusterService.getClusters(token);
 
       for (const p of participants) {
         const existing = await participantRepo.findOne({ where: { phone: p.phone } });
@@ -401,11 +427,21 @@ export class ParticipantService {
           continue;
         }
 
+        const foundCluster = clusters.find((c) => c.name === p.cluster_name);
+        if (p.cluster_name && !foundCluster) {
+          invalidRows.push({
+            row: participants.indexOf(p) + 2,
+            message: `Invalid cluster: ${p.cluster_name}. Please select from dropdown.`,
+          });
+          continue;
+        }
+
         const saved = await participantRepo.save({
           ...p,
           age: String(p.age),
           location_code: location.location_code,
           location_id: location.id,
+          clusterId: foundCluster ? String(foundCluster.id) : null,
         });
 
         finalParticipantIds.push(saved.id);
@@ -443,6 +479,7 @@ export class ParticipantService {
     page = 1,
     limit = 10,
     search?: string,
+    clusterId?: number,
   ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
     try {
       const options: FindManyOptions<Participant> & {
@@ -455,13 +492,28 @@ export class ParticipantService {
         limit,
       };
 
+      // ✅ Filter by clusterId (column-based)
+      if (clusterId) {
+        options.where = { clusterId: clusterId.toString() };
+      }
+
+      // ✅ Search still works
       if (search && search.trim() !== '') {
         options.search = {
           term: search,
-          fields: ['first_name', 'father_name', 'region', 'woreda', 'zone', 'kebele'],
+          fields: [
+            'first_name',
+            'father_name',
+            'region',
+            'woreda',
+            'zone',
+            'kebele',
+          ],
         };
       }
+
       const result = await this.participantDAL.findAll(options);
+
       return {
         data: result.data,
         total: result.meta.total,
@@ -472,10 +524,11 @@ export class ParticipantService {
       if (error instanceof BadRequestException) {
         throw error;
       }
+
       console.error('ParticipantService.findAll failed:', error);
 
       throw new InternalServerErrorException(
-        'An unexpected error occurred while retrieving participants. Please try again later.',
+        'An unexpected error occurred while retrieving participants.',
       );
     }
   }

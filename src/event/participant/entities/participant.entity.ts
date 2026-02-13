@@ -28,7 +28,7 @@ export class Participant {
     @Column({ type: 'text', nullable: true })
     Grandfather_name: string;
 
-    @Column({ type: 'text'  })
+    @Column({ type: 'text' })
     age: string;
 
     @Column({
@@ -74,7 +74,8 @@ export class Participant {
     location_code: string | null;
 
 
-
+    @Column({ type: 'text', })
+    clusterId: string;
     @Column({ type: 'text' })
     region: string;
 

@@ -4,23 +4,23 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly configService: ConfigService) {
-    const secret = configService.get<string>('JWT_SECRET');
-    if (!secret) {
-      throw new Error('JWT_SECRET is not configured');
-    }
+export class IamJwtStrategy extends PassportStrategy(Strategy, 'iam-jwt') {
+  constructor(configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: secret,
+      secretOrKey: configService.get<string>('IAM_JWT_SECRET'),
+      issuer: configService.get<string>('IAM_ISSUER'),
+      audience: configService.get<string>('IAM_AUDIENCE'),
     });
   }
 
   async validate(payload: any) {
     return {
-      userId: payload.userId,       // match your token payload
-      sessionId: payload.sessionId, // optional if needed
+      userId: payload.sub,
+      tenantId: payload.tenant_id,
+      membershipId: payload.membership_id,
+      permissions: payload.permissions,
     };
   }
 }
