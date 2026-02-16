@@ -25,6 +25,7 @@ import { CapitalizeInterceptor } from 'src/common/database/capitalize-response.i
 import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
 import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
+import { ClusterService } from 'src/external/cluster.service';
 // import { ParticipantService } from './participant/participant.service';
 
 @Injectable()
@@ -43,6 +44,7 @@ export class EventService {
     private readonly awsS3Service: AwsS3Service,
     private readonly emailService: EmailService,
     private readonly locationService: LocationService,
+    private readonly clusterService: ClusterService,
     private readonly dataSource: DataSource,
   ) { }
 
@@ -88,6 +90,7 @@ export class EventService {
         is_day_based: dto.is_day_based,
         participant_type: dto.participant_type,
         description: dto.description,
+        clusterId: dto.clusterId,
         created_by,
       }, queryRunner);
 
@@ -252,7 +255,7 @@ export class EventService {
         throw new NotFoundException('event to be updated not found...')
       }
 
-      const { trainers, event_dates, region, zone, woreda, location_id: dto_location_id, ...eventData } = updateEventDto;
+      const { trainers, event_dates, region, zone, woreda, clusterId, location_id: dto_location_id, ...eventData } = updateEventDto;
 
       let location_id = dto_location_id;
       if (region && zone && woreda && token) {
@@ -280,6 +283,9 @@ export class EventService {
         if (updateData.status !== undefined) {
           updateData.event_status = updateData.status;
           delete updateData.status;
+        }
+        if (clusterId) {
+          updateData.clusterId = clusterId;
         }
 
         await this.eventDAL.update(id, { ...updateData, updated_by }, queryRunner);
@@ -402,6 +408,9 @@ export class EventService {
     if (token && result.data.length > 0) {
       try {
         const locationsMap = await this.locationService.getLocationsMap(token);
+        const clusters = await this.clusterService.getClusters(token);
+        const clustersMap = new Map(clusters.map(c => [String(c.id), c.name]));
+
         result.data = result.data.map(event => {
           if (event.location_id) {
             const normalizedId = String(event.location_id);
@@ -412,6 +421,16 @@ export class EventService {
               event.woreda = loc.woreda;
             } else {
               console.warn(`Location ID ${event.location_id} not found in locations map for event ${event.id}`);
+            }
+          }
+
+          if (event.clusterId) {
+            const clusterName = clustersMap.get(String(event.clusterId));
+            if (clusterName) {
+              event.cluster = {
+                clusterId: event.clusterId,
+                cluster: clusterName,
+              };
             }
           }
           return event;
@@ -1153,6 +1172,21 @@ export class EventService {
         }
       } catch (error) {
         console.error(`Failed to fetch location names for event ${id}:`, error.message);
+      }
+    }
+
+    if (res && res.clusterId && token) {
+      try {
+        const clusters = await this.clusterService.getClusters(token);
+        const clusterData = clusters.find(c => String(c.id) === String(res.clusterId));
+        if (clusterData) {
+          res.cluster = {
+            clusterId: res.clusterId,
+            cluster: clusterData.name,
+          };
+        }
+      } catch (error) {
+        console.error(`Failed to fetch cluster details for event ${id}:`, error.message);
       }
     }
 

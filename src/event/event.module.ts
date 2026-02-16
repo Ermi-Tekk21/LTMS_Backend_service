@@ -15,6 +15,7 @@ import { EmailModule } from 'src/common/notification/email.module';
 import { SessionParticipantMap } from './participant/entities/sessionParticipantMap.entity';
 import { AdressModule } from './adress/adress.module';
 import { LocationModule } from 'src/location/location.module';
+import { ClusterModule } from 'src/external/cluster.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { LocationModule } from 'src/location/location.module';
     TrainerModule,
     AdressModule,
     LocationModule,
+    ClusterModule,
 
     forwardRef(() => ParticipantModule),
     ActivityModule,

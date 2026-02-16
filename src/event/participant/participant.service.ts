@@ -8,7 +8,7 @@ import * as ExcelJS from 'exceljs';
 import { EventService } from '../event.service';
 import { community_type, gender, participant_type } from 'src/common/constants/enums';
 import { LocationService } from 'src/location/location.service';
-import { ClusterService } from 'src/common/external/cluster.service';
+import { ClusterService } from 'src/external/cluster.service';
 @Injectable()
 
 export class ParticipantService {

@@ -56,6 +56,10 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
 
   @IsOptional()
   @IsString()
+  clusterId?: string;
+
+  @IsOptional()
+  @IsString()
   location?: string;
 
 
