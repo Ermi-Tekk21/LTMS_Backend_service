@@ -40,6 +40,12 @@ export class Event {
     @Column({ type: 'text', nullable: true })
     location_id: string;
 
+    @Column({ type: 'text', nullable: true, name: 'clusterId' })
+    clusterId: string;
+
+    @Expose()
+    cluster?: { clusterId: string; cluster: string };
+
     @Expose()
     region?: string;
 

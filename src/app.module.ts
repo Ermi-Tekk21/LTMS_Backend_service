@@ -16,6 +16,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
 import { DashboardReportModule } from './dashboard_report/dashboard_report.module';
 import { LocationModule } from './location/location.module';
+import { ClusterModule } from './external/cluster.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -30,7 +31,8 @@ import { LocationModule } from './location/location.module';
     EventDateModule,
     EventSessionModule,
     DashboardReportModule,
-    LocationModule
+    LocationModule,
+    ClusterModule,
   ],
   controllers: [AppController],
   providers: [

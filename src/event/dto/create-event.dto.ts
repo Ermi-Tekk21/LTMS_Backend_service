@@ -30,6 +30,10 @@ export class CreateEventDto {
   @IsString()
   woreda?: string;
 
+  @IsOptional()
+  @IsString()
+  clusterId?: string;
+
 
   @IsString()
   venue: string;

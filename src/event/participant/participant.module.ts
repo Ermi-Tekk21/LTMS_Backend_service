@@ -8,21 +8,20 @@ import { ParticipantSessionMapDal } from './dal/participant_session_map.dal';
 // import { EventModule } from '../event/event.module';
 import { LocationModule } from 'src/location/location.module';
 import { EventModule } from '../event.module';
-import { ClusterService } from 'src/common/external/cluster.service';
+import { ClusterModule } from 'src/external/cluster.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Participant]),
     forwardRef(() => EventModule),
     LocationModule,
-    
+    ClusterModule,
   ],
   controllers: [ParticipantController],
   providers: [
     ParticipantService,
     ParticipantDAL,
     ParticipantSessionMapDal,
-    ClusterService,
   ],
   exports: [ParticipantService], // optional if other modules need it
 })
