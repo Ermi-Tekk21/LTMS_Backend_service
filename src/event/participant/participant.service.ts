@@ -41,9 +41,6 @@ export class ParticipantService {
 
     try {
       const participantRepo = queryRunner.manager.getRepository(Participant);
-
-      // 1. Check if participant already exists (including soft-deleted)
-      // Use phone and external_participant_id if available
       let existing = await participantRepo.findOne({
         where: [
           { phone: dto.phone },
@@ -64,7 +61,6 @@ export class ParticipantService {
 
         participant = existing;
       } else {
-        // 3. Fetch location_code dynamically from LocationService
         const location = await this.locationService.getLocationCode(
           dto.region,
           dto.zone,
@@ -154,12 +150,8 @@ export class ParticipantService {
     });
 
     const locations = await this.locationService.fetchEnglishLocations(token);
-
-    // Build hierarchy for dependent dropdowns
     const hierarchy: Record<string, Record<string, string[]>> = {};
     const regionList: string[] = [];
-
-    // Filter out entries with missing location data to prevent errors
     const validLocations = locations.filter((loc) => loc.region && loc.zone && loc.woreda);
 
     validLocations.forEach((loc) => {
