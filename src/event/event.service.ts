@@ -1968,7 +1968,7 @@ export class EventService {
     const result = await this.eventDAL.findAll({
       where: {
         participants: {
-          id: participantId,
+          external_participant_id: participantId,
         },
       },
       relations: ['participants', 'event_dates'],
