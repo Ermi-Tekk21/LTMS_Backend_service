@@ -23,6 +23,6 @@ import { ClusterModule } from 'src/external/cluster.module';
     ParticipantDAL,
     ParticipantSessionMapDal,
   ],
-  exports: [ParticipantService], // optional if other modules need it
+  exports: [ParticipantService], 
 })
 export class ParticipantModule { }
