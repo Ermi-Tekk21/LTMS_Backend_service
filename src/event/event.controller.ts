@@ -182,7 +182,6 @@ async getEventsByParticipant(
     return this.eventService.assignParticipantsToEvent(eventId, participants, undefined, token);
   }
   @Permission('manage', 'participant')
-  @Permission('manage', 'participant')
   @Delete(':id/participants/:participantId')
   async removeParticipant(
     @Param('id') eventId: string,

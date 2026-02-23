@@ -824,6 +824,7 @@ export class EventService {
       const participant = await participantRepo.findOne({
         where: { id: participantId },
       });
+
       if (!participant) throw new NotFoundException('Participant not found');
 
       // 3. Remove relation
@@ -998,9 +999,8 @@ export class EventService {
               const agents = Array.isArray(agentsRes.data.data) ? agentsRes.data.data : [agentsRes.data.data];
               externalData.push(
                 ...agents.map(a => ({
-                  id: a.id,
-                  external_participant_id: String(a.id),
-
+                  id: a.user_code,
+                  external_participant_id: String(a.user_code),
                   first_name: (a.first_name),
                   father_name: (a.middle_name),
                   Grandfather_name: (a.last_name || ''),
