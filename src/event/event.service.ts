@@ -999,8 +999,8 @@ export class EventService {
               const agents = Array.isArray(agentsRes.data.data) ? agentsRes.data.data : [agentsRes.data.data];
               externalData.push(
                 ...agents.map(a => ({
-                  id: a.user_code,
-                  external_participant_id: String(a.user_code),
+                  id: a.user?.user_code,
+                  external_participant_id: a.user?.user_code,
                   first_name: (a.first_name),
                   father_name: (a.middle_name),
                   Grandfather_name: (a.last_name || ''),
