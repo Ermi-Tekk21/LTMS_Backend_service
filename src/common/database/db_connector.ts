@@ -37,6 +37,6 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
     Woreda,
     Region,
   ],
-  synchronize: true,
+   synchronize: process.env.DB_SYNC !== 'false',
   subscribers: [LowercaseSubscriber],
 };
