@@ -14,7 +14,6 @@ import { Permission } from 'src/common/decorators/permission.decorator';
 import { UpdateEventSessionDto } from './event_session/dto/update-event_session.dto';
 import { UpdateDateParticipantMapDto, UpdateSessionParticipantMapDto } from './event_session/dto/update-manual-att.dto';
 @Controller('event')
-
 export class EventController {
   constructor(private readonly eventService: EventService) { }
   @Permission('create', 'event')
@@ -79,8 +78,6 @@ async getEventsByParticipant(
 ): Promise<{ id: string; name: string; event_type: string }[]> {
   return this.eventService.getEventsByParticipant(participantId);
 }
-
-  
 
   @Permission('read', 'event')
   @Get(':id')
