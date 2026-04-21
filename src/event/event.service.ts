@@ -989,7 +989,7 @@ export class EventService {
         if (!filters?.participant_type || filters.participant_type === participant_type.LERSHA_AGENT) {
           try {
             // A. Agents
-            const agentBaseUrl = process.env.AGENT_API_URL || 'http://165.50.253.205:3344/api/v1/dynamic-form/project/all_agents';
+            const agentBaseUrl = process.env.AGENT_API_URL || 'http://13.50.253.205:3344/api/v1/dynamic-form/project/all_agents';
             let agentUrl = `${agentBaseUrl}?search=${search || ''}`;
             if (filters?.region) agentUrl += `&region=${filters.region}`;
             if (filters?.zone) agentUrl += `&zone=${filters.zone}`;
