@@ -128,7 +128,6 @@ export class ParticipantService {
       'first_name',
       'father_name',
       'gender',
-      'age',
       'phone',
       'region',
       'zone',

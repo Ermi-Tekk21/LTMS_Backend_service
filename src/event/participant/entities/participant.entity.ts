@@ -28,7 +28,7 @@ export class Participant {
     @Column({ type: 'text', nullable: true })
     Grandfather_name: string;
 
-    @Column({ type: 'text' })
+    @Column({ type: 'text',nullable: true  })
     age: string;
 
     @Column({

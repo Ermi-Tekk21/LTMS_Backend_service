@@ -14,7 +14,6 @@ export class IamJwtStrategy extends PassportStrategy(Strategy, 'iam-jwt') {
       audience: configService.get<string>('IAM_AUDIENCE'),
     });
   }
-
   async validate(payload: any) {
     return {
       userId: payload.sub,

@@ -26,6 +26,7 @@ import axios from 'axios';
 import { capitalizeFirstLetter } from 'node_modules/graphql-request/build/lib/prelude';
 import { UpdateDateParticipantStatusDto, UpdateSessionParticipantStatusDto } from './event_session/dto/update-manual-att.dto';
 import { ClusterService } from 'src/external/cluster.service';
+
 // import { ParticipantService } from './participant/participant.service';
 
 @Injectable()
@@ -988,7 +989,7 @@ export class EventService {
         if (!filters?.participant_type || filters.participant_type === participant_type.LERSHA_AGENT) {
           try {
             // A. Agents
-            const agentBaseUrl = process.env.AGENT_SERVICE_URL || 'http://13.50.253.205:3344/api/v1/dynamic-form/project/all_agents';
+            const agentBaseUrl = process.env.AGENT_API_URL || 'http://13.50.253.205:3344/api/v1/dynamic-form/project/all_agents';
             let agentUrl = `${agentBaseUrl}?search=${search || ''}`;
             if (filters?.region) agentUrl += `&region=${filters.region}`;
             if (filters?.zone) agentUrl += `&zone=${filters.zone}`;
@@ -1036,7 +1037,7 @@ export class EventService {
               zone: filters?.zone,
               woreda: filters?.kebele
             };
-            const farmerUrl = process.env.FARMER_SERVICE_URL || `http://13.50.253.205:3344/api/v1/farmer/find_all`;
+            const farmerUrl = process.env.FARMER_API_URL || `http://13.50.253.205:3344/api/v1/farmer/find_all`;
             const farmersRes = await axios.post(farmerUrl, payload, { headers });
             if (farmersRes.data?.data?.data) {
               const farmers = Array.isArray(farmersRes.data.data.data) ? farmersRes.data.data.data : [];
