@@ -22,7 +22,7 @@ export class CreateParticipantDto {
   phone: string;
 
   @IsString()
-  age: string;
+  age?: string;
 
   @IsString()
   disability: string;
