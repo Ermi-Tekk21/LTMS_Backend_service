@@ -325,7 +325,6 @@ export class ParticipantService {
       const missingFields: string[] = [];
       if (!first_name) missingFields.push('first_name');
       if (!father_name) missingFields.push('father_name');
-      if (!age) missingFields.push('age');
       if (!gender) missingFields.push('gender');
       if (!phone) missingFields.push('phone');
       if (!region) missingFields.push('region');
@@ -429,7 +428,7 @@ export class ParticipantService {
 
         const saved = await participantRepo.save({
           ...p,
-          age: String(p.age),
+          age: p.age ? String(p.age) : null,
           location_code: location.location_code,
           location_id: location.id,
           clusterId: foundCluster ? String(foundCluster.id) : null,
