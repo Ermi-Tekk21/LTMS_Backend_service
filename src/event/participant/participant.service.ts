@@ -154,9 +154,9 @@ export class ParticipantService {
     const validLocations = locations.filter((loc) => loc.region && loc.zone && loc.woreda);
 
     validLocations.forEach((loc) => {
-      const region = loc.region;
-      const zone = loc.zone;
-      const woreda = loc.woreda;
+      const region = this.formatDisplay(loc.region);
+      const zone = this.formatDisplay(loc.zone);
+      const woreda = this.formatDisplay(loc.woreda);
 
       if (!hierarchy[region]) {
         hierarchy[region] = {};
@@ -200,22 +200,22 @@ export class ParticipantService {
     });
 
     // 3. Woredas Named Ranges (Per Zone)
-    // Using Prefix 'Z_' to avoid collisions
-    const processedZones = new Set<string>();
+    // Using Prefix 'Z_' + SanitizedRegion to avoid collisions between identical zone names in different regions
     regionList.forEach((region) => {
       const zoneNames = Object.keys(hierarchy[region]).sort();
+      const sanitizedRegion = this.sanitize(region);
       zoneNames.forEach((zone) => {
         const sanitizedZone = this.sanitize(zone);
-        if (processedZones.has(sanitizedZone)) return;
+        // Combine region and zone to ensure uniqueness across regions
+        const uniqueZoneKey = sanitizedRegion + '_' + sanitizedZone;
 
         const woredaNames = hierarchy[region][zone].sort();
         const col = this.getColumnLetter(colIndex);
         metaSheet.getColumn(colIndex).values = [zone, ...woredaNames];
         workbook.definedNames.add(
           `'${metaSheetName}'!$${col}$2:$${col}$${woredaNames.length + 1}`,
-          'Z_' + sanitizedZone,
+          'Z_' + uniqueZoneKey,
         );
-        processedZones.add(sanitizedZone);
         colIndex++;
       });
     });
@@ -242,14 +242,14 @@ export class ParticipantService {
       sheet.getCell(`H${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
-        formulae: [`=INDIRECT("R_" & SUBSTITUTE(SUBSTITUTE(G${row}," ","_"),"-","_"))`],
+        formulae: [`=INDIRECT("R_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(G${row}," ","_"),"-","_"),"/","_"),"'","_"))`],
       };
       // Woreda (I) - Dependent on Zone (H)
-      // Using Prefix "Z_" to match the named range
+      // Using Prefix "Z_" + Region + "_" + Zone to match the named range
       sheet.getCell(`I${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
-        formulae: [`=INDIRECT("Z_" & SUBSTITUTE(SUBSTITUTE(H${row}," ","_"),"-","_"))`],
+        formulae: [`=INDIRECT("Z_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(G${row}," ","_"),"-","_"),"/","_"),"'","_") & "_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(H${row}," ","_"),"-","_"),"/","_"),"'","_"))`],
       };
       // Participant Type (K)
       sheet.getCell(`K${row}`).dataValidation = {
@@ -571,6 +571,13 @@ export class ParticipantService {
   }
 
   private sanitize(text: string): string {
-    return text.replace(/ /g, '_').replace(/-/g, '_');
+    return text.replace(/[ \-\/']/g, '_');
+  }
+
+  private formatDisplay(value: string): string {
+    return value
+      ?.trim()
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 }
