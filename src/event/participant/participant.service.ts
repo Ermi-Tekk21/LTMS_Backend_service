@@ -341,6 +341,7 @@ export class ParticipantService {
       }
 
       participants.push({
+        rowNumber,
         first_name,
         father_name,
         Grandfather_name,
@@ -372,6 +373,14 @@ export class ParticipantService {
       const finalParticipantIds: string[] = [];
       const clusters = await this.clusterService.getClusters(token);
 
+      // Fetch locations once and build a lookup map to prevent rate limit (429) issues
+      const locations = await this.locationService.fetchEnglishLocations(token);
+      const locationMap = new Map<string, any>();
+      for (const loc of locations) {
+        const key = `${loc.region?.trim().toLowerCase()}_${loc.zone?.trim().toLowerCase()}_${loc.woreda?.trim().toLowerCase()}`;
+        locationMap.set(key, { location_code: loc.location_code, id: loc.id });
+      }
+
       for (const p of participants) {
         const existing = await participantRepo.findOne({ where: { phone: p.phone } });
 
@@ -402,16 +411,12 @@ export class ParticipantService {
           continue;
         }
 
-        const location = await this.locationService.getLocationCode(
-          p.region,
-          p.zone,
-          p.woreda,
-          token,
-        );
+        const locKey = `${p.region?.trim().toLowerCase()}_${p.zone?.trim().toLowerCase()}_${p.woreda?.trim().toLowerCase()}`;
+        const location = locationMap.get(locKey);
 
         if (!location) {
           invalidRows.push({
-            row: participants.indexOf(p) + 2,
+            row: p.rowNumber,
             message: `Invalid location data (Region: ${p.region}, Zone: ${p.zone}, Woreda: ${p.woreda}). Please correct and try again.`,
           });
           continue;
@@ -420,7 +425,7 @@ export class ParticipantService {
         const foundCluster = clusters.find((c) => c.name === p.cluster_name);
         if (p.cluster_name && !foundCluster) {
           invalidRows.push({
-            row: participants.indexOf(p) + 2,
+            row: p.rowNumber,
             message: `Invalid cluster: ${p.cluster_name}. Please select from dropdown.`,
           });
           continue;
