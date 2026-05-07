@@ -326,7 +326,6 @@ export class ParticipantService {
         });
         return;
       }
-
       participants.push({
         rowNumber,
         first_name,
@@ -400,7 +399,7 @@ export class ParticipantService {
         // Resolution for Newlocation_id
         const normalize = (v: string) => v?.trim().toLowerCase();
         let newLocationId: string | null = null;
-        
+
         const region = (newRegions || []).find((r) => normalize(r.name) === normalize(p.region));
         if (region) {
           const zone = (newZones || []).find(
