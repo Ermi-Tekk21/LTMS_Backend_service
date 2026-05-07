@@ -19,6 +19,10 @@ export class CreateEventDto {
   location_id?: string;
 
   @IsOptional()
+  @IsUUID()
+  Newlocation_id?: string;
+
+  @IsOptional()
   @IsString()
   region?: string;
 

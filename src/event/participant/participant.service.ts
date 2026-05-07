@@ -61,24 +61,12 @@ export class ParticipantService {
 
         participant = existing;
       } else {
-        const location = await this.locationService.getLocationCode(
-          dto.region,
-          dto.zone,
-          dto.woreda,
-          token,
-        );
-        if (!location) {
-          throw new BadRequestException(
-            'Invalid location information. Please check the Region, Zone, and Woreda fields.',
-          );
-        }
-
-        // 4. Create participant with location_code
+        // 4. Create participant with new location IDs
         participant = participantRepo.create({
           ...dto,
           created_by,
-          location_code: location.location_code,
-          location_id: location.id,
+          location_code: null,
+          location_id: null,
         });
         participant = await participantRepo.save(participant);
       }
@@ -114,12 +102,12 @@ export class ParticipantService {
       { header: 'Gender', key: 'gender', width: 15 },
       { header: 'Age', key: 'age', width: 10 },
       { header: 'Phone', key: 'phone', width: 15 },
+      { header: 'Cluster', key: 'cluster', width: 20 },
       { header: 'Region', key: 'region', width: 20 },
       { header: 'Zone', key: 'zone', width: 20 },
       { header: 'Woreda', key: 'woreda', width: 20 },
       { header: 'Kebele', key: 'kebele', width: 20 },
       { header: 'Participant Type', key: 'participant_type', width: 20 },
-      { header: 'Cluster', key: 'cluster', width: 20 },
     ];
 
     sheet.getRow(1).font = { bold: true };
@@ -148,26 +136,27 @@ export class ParticipantService {
       }
     });
 
-    const locations = await this.locationService.fetchEnglishLocations(token);
+    const locationTree = await this.locationService.getNewLocationTree(token);
     const hierarchy: Record<string, Record<string, string[]>> = {};
     const regionList: string[] = [];
-    const validLocations = locations.filter((loc) => loc.region && loc.zone && loc.woreda);
 
-    validLocations.forEach((loc) => {
-      const region = this.formatDisplay(loc.region);
-      const zone = this.formatDisplay(loc.zone);
-      const woreda = this.formatDisplay(loc.woreda);
-
-      if (!hierarchy[region]) {
-        hierarchy[region] = {};
-        regionList.push(region);
+    Object.values(locationTree).forEach((region) => {
+      const regionName = region.name;
+      if (!hierarchy[regionName]) {
+        hierarchy[regionName] = {};
+        regionList.push(regionName);
       }
-      if (!hierarchy[region][zone]) {
-        hierarchy[region][zone] = [];
-      }
-      if (!hierarchy[region][zone].includes(woreda)) {
-        hierarchy[region][zone].push(woreda);
-      }
+      Object.values(region.zones).forEach((zone) => {
+        const zoneName = zone.name;
+        if (!hierarchy[regionName][zoneName]) {
+          hierarchy[regionName][zoneName] = [];
+        }
+        zone.woredas.forEach((woreda) => {
+          if (!hierarchy[regionName][zoneName].includes(woreda.name)) {
+            hierarchy[regionName][zoneName].push(woreda.name);
+          }
+        });
+      });
     });
     regionList.sort();
 
@@ -175,8 +164,8 @@ export class ParticipantService {
     const metaSheet = workbook.addWorksheet(metaSheetName, { state: 'hidden' });
 
     // 0. Clusters Named Range
-    const clusters = await this.clusterService.getClusters(token);
-    const clusterNames = clusters.map((c) => c.name).sort();
+    const clusters = await this.locationService.fetchClusters(token);
+    const clusterNames = (clusters || []).map((c) => c.name).filter(Boolean).sort();
     metaSheet.getColumn(1).values = ['Clusters', ...clusterNames];
     workbook.definedNames.add(`'${metaSheetName}'!$A$2:$A$${clusterNames.length + 1}`, 'ClusterList');
 
@@ -231,28 +220,32 @@ export class ParticipantService {
         allowBlank: true,
         formulae: [`"${genderValues.join(',')}"`],
       };
-      // Region (G)
+      // Cluster (G)
       sheet.getCell(`G${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['=ClusterList'],
+      };
+      // Region (H)
+      sheet.getCell(`H${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
         formulae: ['=RegionList'],
       };
-      // Zone (H) - Dependent on Region (G)
-      // Using Prefix "R_" to match the named range
-      sheet.getCell(`H${row}`).dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: [`=INDIRECT("R_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(G${row}," ","_"),"-","_"),"/","_"),"'","_"))`],
-      };
-      // Woreda (I) - Dependent on Zone (H)
-      // Using Prefix "Z_" + Region + "_" + Zone to match the named range
+      // Zone (I) - Dependent on Region (H)
       sheet.getCell(`I${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
-        formulae: [`=INDIRECT("Z_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(G${row}," ","_"),"-","_"),"/","_"),"'","_") & "_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(H${row}," ","_"),"-","_"),"/","_"),"'","_"))`],
+        formulae: [`=INDIRECT("R_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(H${row}," ","_"),"-","_"),"/","_"),"'","_"))`],
       };
-      // Participant Type (K)
-      sheet.getCell(`K${row}`).dataValidation = {
+      // Woreda (J) - Dependent on Zone (I)
+      sheet.getCell(`J${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`=INDIRECT("Z_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(H${row}," ","_"),"-","_"),"/","_"),"'","_") & "_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(I${row}," ","_"),"-","_"),"/","_"),"'","_"))`],
+      };
+      // Participant Type (L)
+      sheet.getCell(`L${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
         formulae: [`"${participantValues.join(',')}"`],
@@ -262,12 +255,6 @@ export class ParticipantService {
         type: 'list',
         allowBlank: true,
         formulae: [`"${communityValues.join(',')}"`],
-      };
-      // Cluster (L)
-      sheet.getCell(`L${row}`).dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: ['=ClusterList'],
       };
     }
 
@@ -309,12 +296,12 @@ export class ParticipantService {
         gender,
         age,
         phone,
+        cluster_name,
         region,
         zone,
         woreda,
         kebele,
         participant_type,
-        cluster_name,
         disability,
         occupation,
         organization,
@@ -371,15 +358,14 @@ export class ParticipantService {
     try {
       const participantRepo = queryRunner.manager.getRepository(Participant);
       const finalParticipantIds: string[] = [];
-      const clusters = await this.clusterService.getClusters(token);
+      const clusters = await this.locationService.fetchClusters(token);
 
-      // Fetch locations once and build a lookup map to prevent rate limit (429) issues
-      const locations = await this.locationService.fetchEnglishLocations(token);
-      const locationMap = new Map<string, any>();
-      for (const loc of locations) {
-        const key = `${loc.region?.trim().toLowerCase()}_${loc.zone?.trim().toLowerCase()}_${loc.woreda?.trim().toLowerCase()}`;
-        locationMap.set(key, { location_code: loc.location_code, id: loc.id });
-      }
+      // Fetch new hierarchical locations for Newlocation_id resolution
+      const [newRegions, newZones, newWoredas] = await Promise.all([
+        this.locationService.fetchRegions(token),
+        this.locationService.fetchZones(token),
+        this.locationService.fetchWoredas(token),
+      ]);
 
       for (const p of participants) {
         const existing = await participantRepo.findOne({ where: { phone: p.phone } });
@@ -411,10 +397,26 @@ export class ParticipantService {
           continue;
         }
 
-        const locKey = `${p.region?.trim().toLowerCase()}_${p.zone?.trim().toLowerCase()}_${p.woreda?.trim().toLowerCase()}`;
-        const location = locationMap.get(locKey);
+        // Resolution for Newlocation_id
+        const normalize = (v: string) => v?.trim().toLowerCase();
+        let newLocationId: string | null = null;
+        
+        const region = (newRegions || []).find((r) => normalize(r.name) === normalize(p.region));
+        if (region) {
+          const zone = (newZones || []).find(
+            (z) => normalize(z.name) === normalize(p.zone) && String(z.region_id) === String(region.id)
+          );
+          if (zone) {
+            const woreda = (newWoredas || []).find(
+              (w) => normalize(w.name) === normalize(p.woreda) && String(w.zone_id) === String(zone.id)
+            );
+            if (woreda) {
+              newLocationId = region.id; // As requested: "use region_id b/c we can get zones by region..."
+            }
+          }
+        }
 
-        if (!location) {
+        if (!newLocationId) {
           invalidRows.push({
             row: p.rowNumber,
             message: `Invalid location data (Region: ${p.region}, Zone: ${p.zone}, Woreda: ${p.woreda}). Please correct and try again.`,
@@ -434,8 +436,9 @@ export class ParticipantService {
         const saved = await participantRepo.save({
           ...p,
           age: p.age ? String(p.age) : null,
-          location_code: location.location_code,
-          location_id: location.id,
+          location_code: null,
+          location_id: null,
+          Newlocation_id: newLocationId,
           clusterId: foundCluster ? String(foundCluster.id) : null,
         });
 

@@ -73,6 +73,11 @@ export class Participant {
     @Column({ type: 'text', nullable: true })
     location_code: string | null;
 
+    @Column({ type: 'uuid', nullable: true })
+    Newlocation_id: string | null;
+
+    @Column({ type: 'text', nullable: true })
+    Newlocation_code: string | null;
 
     @Column({ type: 'text', nullable: true })
     clusterId: string | null;

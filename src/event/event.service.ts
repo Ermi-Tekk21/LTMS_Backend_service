@@ -92,6 +92,7 @@ export class EventService {
         participant_type: dto.participant_type,
         description: dto.description,
         clusterId: dto.clusterId,
+        Newlocation_id: dto.Newlocation_id || undefined,
         created_by,
       }, queryRunner);
 
@@ -280,6 +281,9 @@ export class EventService {
         const updateData: any = { ...eventData };
         if (location_id) {
           updateData.location_id = location_id;
+        }
+        if (updateEventDto.Newlocation_id) {
+          updateData.Newlocation_id = updateEventDto.Newlocation_id;
         }
         if (updateData.status !== undefined) {
           updateData.event_status = updateData.status;
@@ -750,6 +754,7 @@ export class EventService {
               external_participant_id: String(p.external_participant_id || p.id),
               id: undefined, // let typeorm generate UUID
               age: String(p.age || '0'),
+              Newlocation_id: p.region_id || p.Newlocation_id || null,
             });
 
             // Save may return either a single entity or an array; normalize to a single Participant.

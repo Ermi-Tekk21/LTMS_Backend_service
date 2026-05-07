@@ -7,6 +7,10 @@ export class LocationService {
     process.env.FARMER_URL ||
     'http://13.50.253.205:3344/api/v1/farmer/getAllInOne';
 
+  private readonly newApiUrl =
+    process.env.NEW_LOCATION_API_URL ||
+    'http://164.160.187.141:3039/api';
+
   // Normalize for logic
   private normalize(value: string): string {
     return value?.trim().toLowerCase();
@@ -139,6 +143,178 @@ export class LocationService {
       zone: found.zone,
       woreda: found.woreda,
       location_code: found.location_code,
+    };
+  }
+
+  async fetchRegions(token: string): Promise<any[]> {
+    try {
+      const response = await axios.get(`${this.newApiUrl}/regions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data?.data || response.data;
+    } catch (error) {
+      console.error('Error fetching regions:', error.message);
+      throw new HttpException('Failed to fetch regions', 500);
+    }
+  }
+
+  async fetchZones(token: string): Promise<any[]> {
+    try {
+      const response = await axios.get(`${this.newApiUrl}/zones`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data?.data || response.data;
+    } catch (error) {
+      console.error('Error fetching zones:', error.message);
+      throw new HttpException('Failed to fetch zones', 500);
+    }
+  }
+
+  async fetchClusters(token: string): Promise<any[]> {
+    try {
+      const response = await axios.get(`${this.newApiUrl}/clusters`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data?.data || response.data;
+    } catch (error) {
+      console.error('Error fetching clusters:', error.message);
+      throw new HttpException('Failed to fetch clusters', 500);
+    }
+  }
+
+  async fetchWoredas(token: string): Promise<any[]> {
+    try {
+      const response = await axios.get(`${this.newApiUrl}/woredas`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data?.data || response.data;
+    } catch (error) {
+      console.error('Error fetching woredas:', error.message);
+      throw new HttpException('Failed to fetch woredas', 500);
+    }
+  }
+
+  async getNewLocationTree(token: string) {
+    const [regions, zones, woredas] = await Promise.all([
+      this.fetchRegions(token),
+      this.fetchZones(token),
+      this.fetchWoredas(token),
+    ]);
+
+    const tree: Record<
+      string,
+      {
+        id: number;
+        name: string;
+        zones: Record<
+          string,
+          {
+            id: number;
+            name: string;
+            woredas: { id: number; name: string; cluster_id: number }[];
+          }
+        >;
+      }
+    > = {};
+
+    (regions || []).forEach((r) => {
+      const rKey = this.normalize(r.name);
+      if (!tree[rKey]) {
+        tree[rKey] = {
+          id: r.id,
+          name: this.formatDisplay(r.name),
+          zones: {},
+        };
+      }
+    });
+
+    (zones || []).forEach((z) => {
+      const parentRegion = (regions || []).find(
+        (r) => String(r.id) === String(z.region_id),
+      );
+      if (parentRegion) {
+        const rKey = this.normalize(parentRegion.name);
+        const zKey = this.normalize(z.name);
+        if (tree[rKey] && !tree[rKey].zones[zKey]) {
+          tree[rKey].zones[zKey] = {
+            id: z.id,
+            name: this.formatDisplay(z.name),
+            woredas: [],
+          };
+        }
+      }
+    });
+
+    (woredas || []).forEach((w) => {
+      const parentZone = (zones || []).find(
+        (z) => String(z.id) === String(w.zone_id),
+      );
+      if (parentZone) {
+        const parentRegion = (regions || []).find(
+          (r) => String(r.id) === String(parentZone.region_id),
+        );
+        if (parentRegion) {
+          const rKey = this.normalize(parentRegion.name);
+          const zKey = this.normalize(parentZone.name);
+          const wDisplay = this.formatDisplay(w.name);
+
+          if (tree[rKey] && tree[rKey].zones[zKey]) {
+            const exists = tree[rKey].zones[zKey].woredas.find(
+              (existing) => existing.name === wDisplay,
+            );
+            if (!exists) {
+              tree[rKey].zones[zKey].woredas.push({
+                id: w.id,
+                name: wDisplay,
+                cluster_id: w.cluster_id,
+              });
+            }
+          }
+        }
+      }
+    });
+
+    return tree;
+  }
+
+  async resolveNewLocation(
+    regionName: string,
+    zoneName: string,
+    woredaName: string,
+    token: string,
+  ) {
+    const [regions, zones, woredas] = await Promise.all([
+      this.fetchRegions(token),
+      this.fetchZones(token),
+      this.fetchWoredas(token),
+    ]);
+
+    const rNorm = this.normalize(regionName);
+    const zNorm = this.normalize(zoneName);
+    const wNorm = this.normalize(woredaName);
+
+    const region = (regions || []).find((r) => this.normalize(r.name) === rNorm);
+    if (!region) return null;
+
+    const zone = (zones || []).find(
+      (z) =>
+        this.normalize(z.name) === zNorm &&
+        String(z.region_id) === String(region.id),
+    );
+    if (!zone) return null;
+
+    const woreda = (woredas || []).find(
+      (w) =>
+        this.normalize(w.name) === wNorm && String(w.zone_id) === String(zone.id),
+    );
+    if (!woreda) return null;
+
+    return {
+      region_id: region.id,
+      zone_id: zone.id,
+      woreda_id: woreda.id,
+      cluster_id: woreda.cluster_id,
+      new_location_id: region.id,
     };
   }
 }

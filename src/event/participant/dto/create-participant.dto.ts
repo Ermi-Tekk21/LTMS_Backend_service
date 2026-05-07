@@ -43,8 +43,9 @@ export class CreateParticipantDto {
   letracy_level: string
 
 
+  @IsOptional()
   @IsString()
-  clusterId: string;
+  clusterId?: string;
 
 
   @IsString()
@@ -55,11 +56,13 @@ export class CreateParticipantDto {
 
   @IsString()
   woreda: string;
+  @IsOptional()
   @IsString()
-  location_code: string
+  location_code?: string;
 
-  // @IsString()
-  // location_id?:string
+  @IsOptional()
+  @IsUUID()
+  Newlocation_id?: string;
 
   @IsString()
   kebele: string;

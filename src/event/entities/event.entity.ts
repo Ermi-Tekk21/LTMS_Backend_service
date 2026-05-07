@@ -37,8 +37,12 @@ export class Event {
         nullable: false,
     })
     participant_type: participant_type[];
+
     @Column({ type: 'text', nullable: true })
     location_id: string;
+    
+     @Column({ type: 'text', nullable: true })
+    Newlocation_id: string;
 
     @Column({ type: 'text', nullable: true, name: 'clusterId' })
     clusterId: string;
