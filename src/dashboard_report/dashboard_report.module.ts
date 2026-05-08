@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DashboardReportService } from './dashboard_report.service';
 import { DashboardReportController } from './dashboard_report.controller';
+import { LocationModule } from '../location/location.module';
 import { Participant } from 'src/event/participant/entities/participant.entity';
 import { Document } from 'src/document/entities/document.entity';
 import { Trainer } from 'src/event/trainer/entities/trainer.entity';
@@ -14,7 +15,7 @@ import { EventDateDal } from 'src/event/event_date/dal/event_date.dal';
 import { EventDate } from 'src/event/event_date/entities/event_date.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Participant, Trainer, Event, Document, SessionParticipantMap, EventDate])],
+    imports: [TypeOrmModule.forFeature([Participant, Trainer, Event, Document, SessionParticipantMap, EventDate]), LocationModule],
     providers: [DashboardReportService, ParticipantDAL, EventDAL, ParticipantSessionMapDal, EventDateDal],
     controllers: [DashboardReportController]
 })

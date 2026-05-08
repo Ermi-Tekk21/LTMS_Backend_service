@@ -57,27 +57,12 @@ export class EventService {
       const bucketName = process.env.AWS_S3_BUCKET_NAME!;
       const folder = 'tor';
 
-      // Resolve location_id from region, zone, and woreda if provided
       let location_id = dto.location_id;
-      if (dto.region && dto.zone && dto.woreda && token) {
-        const locationData = await this.locationService.getLocationCode(
-          dto.region,
-          dto.zone,
-          dto.woreda,
-          token,
-        );
-        if (locationData) {
-          location_id = locationData.id;
-        } else {
-          throw new BadRequestException(
-            `Location not found for region: ${dto.region}, zone: ${dto.zone}, woreda: ${dto.woreda}`
-          );
-        }
-      }
+      const newLocationId = dto.newLocationId;
 
-      if (!location_id) {
+      if (!location_id && !newLocationId) {
         throw new BadRequestException(
-          'Either location_id or (region, zone, and woreda) must be provided'
+          'Location details are missing. Please provide at least a Woreda or legacy Location ID.'
         );
       }
 
@@ -86,13 +71,12 @@ export class EventService {
         type: dto.type,
         name: dto.name,
         location_id: location_id,
+        newLocation_id: newLocationId,
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
         is_day_based: dto.is_day_based,
         participant_type: dto.participant_type,
         description: dto.description,
-        clusterId: dto.clusterId,
-        Newlocation_id: dto.Newlocation_id || undefined,
         created_by,
       }, queryRunner);
 
@@ -257,33 +241,23 @@ export class EventService {
         throw new NotFoundException('event to be updated not found...')
       }
 
-      const { trainers, event_dates, region, zone, woreda, clusterId, location_id: dto_location_id, ...eventData } = updateEventDto;
-
-      let location_id = dto_location_id;
-      if (region && zone && woreda && token) {
-        const locationData = await this.locationService.getLocationCode(
-          region,
-          zone,
-          woreda,
-          token,
-        );
-        if (locationData) {
-          location_id = locationData.id;
-        } else {
-          throw new BadRequestException(
-            `Location not found for region: ${region}, zone: ${zone}, woreda: ${woreda}`
-          );
-        }
-      }
+      const { trainers, event_dates, clusterId, location_id: dto_location_id, ...eventData } = updateEventDto;
+      const location_id = dto_location_id;
 
       // Update scalar properties - map DTO fields to entity properties
-      if (Object.keys(eventData).length > 0 || location_id) {
+      if (Object.keys(eventData).length > 0 || location_id !== undefined) {
         const updateData: any = { ...eventData };
         if (location_id) {
           updateData.location_id = location_id;
         }
-        if (updateEventDto.Newlocation_id) {
-          updateData.Newlocation_id = updateEventDto.Newlocation_id;
+        if (updateEventDto.region_id) {
+          updateData.region_id = updateEventDto.region_id;
+        }
+        if (updateEventDto.zone_id) {
+          updateData.zone_id = updateEventDto.zone_id;
+        }
+        if (updateEventDto.woreda_id) {
+          updateData.woreda_id = updateEventDto.woreda_id;
         }
         if (updateData.status !== undefined) {
           updateData.event_status = updateData.status;
@@ -385,6 +359,10 @@ export class EventService {
     searchFields?: string[];
     status?: event_status,
     locationId?: string,
+    regionId?: string,
+    zoneId?: string,
+    woredaId?: string,
+    newLocationId?: string,
     projectId?: string,
     page?: number;
     limit?: number;
@@ -400,9 +378,10 @@ export class EventService {
       };
 
     }
-    if (query?.status) options.where = { event_status: query.status }
-    if (query?.locationId) options.where = { location_id: query.locationId }
-    if (query?.projectId) options.where = { project_id: query.projectId }
+    if (query?.status) options.where = { ...options.where, event_status: query.status }
+    if (query?.locationId) options.where = { ...options.where, newLocation_id: query.locationId }
+    if (query?.newLocationId) options.where = { ...options.where, newLocation_id: query.newLocationId }
+    if (query?.projectId) options.where = { ...options.where, project_id: query.projectId }
     if (query?.page) options.page = query.page;
     if (query?.limit) options.limit = query.limit;
     options.order = query?.order || { created_at: 'desc' };
@@ -412,29 +391,19 @@ export class EventService {
 
     if (token && result.data.length > 0) {
       try {
-        const locationsMap = await this.locationService.getLocationsMap(token);
-        const clusters = await this.clusterService.getClusters(token);
-        const clustersMap = new Map(clusters.map(c => [String(c.id), c.name]));
+        const woredasWithParents = await this.locationService.fetchWoredasWithParents(token);
+        const woredasLookup = new Map(woredasWithParents.map(w => [String(w.woreda_id), w]));
 
         result.data = result.data.map(event => {
-          if (event.location_id) {
-            const normalizedId = String(event.location_id);
-            if (locationsMap.has(normalizedId)) {
-              const loc = locationsMap.get(normalizedId);
-              event.region = loc.region;
-              event.zone = loc.zone;
-              event.woreda = loc.woreda;
-            } else {
-              console.warn(`Location ID ${event.location_id} not found in locations map for event ${event.id}`);
-            }
-          }
-
-          if (event.clusterId) {
-            const clusterName = clustersMap.get(String(event.clusterId));
-            if (clusterName) {
+          if (event.newLocation_id && woredasLookup.has(String(event.newLocation_id))) {
+            const loc = woredasLookup.get(String(event.newLocation_id));
+            event.region = loc.region_name;
+            event.zone = loc.zone_name;
+            event.woreda = loc.woreda_name;
+            if (loc.cluster_id) {
               event.cluster = {
-                clusterId: event.clusterId,
-                cluster: clusterName,
+                clusterId: loc.cluster_id,
+                cluster: loc.cluster_name,
               };
             }
           }
@@ -903,6 +872,7 @@ export class EventService {
     eventId: string,
     page = 1,
     limit = 10,
+    token?: string,
   ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
     const eventRepo = this.dataSource.getRepository(Event);
 
@@ -918,6 +888,26 @@ export class EventService {
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
+
+    // Dynamic Enrichment
+    if (token && data.length > 0) {
+      try {
+        const woredasWithParents = await this.locationService.fetchWoredasWithParents(token);
+        const lookup = new Map(woredasWithParents.map(w => [String(w.woreda_id), w]));
+
+        data.forEach(p => {
+          if (p.Newlocation_id && lookup.has(String(p.Newlocation_id))) {
+            const loc = lookup.get(String(p.Newlocation_id));
+            (p as any).region = loc.region_name;
+            (p as any).zone = loc.zone_name;
+            (p as any).woreda = loc.woreda_name;
+            (p as any).cluster = loc.cluster_name;
+          }
+        });
+      } catch (error) {
+        console.error('Failed to enrich event participants with location details:', error.message);
+      }
+    }
 
     return {
       data,
@@ -1161,38 +1151,29 @@ export class EventService {
   }
 
   async findOne(id: string, token?: string) {
-    const res = await this.eventDAL.findOne({
+    const res: any = await this.eventDAL.findOne({
       where: { id: id },
       relations: ['trainers', 'documents', 'participants', 'event_dates', 'event_dates.event_sessions', 'event_dates.event_sessions.session_participant_maps', 'event_dates.event_sessions.session_participant_maps.participant']
     })
 
-    if (res && res.location_id && token) {
+    if (res && token) {
       try {
-        const locationDetails = await this.locationService.getLocationById(res.location_id, token);
-        if (locationDetails) {
-          res.region = locationDetails.region;
-          res.zone = locationDetails.zone;
-          res.woreda = locationDetails.woreda;
-        } else {
-          console.warn(`Location details not found for ID ${res.location_id} in event ${id}`);
+        if (res.newLocation_id) {
+          const loc = await this.locationService.getLocationHierarchy(res.newLocation_id, token);
+          if (loc) {
+            res.region = loc.region;
+            res.zone = loc.zone;
+            res.woreda = loc.woreda;
+            if (loc.cluster_id) {
+              res.cluster = {
+                clusterId: loc.cluster_id,
+                cluster: loc.cluster_name,
+              };
+            }
+          }
         }
       } catch (error) {
-        console.error(`Failed to fetch location names for event ${id}:`, error.message);
-      }
-    }
-
-    if (res && res.clusterId && token) {
-      try {
-        const clusters = await this.clusterService.getClusters(token);
-        const clusterData = clusters.find(c => String(c.id) === String(res.clusterId));
-        if (clusterData) {
-          res.cluster = {
-            clusterId: res.clusterId,
-            cluster: clusterData.name,
-          };
-        }
-      } catch (error) {
-        console.error(`Failed to fetch cluster details for event ${id}:`, error.message);
+        console.error(`Failed to fetch location/cluster details for event ${id}:`, error.message);
       }
     }
 

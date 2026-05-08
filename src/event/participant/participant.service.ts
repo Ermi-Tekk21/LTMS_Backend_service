@@ -120,7 +120,6 @@ export class ParticipantService {
       'region',
       'zone',
       'woreda',
-      'kebele',
       'participant_type',
       'cluster',
     ];
@@ -141,6 +140,10 @@ export class ParticipantService {
     const regionList: string[] = [];
 
     Object.values(locationTree).forEach((region) => {
+      const regionStats: Record<string, number> = {};
+      // Region stats are omitted because region field is no longer stored directly.
+      // If needed, enrich participants with location hierarchy elsewhere.
+
       const regionName = region.name;
       if (!hierarchy[regionName]) {
         hierarchy[regionName] = {};
@@ -317,7 +320,6 @@ export class ParticipantService {
       if (!region) missingFields.push('region');
       if (!zone) missingFields.push('zone');
       if (!woreda) missingFields.push('woreda');
-      if (!kebele) missingFields.push('kebele');
       if (!participant_type) missingFields.push('participant_type')
       if (missingFields.length > 0) {
         invalidRows.push({
@@ -397,23 +399,8 @@ export class ParticipantService {
         }
 
         // Resolution for Newlocation_id
-        const normalize = (v: string) => v?.trim().toLowerCase();
-        let newLocationId: string | null = null;
-
-        const region = (newRegions || []).find((r) => normalize(r.name) === normalize(p.region));
-        if (region) {
-          const zone = (newZones || []).find(
-            (z) => normalize(z.name) === normalize(p.zone) && String(z.region_id) === String(region.id)
-          );
-          if (zone) {
-            const woreda = (newWoredas || []).find(
-              (w) => normalize(w.name) === normalize(p.woreda) && String(w.zone_id) === String(zone.id)
-            );
-            if (woreda) {
-              newLocationId = region.id; // As requested: "use region_id b/c we can get zones by region..."
-            }
-          }
-        }
+        const resolved = await this.locationService.resolveNewLocation(p.region, p.zone, p.woreda, token);
+        const newLocationId = resolved?.woreda_id || null;
 
         if (!newLocationId) {
           invalidRows.push({
@@ -439,6 +426,9 @@ export class ParticipantService {
           location_id: null,
           Newlocation_id: newLocationId,
           clusterId: foundCluster ? String(foundCluster.id) : null,
+          region: undefined,
+          zone: undefined,
+          woreda: undefined,
         });
 
         finalParticipantIds.push(saved.id);
@@ -477,6 +467,7 @@ export class ParticipantService {
     limit = 10,
     search?: string,
     clusterId?: number,
+    token?: string,
   ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
     try {
       const options: FindManyOptions<Participant> & {
@@ -488,6 +479,7 @@ export class ParticipantService {
         page,
         limit,
       };
+
 
       // ✅ Filter by clusterId (column-based)
       if (clusterId) {
@@ -501,15 +493,29 @@ export class ParticipantService {
           fields: [
             'first_name',
             'father_name',
-            'region',
-            'woreda',
-            'zone',
             'kebele',
           ],
         };
       }
 
       const result = await this.participantDAL.findAll(options);
+
+      // Dynamic Enrichment
+      if (token && result.data.length > 0) {
+        const woredasWithParents = await this.locationService.fetchWoredasWithParents(token);
+        const lookup = new Map(woredasWithParents.map(w => [String(w.woreda_id), w]));
+
+        result.data = result.data.map(p => {
+          if (p.Newlocation_id && lookup.has(String(p.Newlocation_id))) {
+            const loc = lookup.get(String(p.Newlocation_id));
+            (p as any).region = loc.region_name;
+            (p as any).zone = loc.zone_name;
+            (p as any).woreda = loc.woreda_name;
+            (p as any).cluster = loc.cluster_name;
+          }
+          return p;
+        });
+      }
 
       return {
         data: result.data,
@@ -530,8 +536,22 @@ export class ParticipantService {
     }
   }
 
-  findOne(id: string) {
-    return this.participantDAL.findById(id);
+  async findOne(id: string, token?: string) {
+    const p = await this.participantDAL.findById(id);
+    if (p && token && p.Newlocation_id) {
+      try {
+        const loc = await this.locationService.getLocationHierarchy(p.Newlocation_id, token);
+        if (loc) {
+          (p as any).region = loc.region;
+          (p as any).zone = loc.zone;
+          (p as any).woreda = loc.woreda;
+          (p as any).cluster = loc.cluster_name;
+        }
+      } catch (error) {
+        console.error(`Failed to enrich participant ${id} with location details:`, error.message);
+      }
+    }
+    return p;
   }
   update(id: string, dto: UpdateParticipantDto, updated_by: string) {
     return this.participantDAL.update(id, {

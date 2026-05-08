@@ -7,6 +7,7 @@ import { ParticipantDAL } from 'src/event/participant/dal/participant.dal';
 import { ParticipantSessionMapDal } from 'src/event/participant/dal/participant_session_map.dal';
 import { Participant } from 'src/event/participant/entities/participant.entity';
 import { Between, FindOptionsWhere, MoreThanOrEqual } from 'typeorm';
+import { LocationService } from 'src/location/location.service';
 
 @Injectable()
 export class DashboardReportService {
@@ -14,7 +15,8 @@ export class DashboardReportService {
         private readonly participantDAL: ParticipantDAL,
         private readonly ParticipantSessionMapDal: ParticipantSessionMapDal,
         private readonly eventDal: EventDAL,
-        private readonly eventDateDal: EventDateDal
+        private readonly eventDateDal: EventDateDal,
+        private readonly locationService: LocationService
     ) { }
 
     private getDateRange(period?: 'week' | 'month' | 'year') {
@@ -88,7 +90,7 @@ export class DashboardReportService {
             console.error('isValidParticipant error:', error);
             return false;
         }
-    } async loadParticipantStats(eventId?: UUID, period?: 'week' | 'month' | 'year') {
+    } async loadParticipantStats(eventId?: UUID, period?: 'week' | 'month' | 'year', token?: string) {
         let where: FindOptionsWhere<Participant> = {};
         if (eventId) {
             where = { ...where, event: { id: eventId as any } } as any;
@@ -101,7 +103,7 @@ export class DashboardReportService {
 
         // 1. Get all participants at once
         const allParticipants = await this.participantDAL.findAll({ where, limit: 1000000 });
-        const participants = allParticipants.data;
+        let participants = allParticipants.data;
         const totalParticipants = participants.length;
 
         // 2. Participants with at least 2/3 event participation
@@ -173,9 +175,32 @@ export class DashboardReportService {
 
         // 8. Region counts
         const regionStats: Record<string, number> = {};
-        participants.forEach(p => {
-            if (p.region) regionStats[p.region] = (regionStats[p.region] || 0) + 1;
-        });
+
+        if (token && participants.length > 0) {
+            try {
+                const woredasWithParents = await this.locationService.fetchWoredasWithParents(token);
+                const lookup = new Map(woredasWithParents.map(w => [String(w.woreda_id), w]));
+
+                // Enrich participants with hierarchical names
+                const enrichedParticipants = participants.map(p => {
+                  const woredaId = (p as any).Newlocation_id;
+                  const result: any = { ...p };
+                  if (woredaId && lookup.has(String(woredaId))) {
+                    const loc = lookup.get(String(woredaId));
+                    result.region = loc.region_name;
+                    result.zone = loc.zone_name;
+                    result.woreda = loc.woreda_name;
+                    const regionName = loc.region_name;
+                    regionStats[regionName] = (regionStats[regionName] || 0) + 1;
+                  }
+                  return result;
+                });
+                // replace participants with enriched version for later use
+                participants = enrichedParticipants as any;
+            } catch (error) {
+                console.error('Failed to fetch region names for dashboard stats:', error.message);
+            }
+        }
 
         return {
             success: true,
@@ -188,12 +213,12 @@ export class DashboardReportService {
                 // nonPwd: nonPwdCount,
                 // occupation: occupationStats,
                 region: regionStats,
+                participants: participants, // enriched participants with region, zone, woreda
                 participantsWithAtLeastTwoThirdsEventParticipation: participantWhoParticipateMoreThanTwoThirds.length,
                 maleParticipantsWithAtLeastTwoThirds: maleValid,
                 femaleParticipantsWithAtLeastTwoThirds: femaleValid,
             }
-        };
-    }
+        };    }
 
     async eventStats(period?: 'week' | 'month' | 'year') {
         let where: FindOptionsWhere<any> = {};

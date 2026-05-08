@@ -25,7 +25,7 @@ export class Event {
     @Column({ type: 'uuid' })
     project_id: string;
 
-    @Column({ type: 'text' })
+    @Column({ type: 'uuid', nullable: true })
     type: string;
 
     @Column({ type: 'text' })
@@ -38,14 +38,12 @@ export class Event {
     })
     participant_type: participant_type[];
 
-    @Column({ type: 'text', nullable: true })
+    @Column({ type: 'uuid', nullable: true })
     location_id: string;
-    
-     @Column({ type: 'text', nullable: true })
-    Newlocation_id: string;
 
-    @Column({ type: 'text', nullable: true, name: 'clusterId' })
-    clusterId: string;
+    @Column({ type: 'uuid', nullable: true, name: 'Newlocation_id' })
+    newLocation_id: string;
+
 
     @Expose()
     cluster?: { clusterId: string; cluster: string };

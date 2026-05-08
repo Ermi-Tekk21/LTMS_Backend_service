@@ -44,7 +44,7 @@ export class CreateParticipantDto {
 
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   clusterId?: string;
 
 
@@ -64,8 +64,9 @@ export class CreateParticipantDto {
   @IsUUID()
   Newlocation_id?: string;
 
+  @IsOptional()
   @IsString()
-  kebele: string;
+  kebele?: string;
   @IsString()
   created_by: string
 

@@ -2,6 +2,7 @@ import { Controller, Get, Query, Req, UnauthorizedException } from '@nestjs/comm
 import type { Request } from 'express';
 import { LocationService } from './location.service';
 
+
 @Controller('locations')
 export class LocationController {
   constructor(private readonly locationService: LocationService) {}
@@ -21,9 +22,9 @@ async getLocationTree(
 
   const token = authHeader.replace(/^Bearer\s+/i, '');
 
-  return this.locationService.getLocationTree(token, {
-    region,
-    zone,
-  });
+    return this.locationService.getNewLocationTree(token, {
+      region,
+      zone,
+    });
 }
 }

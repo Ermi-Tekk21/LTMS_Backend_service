@@ -43,7 +43,11 @@ export class EventController {
     @Query('searchTerm') searchTerm?: string,
     @Query('searchFields') searchFields?: string,
     @Query('status') status?: event_status,
-    @Query('locationId') locationId?: UUID,
+    @Query('locationId') locationId?: string,
+    @Query('regionId') regionId?: string,
+    @Query('zoneId') zoneId?: string,
+    @Query('woredaId') woredaId?: string,
+    @Query('newLocationId') newLocationId?: string,
     @Query('projectId') projectId?: UUID,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
@@ -66,6 +70,10 @@ export class EventController {
       searchFields: parsedFields,
       status: status,
       locationId: locationId,
+      regionId: regionId,
+      zoneId: zoneId,
+      woredaId: woredaId,
+      newLocationId: newLocationId,
       projectId: projectId,
       page: Number(page) || 1,
       limit: Number(limit) || 10,
@@ -200,14 +208,20 @@ async getEventsByParticipant(
   @Get(':id/participants')
   async getEventParticipants(
     @Param('id') eventId: string,
+    @Req() req: any,
     @Query('page') page = 1,
     @Query('limit') limit = 10,
   ) {
+    const authHeader = req.headers['authorization'] as string | undefined;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
+
     // Convert page and limit to numbers
     const pageNumber = Number(page) || 1;
     const limitNumber = Number(limit) || 10;
 
-    return this.eventService.getEventParticipants(eventId, pageNumber, limitNumber);
+    return this.eventService.getEventParticipants(eventId, pageNumber, limitNumber, token);
   }
 
   @Permission('manage', 'participant')

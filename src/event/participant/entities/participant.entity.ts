@@ -74,23 +74,12 @@ export class Participant {
     location_code: string | null;
 
     @Column({ type: 'uuid', nullable: true })
-    Newlocation_id: string | null;
+    Newlocation_id: string | null;// this will store the woreda id 
 
-    @Column({ type: 'text', nullable: true })
-    Newlocation_code: string | null;
-
-    @Column({ type: 'text', nullable: true })
+    @Column({ type: 'uuid', nullable: true })
     clusterId: string | null;
-    @Column({ type: 'text' })
-    region: string;
 
-    @Column({ type: 'text' })
-    zone: string;
-
-    @Column({ type: 'text' })
-    woreda: string;
-
-    @Column({ type: 'text' })
+    @Column({ type: 'text', nullable: true })
     kebele: string;
 
 

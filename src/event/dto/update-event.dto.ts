@@ -39,27 +39,23 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
   trainers: string[];
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   location_id?: string;
 
   @IsOptional()
   @IsUUID()
-  Newlocation_id?: string;
+  region_id?: string;
 
   @IsOptional()
-  @IsString()
-  region?: string;
+  @IsUUID()
+  zone_id?: string;
 
   @IsOptional()
-  @IsString()
-  zone?: string;
+  @IsUUID()
+  woreda_id?: string;
 
   @IsOptional()
-  @IsString()
-  woreda?: string;
-
-  @IsOptional()
-  @IsString()
+  @IsUUID()
   clusterId?: string;
 
   @IsOptional()

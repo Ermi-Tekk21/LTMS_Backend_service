@@ -30,16 +30,23 @@ export class ParticipantController {
 @Permission('read', 'participant')
 @Get()
 async getAllParticipants(
+  @Req() req: Request,
   @Query('page') page = '1',
   @Query('limit') limit = '10',
   @Query('search') search?: string,
-  @Query('clusterId') clusterId?: string,   
+  @Query('clusterId') clusterId?: string,
 ) {
+  const authHeader = req.headers['authorization'] as string | undefined;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.split(' ')[1]
+    : authHeader;
+
   return this.participantService.findAll(
     Number(page),
     Number(limit),
     search,
-    clusterId ? Number(clusterId) : undefined, 
+    clusterId ? Number(clusterId) : undefined,
+    token
   );
 }
 
@@ -134,8 +141,13 @@ async getAllParticipants(
 
   @Permission('read', 'participant')
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.participantService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: Request) {
+    const authHeader = req.headers['authorization'] as string | undefined;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
+
+    return this.participantService.findOne(id, token);
   }
 
   @Permission('update', 'participant')

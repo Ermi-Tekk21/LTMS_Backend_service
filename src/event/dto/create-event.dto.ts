@@ -15,29 +15,11 @@ export class CreateEventDto {
   expected_participant_number: number;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   location_id?: string;
 
-  @IsOptional()
   @IsUUID()
-  Newlocation_id?: string;
-
-  @IsOptional()
-  @IsString()
-  region?: string;
-
-  @IsOptional()
-  @IsString()
-  zone?: string;
-
-  @IsOptional()
-  @IsString()
-  woreda?: string;
-
-  @IsOptional()
-  @IsString()
-  clusterId?: string;
-
+  newLocationId: string;
 
   @IsString()
   venue: string;
