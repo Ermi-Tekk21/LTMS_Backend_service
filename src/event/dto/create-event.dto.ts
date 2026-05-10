@@ -5,7 +5,7 @@ export class CreateEventDto {
   @IsString()
   name: string;
 
-  @IsUUID()
+  @IsString()
   type: string;
 
   @IsUUID()

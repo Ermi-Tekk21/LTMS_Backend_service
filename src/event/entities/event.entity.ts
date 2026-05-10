@@ -25,7 +25,7 @@ export class Event {
     @Column({ type: 'uuid' })
     project_id: string;
 
-    @Column({ type: 'uuid', nullable: true })
+    @Column({ type: 'text', nullable: true })
     type: string;
 
     @Column({ type: 'text' })

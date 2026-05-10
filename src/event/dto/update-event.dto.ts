@@ -9,7 +9,7 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
   name?: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsString()
   type?: string;
 
   @IsOptional()
