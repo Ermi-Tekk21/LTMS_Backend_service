@@ -235,6 +235,7 @@ async getEventsByParticipant(
     @Query('participant_type') participant_type?: participant_type,
     @Query('region') region?: string,
     @Query('zone') zone?: string,
+    @Query('woreda') woreda?: string,
     @Query('kebele') kebele?: string,
   ) {
     const authHeader = req.headers['authorization'] as string | undefined;
@@ -252,6 +253,7 @@ async getEventsByParticipant(
         participant_type,
         region,
         zone,
+        woreda,
         kebele,
       }
     );

@@ -241,30 +241,21 @@ export class EventService {
         throw new NotFoundException('event to be updated not found...')
       }
 
-      const { trainers, event_dates, clusterId, location_id: dto_location_id, ...eventData } = updateEventDto;
+      const { trainers, event_dates, location_id: dto_location_id, newLocationId, ...eventData } = updateEventDto;
       const location_id = dto_location_id;
 
       // Update scalar properties - map DTO fields to entity properties
-      if (Object.keys(eventData).length > 0 || location_id !== undefined) {
+      if (Object.keys(eventData).length > 0 || location_id !== undefined || newLocationId !== undefined) {
         const updateData: any = { ...eventData };
         if (location_id) {
           updateData.location_id = location_id;
         }
-        if (updateEventDto.region_id) {
-          updateData.region_id = updateEventDto.region_id;
-        }
-        if (updateEventDto.zone_id) {
-          updateData.zone_id = updateEventDto.zone_id;
-        }
-        if (updateEventDto.woreda_id) {
-          updateData.woreda_id = updateEventDto.woreda_id;
+        if (newLocationId) {
+          updateData.newLocation_id = newLocationId;
         }
         if (updateData.status !== undefined) {
           updateData.event_status = updateData.status;
           delete updateData.status;
-        }
-        if (clusterId) {
-          updateData.clusterId = clusterId;
         }
 
         await this.eventDAL.update(id, { ...updateData, updated_by }, queryRunner);
@@ -927,6 +918,7 @@ export class EventService {
       participant_type?: participant_type;
       region?: string;
       zone?: string;
+      woreda?: string;
       kebele?: string;
     },
   ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
@@ -943,7 +935,26 @@ export class EventService {
         if (p.phone) assignedPhones.add(p.phone);
       });
 
-      // 2. Fetch Local Participants (excluding assigned)
+      // 2. Resolve location name filters to woreda UUIDs via LocationService
+      let matchingWoredaIds: Set<string> | null = null;
+      const hasLocationNameFilters = filters?.region || filters?.zone || filters?.woreda;
+
+      if (hasLocationNameFilters && token) {
+        try {
+          const woredasWithParents = await this.locationService.fetchWoredasWithParents(token);
+          const filtered = (woredasWithParents || []).filter(w => {
+            if (filters.region && !w.region_name?.toLowerCase().includes(filters.region.toLowerCase())) return false;
+            if (filters.zone && !w.zone_name?.toLowerCase().includes(filters.zone.toLowerCase())) return false;
+            if (filters.woreda && !w.woreda_name?.toLowerCase().includes(filters.woreda.toLowerCase())) return false;
+            return true;
+          });
+          matchingWoredaIds = new Set(filtered.map(w => String(w.woreda_id)));
+        } catch (e) {
+          console.error('Failed to resolve location filters:', e.message);
+        }
+      }
+
+      // 3. Fetch Local Participants (excluding assigned)
       const queryBuilder = participantRepo.createQueryBuilder('p').withDeleted();
       if (search && search.trim() !== '') {
         queryBuilder.andWhere(
@@ -955,26 +966,52 @@ export class EventService {
       if (filters?.participant_type) {
         queryBuilder.andWhere('p.participant_type = :pType', { pType: filters.participant_type });
       }
-      if (filters?.region) {
-        queryBuilder.andWhere('p.region ILIKE :region', { region: `%${filters.region}%` });
+
+      // Filter by resolved woreda UUIDs (covers region/zone/woreda name filters)
+      if (matchingWoredaIds !== null) {
+        if (matchingWoredaIds.size > 0) {
+          queryBuilder.andWhere('p.Newlocation_id IN (:...woredaIds)', { woredaIds: [...matchingWoredaIds] });
+        } else {
+          // No matching woredas found for the given location filters — no local results
+          queryBuilder.andWhere('1 = 0');
+        }
       }
-      if (filters?.zone) {
-        queryBuilder.andWhere('p.zone ILIKE :zone', { zone: `%${filters.zone}%` });
-      }
+
       if (filters?.kebele) {
         queryBuilder.andWhere('p.kebele ILIKE :kebele', { kebele: `%${filters.kebele}%` });
       }
 
       // We sub-filter assigned by phone/id to be safe
       const allLocalHits = await queryBuilder.getMany();
+
+      // Enrich local participants with location names for the response
+      let locationLookup: Map<string, any> | null = null;
+      if (token && allLocalHits.some(p => p.Newlocation_id)) {
+        try {
+          const woredasWithParents = await this.locationService.fetchWoredasWithParents(token);
+          locationLookup = new Map(woredasWithParents.map(w => [String(w.woreda_id), w]));
+        } catch (e) {
+          console.error('Failed to enrich local participants with location:', e.message);
+        }
+      }
+
       let localData = allLocalHits
         .filter(p => !assignedPhones.has(p.phone))
-        .map(p => ({ ...p, source: 'local' }));
+        .map(p => {
+          const enriched: any = { ...p, source: 'local' };
+          if (locationLookup && p.Newlocation_id && locationLookup.has(String(p.Newlocation_id))) {
+            const loc = locationLookup.get(String(p.Newlocation_id));
+            enriched.region = loc.region_name;
+            enriched.zone = loc.zone_name;
+            enriched.woreda = loc.woreda_name;
+          }
+          return enriched;
+        });
 
       // Fetch External Sources
       let externalData: any[] = [];
       const hasSearch = search && search.trim() !== '';
-      const hasLocationFilters = filters && (filters.region || filters.zone || filters.kebele);
+      const hasLocationFilters = filters && (filters.region || filters.zone || filters.woreda || filters.kebele);
       const shouldFetchExternal = token && (hasSearch || hasLocationFilters || filters?.participant_type);
 
       if (shouldFetchExternal) {
@@ -988,6 +1025,7 @@ export class EventService {
             let agentUrl = `${agentBaseUrl}?search=${search || ''}`;
             if (filters?.region) agentUrl += `&region=${filters.region}`;
             if (filters?.zone) agentUrl += `&zone=${filters.zone}`;
+            if (filters?.woreda) agentUrl += `&woreda=${filters.woreda}`;
             if (filters?.kebele) agentUrl += `&kebele=${filters.kebele}`;
 
             const agentsRes = await axios.get(agentUrl, { headers });
@@ -1030,7 +1068,7 @@ export class EventService {
               search: search || "",
               region: filters?.region,
               zone: filters?.zone,
-              woreda: filters?.kebele
+              woreda: filters?.woreda || filters?.kebele
             };
             const farmerUrl = process.env.FARMER_API_URL || `http://13.50.253.205:3344/api/v1/farmer/find_all`;
             const farmersRes = await axios.post(farmerUrl, payload, { headers });
@@ -1086,6 +1124,7 @@ export class EventService {
         // Apply filters
         if (filters?.region && !p.region?.toLowerCase().includes(filters.region.toLowerCase())) return false;
         if (filters?.zone && !p.zone?.toLowerCase().includes(filters.zone.toLowerCase())) return false;
+        if (filters?.woreda && !p.woreda?.toLowerCase().includes(filters.woreda.toLowerCase())) return false;
         if (filters?.kebele && !p.kebele?.toLowerCase().includes(filters.kebele.toLowerCase())) return false;
 
         // Apply Search match check
