@@ -44,6 +44,9 @@ export class Event {
     @Column({ type: 'uuid', nullable: true, name: 'Newlocation_id' })
     newLocation_id: string;
 
+    @Column({ type: 'uuid', nullable: true })
+    clusterId: string;
+
 
     @Expose()
     cluster?: { clusterId: string; cluster: string };

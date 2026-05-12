@@ -44,4 +44,24 @@ export class CreateEventDto {
   @IsOptional()
   @IsBoolean()
   is_day_based: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  clusterId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  regionId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  zoneId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  woredaId?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
 }

@@ -72,6 +72,7 @@ export class EventService {
         name: dto.name,
         location_id: location_id,
         newLocation_id: newLocationId,
+        clusterId: dto.clusterId,
         venue: dto.venue,
         expected_participant_number: dto.expected_participant_number,
         is_day_based: dto.is_day_based,
@@ -241,24 +242,34 @@ export class EventService {
         throw new NotFoundException('event to be updated not found...')
       }
 
-      const { trainers, event_dates, location_id: dto_location_id, newLocationId, ...eventData } = updateEventDto;
-      const location_id = dto_location_id;
+      const { trainers, event_dates } = updateEventDto;
 
-      // Update scalar properties - map DTO fields to entity properties
-      if (Object.keys(eventData).length > 0 || location_id !== undefined || newLocationId !== undefined) {
-        const updateData: any = { ...eventData };
-        if (location_id) {
-          updateData.location_id = location_id;
-        }
-        if (newLocationId) {
-          updateData.newLocation_id = newLocationId;
-        }
-        if (updateData.status !== undefined) {
-          updateData.event_status = updateData.status;
-          delete updateData.status;
-        }
+      // Explicitly map DTO fields to database entity properties (Whitelisting)
+      const updateData: any = {
+        name: updateEventDto.name,
+        type: updateEventDto.type,
+        project_id: updateEventDto.project_id,
+        expected_participant_number: updateEventDto.expected_participant_number,
+        venue: updateEventDto.venue,
+        description: updateEventDto.description,
+        is_day_based: updateEventDto.is_day_based,
+        participant_type: updateEventDto.participant_type,
+        event_status: updateEventDto.status || updateEventDto.event_status,
+        location_id: updateEventDto.location_id,
+        newLocation_id: updateEventDto.newLocationId,
+        clusterId: updateEventDto.clusterId,
+        updated_by,
+      };
 
-        await this.eventDAL.update(id, { ...updateData, updated_by }, queryRunner);
+      // Remove undefined fields to prevent overwriting with null
+      Object.keys(updateData).forEach((key) => {
+        if (updateData[key] === undefined) {
+          delete updateData[key];
+        }
+      });
+
+      if (Object.keys(updateData).length > 1) { // > 1 because updated_by is always there
+        await this.eventDAL.update(id, updateData, queryRunner);
       }
 
       // Update event_dates relation
