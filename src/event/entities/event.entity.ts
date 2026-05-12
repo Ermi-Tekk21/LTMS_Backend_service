@@ -49,7 +49,7 @@ export class Event {
 
 
     @Expose()
-    cluster?: { clusterId: string; cluster: string };
+    cluster?: string;
 
     @Expose()
     region?: string;

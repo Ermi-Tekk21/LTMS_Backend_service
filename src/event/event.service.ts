@@ -402,17 +402,25 @@ export class EventService {
             event.region = loc.region_name;
             event.zone = loc.zone_name;
             event.woreda = loc.woreda_name;
-            if (loc.cluster_id) {
-              event.cluster = {
-                clusterId: loc.cluster_id,
-                cluster: loc.cluster_name,
-              };
-            }
           }
           return event;
         });
+
+        // Fetch cluster details for events with clusterId
+        const clusterIds = new Set(result.data.filter(e => e.clusterId).map(e => e.clusterId));
+        if (clusterIds.size > 0) {
+          const allClusters = await this.clusterService.getClusters(token);
+          const clusterMap = new Map(allClusters.map(c => [c.id, c.name]));
+
+          result.data = result.data.map(event => {
+            if (event.clusterId && clusterMap.has(event.clusterId)) {
+              event.cluster = clusterMap.get(event.clusterId);
+            }
+            return event;
+          });
+        }
       } catch (error) {
-        console.error('Failed to fetch location names for findAll:', error.message);
+        console.error('Failed to fetch location/cluster details for findAll:', error.message);
       }
     }
 
@@ -1214,12 +1222,13 @@ export class EventService {
             res.region = loc.region;
             res.zone = loc.zone;
             res.woreda = loc.woreda;
-            if (loc.cluster_id) {
-              res.cluster = {
-                clusterId: loc.cluster_id,
-                cluster: loc.cluster_name,
-              };
-            }
+          }
+        }
+        // Fetch cluster details based on stored clusterId
+        if (res.clusterId) {
+          const clusterDetails = await this.clusterService.getClusterById(res.clusterId, token);
+          if (clusterDetails) {
+            res.cluster = clusterDetails.name;
           }
         }
       } catch (error) {

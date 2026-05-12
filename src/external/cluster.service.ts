@@ -29,4 +29,15 @@ export class ClusterService {
             throw new HttpException('Failed to fetch clusters', 500);
         }
     }
+
+    async getClusterById(clusterId: string, token: string): Promise<{ id: string; name: string } | null> {
+        try {
+            const clusters = await this.getClusters(token);
+            const cluster = clusters.find(c => c.id === clusterId);
+            return cluster || null;
+        } catch (error) {
+            console.error(`Error fetching cluster ${clusterId}:`, error.message);
+            return null;
+        }
+    }
 }
