@@ -1,4 +1,5 @@
 import { IsString, IsUUID, IsEnum, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { community_type, gender, participant_type } from 'src/common/constants/enums';
 
 export class CreateParticipantDto {
@@ -33,8 +34,10 @@ export class CreateParticipantDto {
   @IsString()
   organization?: string;
 
+  @IsOptional()
   @IsEnum(community_type)
-  community_type: community_type;
+  @Transform(({ value }) => value === '' ? null : value)
+  community_type?: community_type;
 
   @IsEnum(participant_type)
   participant_type: participant_type;
