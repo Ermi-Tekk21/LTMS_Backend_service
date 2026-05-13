@@ -45,7 +45,7 @@ async getAllParticipants(
     Number(page),
     Number(limit),
     search,
-    clusterId ? Number(clusterId) : undefined,
+    clusterId,
     token
   );
 }
