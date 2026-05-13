@@ -466,7 +466,7 @@ export class ParticipantService {
     page = 1,
     limit = 10,
     search?: string,
-    clusterId?: number,
+    clusterId?: string,
     token?: string,
   ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
     try {
