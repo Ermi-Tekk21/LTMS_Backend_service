@@ -1067,6 +1067,7 @@ export class EventService {
                   region: a.location?.region || null,
                   zone: a.location?.zone || null,
                   woreda: a.location?.woreda || null,
+                  Newlocation_id: a.location?.woreda_id || null,
                   kebele: a.kebele || null,
 
                   source: 'Agent',
@@ -1105,6 +1106,7 @@ export class EventService {
                 region: f.location?.region || f.region,
                 zone: f.location?.zone || f.zone,
                 woreda: f.location?.woreda || f.woreda,
+                Newlocation_id: f.location?.woreda_id || null,
                 kebele: f.address?.kebele || f.kebele,
                 source: 'farmer',
                 participant_type: participant_type.FARMER
