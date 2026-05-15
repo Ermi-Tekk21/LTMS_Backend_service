@@ -977,7 +977,7 @@ export class EventService {
       const queryBuilder = participantRepo.createQueryBuilder('p').withDeleted();
       if (search && search.trim() !== '') {
         queryBuilder.andWhere(
-          '(p.first_name ILIKE :search OR p.father_name ILIKE :search OR p.phone ILIKE :search)',
+          "(p.first_name ILIKE :search OR p.father_name ILIKE :search OR p.phone ILIKE :search OR concat_ws(' ', p.first_name, p.father_name) ILIKE :search)",
           { search: `%${search}%` }
         );
       }

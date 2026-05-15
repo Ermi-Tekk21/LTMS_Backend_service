@@ -39,7 +39,11 @@ export class TrainerService {
   ): Promise<{ data: Trainer[]; total: number; page: number; limit: number }> {
     try {
       const options: FindManyOptions<Trainer> & {
-        search?: { term: string; fields: (keyof Trainer)[] };
+        search?: { 
+          term: string; 
+          fields: (keyof Trainer)[];
+          concatenatedFields?: { fields: (keyof Trainer)[]; separator?: string }[];
+        };
         page?: number;
         limit?: number;
       } = {

@@ -58,7 +58,11 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
 
   async findAll(
     options?: FindManyOptions<T> & {
-      search?: { term: string; fields: (keyof T)[] };
+      search?: { 
+        term: string; 
+        fields: (keyof T)[];
+        concatenatedFields?: { fields: (keyof T)[]; separator?: string }[];
+      };
       page?: number;
       limit?: number;
     },
@@ -122,16 +126,31 @@ export abstract class BaseDAL<T extends ObjectLiteral> {
       }
 
       // 🔍 Search logic
-      if (options?.search?.term && options.search.fields.length) {
-        const { term, fields } = options.search;
+      if (options?.search?.term && (options.search.fields?.length || options.search.concatenatedFields?.length)) {
+        const { term, fields, concatenatedFields } = options.search;
         qb.andWhere(
           new Brackets((qbWhere) => {
-            fields.forEach((field, i) => {
-              const param = `term${i}`;
-              qbWhere.orWhere(`LOWER(${alias}.${String(field)}) LIKE LOWER(:${param})`, {
-                [param]: `%${term}%`,
+            // Single field search
+            if (fields) {
+              fields.forEach((field, i) => {
+                const param = `term${i}`;
+                qbWhere.orWhere(`LOWER(${alias}.${String(field)}) LIKE LOWER(:${param})`, {
+                  [param]: `%${term}%`,
+                });
               });
-            });
+            }
+
+            // Concatenated field search (e.g. Full Name)
+            if (concatenatedFields) {
+              concatenatedFields.forEach((config, i) => {
+                const param = `concatTerm${i}`;
+                const separator = config.separator || ' ';
+                const columns = config.fields.map(f => `${alias}.${String(f)}`).join(', ');
+                qbWhere.orWhere(`LOWER(concat_ws('${separator}', ${columns})) LIKE LOWER(:${param})`, {
+                  [param]: `%${term}%`,
+                });
+              });
+            }
           }),
         );
       }

@@ -471,7 +471,11 @@ export class ParticipantService {
   ): Promise<{ data: Participant[]; total: number; page: number; limit: number }> {
     try {
       const options: FindManyOptions<Participant> & {
-        search?: { term: string; fields: (keyof Participant)[] };
+        search?: { 
+          term: string; 
+          fields: (keyof Participant)[];
+          concatenatedFields?: { fields: (keyof Participant)[]; separator?: string }[];
+        };
         page?: number;
         limit?: number;
       } = {
@@ -495,6 +499,9 @@ export class ParticipantService {
             'father_name',
             'kebele',
           ],
+          concatenatedFields: [
+            { fields: ['first_name', 'father_name'], separator: ' ' }
+          ]
         };
       }
 
