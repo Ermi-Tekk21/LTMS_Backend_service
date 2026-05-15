@@ -1067,7 +1067,7 @@ export class EventService {
                   region: a.location?.region || null,
                   zone: a.location?.zone || null,
                   woreda: a.location?.woreda || null,
-                  Newlocation_id: a.location?.woreda_id || null,
+                  Newlocation_id: a.new_location_id || a.location?.new_location_id || null,
                   kebele: a.kebele || null,
 
                   source: 'Agent',
