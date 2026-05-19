@@ -176,7 +176,38 @@ export class ParticipantService {
     metaSheet.getColumn(2).values = ['Regions', ...regionList];
     workbook.definedNames.add(`'${metaSheetName}'!$B$2:$B$${regionList.length + 1}`, 'RegionList');
 
+    // Regions per Cluster Named Ranges
+    const woredasWithParents = await this.locationService.fetchWoredasWithParents(token);
+    const clusterRegions: Record<string, Set<string>> = {};
+    clusterNames.forEach((cName) => {
+      clusterRegions[cName] = new Set<string>();
+    });
+    (woredasWithParents || []).forEach((w) => {
+      if (w.cluster_name && w.region_name) {
+        const clusterName = w.cluster_name;
+        const regionName = this.formatDisplay(w.region_name);
+        if (regionList.includes(regionName)) {
+          const matchedCluster = clusterNames.find(c => c.toLowerCase() === clusterName.toLowerCase());
+          if (matchedCluster) {
+            clusterRegions[matchedCluster].add(regionName);
+          }
+        }
+      }
+    });
+
     let colIndex = 3; // Start from Column C
+
+    clusterNames.forEach((cluster) => {
+      const assocRegions = Array.from(clusterRegions[cluster] || []).sort();
+      const values = assocRegions.length > 0 ? assocRegions : [''];
+      const col = this.getColumnLetter(colIndex);
+      metaSheet.getColumn(colIndex).values = [cluster, ...values];
+      workbook.definedNames.add(
+        `'${metaSheetName}'!$${col}$2:$${col}$${values.length + 1}`,
+        'C_' + this.sanitize(cluster),
+      );
+      colIndex++;
+    });
 
     // 2. Zones Named Ranges (Per Region)
     // Using Prefix 'R_' to avoid collisions between Region names and Zone names
@@ -229,11 +260,11 @@ export class ParticipantService {
         allowBlank: true,
         formulae: ['=ClusterList'],
       };
-      // Region (H)
+      // Region (H) - Dependent on Cluster (G)
       sheet.getCell(`H${row}`).dataValidation = {
         type: 'list',
         allowBlank: true,
-        formulae: ['=RegionList'],
+        formulae: [`=INDIRECT("C_" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(G${row}," ","_"),"-","_"),"/","_"),"'","_"))`],
       };
       // Zone (I) - Dependent on Region (H)
       sheet.getCell(`I${row}`).dataValidation = {
