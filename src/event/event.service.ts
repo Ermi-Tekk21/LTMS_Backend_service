@@ -1148,14 +1148,24 @@ export class EventService {
         if (filters?.woreda && !p.woreda?.toLowerCase().includes(filters.woreda.toLowerCase())) return false;
         if (filters?.kebele && !p.kebele?.toLowerCase().includes(filters.kebele.toLowerCase())) return false;
 
-        // Apply Search match check
-        const matchesSearch =
-          (p.first_name && p.first_name.toLowerCase().includes(searchLower)) ||
-          (p.father_name && p.father_name.toLowerCase().includes(searchLower)) ||
-          (p.Grandfather_name && p.Grandfather_name.toLowerCase().includes(searchLower)) ||
-          (p.phone && p.phone.toLowerCase().includes(searchLower));
+        // Apply Search match check - optimized with single fullName construction
+        if (searchLower) {
+          const fullName = [
+            p.first_name,
+            p.father_name,
+            p.Grandfather_name
+          ]
+            .filter(Boolean)
+            .map(str => str.toLowerCase())
+            .join(' ');
 
-        return matchesSearch;
+          const phoneSearchMatch = p.phone && p.phone.toLowerCase().includes(searchLower);
+          const matchesSearch = fullName.includes(searchLower) || phoneSearchMatch;
+
+          if (!matchesSearch) return false;
+        }
+
+        return true;
       });
 
       const mergedData = [...localData, ...externalData];
